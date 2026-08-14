@@ -140,8 +140,23 @@ export interface DecisionNode {
   timestamp: string;
 }
 
+export interface Validation {
+  skipped?: boolean;
+  method?: string;
+  label: string;
+  metric?: string;
+  folds?: number[];
+  mean?: number;
+  std?: number;
+  higher_is_better?: boolean;
+  verdict?: "stable" | "variable";
+  note: string;
+  elapsed_s?: number;
+}
+
 export interface RunResult {
   metrics: Record<string, number | null>;
+  validation?: Validation;
   artifacts: {
     confusion_matrix?: { labels: string[]; matrix: number[][] };
     feature_importance?: { feature: string; label?: string; importance: number }[];

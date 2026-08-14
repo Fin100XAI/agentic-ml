@@ -95,13 +95,15 @@ class LogisticRegressionModel(ModelPlugin):
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
+    def build_estimator(self, hyperparams):
+        return LogisticRegression(C=hyperparams["C"], max_iter=hyperparams["max_iter"], random_state=RANDOM_SEED)
+
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         target = _require_target(target, df)
         data = df.dropna(subset=[target])
         y, class_names = encode_target(data[target])
         X = select_feature_frame(data, target=target, features=features)
-        model = LogisticRegression(C=hyperparams["C"], max_iter=hyperparams["max_iter"], random_state=RANDOM_SEED)
-        return _evaluate_classifier(model, X, y, class_names, hyperparams["test_size"])
+        return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])
 
 
 @register
@@ -120,19 +122,21 @@ class RandomForestModel(ModelPlugin):
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
-    def run(self, df, hyperparams, target=None, features=None, time_column=None):
-        target = _require_target(target, df)
-        data = df.dropna(subset=[target])
-        y, class_names = encode_target(data[target])
-        X = select_feature_frame(data, target=target, features=features)
-        model = RandomForestClassifier(
+    def build_estimator(self, hyperparams):
+        return RandomForestClassifier(
             n_estimators=hyperparams["n_estimators"],
             max_depth=hyperparams["max_depth"] or None,
             min_samples_leaf=hyperparams["min_samples_leaf"],
             random_state=RANDOM_SEED,
             n_jobs=-1,
         )
-        return _evaluate_classifier(model, X, y, class_names, hyperparams["test_size"])
+
+    def run(self, df, hyperparams, target=None, features=None, time_column=None):
+        target = _require_target(target, df)
+        data = df.dropna(subset=[target])
+        y, class_names = encode_target(data[target])
+        X = select_feature_frame(data, target=target, features=features)
+        return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])
 
 
 @register
@@ -152,14 +156,10 @@ class XGBoostModel(ModelPlugin):
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
-    def run(self, df, hyperparams, target=None, features=None, time_column=None):
+    def build_estimator(self, hyperparams):
         from xgboost import XGBClassifier
 
-        target = _require_target(target, df)
-        data = df.dropna(subset=[target])
-        y, class_names = encode_target(data[target])
-        X = select_feature_frame(data, target=target, features=features)
-        model = XGBClassifier(
+        return XGBClassifier(
             n_estimators=hyperparams["n_estimators"],
             max_depth=hyperparams["max_depth"],
             learning_rate=hyperparams["learning_rate"],
@@ -167,4 +167,10 @@ class XGBoostModel(ModelPlugin):
             random_state=RANDOM_SEED,
             eval_metric="logloss",
         )
-        return _evaluate_classifier(model, X, y, class_names, hyperparams["test_size"])
+
+    def run(self, df, hyperparams, target=None, features=None, time_column=None):
+        target = _require_target(target, df)
+        data = df.dropna(subset=[target])
+        y, class_names = encode_target(data[target])
+        X = select_feature_frame(data, target=target, features=features)
+        return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])

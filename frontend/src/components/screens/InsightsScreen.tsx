@@ -26,13 +26,65 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { Driver, Insights, Interpretation, Run, RunResult, Segment } from "../../types";
+import type { Driver, Insights, Interpretation, Run, RunResult, Segment, Validation } from "../../types";
 import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
 import { ClassDistributionChart, ClusterScatter, ForecastChart, ResultCharts } from "../charts";
 import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
+
+function StabilityPanel({ v }: { v: Validation }) {
+  if (v.skipped) {
+    return (
+      <Card>
+        <CardBody className="py-3">
+          <p className="text-xs leading-relaxed text-ink-dim">
+            <span className="font-semibold text-ink">{v.label}:</span> {v.note}
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+  const folds = v.folds ?? [];
+  const max = Math.max(...folds, 0.0001);
+  const info = metricInfo(v.metric ?? "");
+  return (
+    <Card>
+      <CardHeader
+        title={`Stability check - ${v.label}`}
+        right={<Badge tone={v.verdict === "stable" ? "good" : "warn"}>{v.verdict}</Badge>}
+      />
+      <CardBody>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex items-end gap-2">
+            {folds.map((f, i) => (
+              <div key={i} className="flex flex-col items-center gap-1">
+                <div className="flex h-16 w-9 items-end overflow-hidden rounded-md bg-white/40">
+                  <div
+                    className="w-full rounded-t-md bg-accent/70"
+                    style={{ height: `${Math.max(8, (f / max) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] tabular-nums text-ink-dim">{f}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="text-xl font-semibold tabular-nums">
+              {v.mean} <span className="text-xs font-normal text-ink-dim">+/- {v.std}</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-ink-dim">
+              {info.label} across resamples
+              <InfoTip text={`The same model was retrained on different portions of the data (${v.label.toLowerCase()}). Each bar is one retraining's score. ${info.explain}`} />
+            </div>
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-ink-dim">{v.note}</p>
+      </CardBody>
+    </Card>
+  );
+}
 
 const EVIDENCE_TEXT = {
   strong: "The patterns are reliable enough to act on.",
@@ -431,6 +483,7 @@ export function InsightsScreen({
               );
             })}
           </div>
+          {result.validation && <StabilityPanel v={result.validation} />}
           {interpretation && (
             <Card>
               <CardHeader title="Model interpretation" right={<Badge tone={interpretation.generated_by === "claude" ? "accent" : "neutral"}>{interpretation.generated_by}</Badge>} />

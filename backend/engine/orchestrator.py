@@ -318,6 +318,7 @@ class Orchestrator:
                 f"Settings used: {run.config['hyperparams']}",
                 "deterministic", started,
             )
+            self._run_stability_check(run)
             run.stage = "execute"
             run.error = None
         except Exception as exc:
@@ -330,6 +331,27 @@ class Orchestrator:
         self._interpret(run)
         self._build_insights(run)
         return run
+
+    def _run_stability_check(self, run: Run) -> None:
+        """Non-fatal resampling check attached to the result payload."""
+        from .validate import stability_check
+
+        try:
+            started = time.time()
+            val = stability_check(run.df, run.config, run.result["metrics"])
+        except Exception:
+            return
+        if not val:
+            return
+        run.result["validation"] = val
+        self._log(
+            run, "Stability checker", val.get("label", "Stability check"),
+            "Skipped." if val.get("skipped") else
+            f"{val.get('metric')} across resamples: {val.get('folds')} "
+            f"(mean {val.get('mean')}, spread {val.get('std')}) - {val.get('verdict')}.",
+            val.get("note", ""),
+            "deterministic", started,
+        )
 
     _DATE_PART_LABELS = {
         "days_since": "days since latest",
@@ -384,6 +406,14 @@ class Orchestrator:
             for issue in health.get("issues", []):
                 if issue["severity"] in ("warning", "critical"):
                     insights["evidence"]["caveats"].append(f"{issue['title']}: {issue['suggestion']}")
+            # A shaky stability check is a trust issue too.
+            val = (run.result or {}).get("validation") or {}
+            if val.get("verdict") == "variable":
+                insights["evidence"]["caveats"].append(
+                    f"Stability check ({val.get('label', 'resampling')}): scores ranged "
+                    f"{min(val['folds'])} to {max(val['folds'])} across resamples - "
+                    "results depend somewhat on which rows were used."
+                )
             self._log(
                 run, "Insight engine", "Extracted decision-ready findings",
                 f"{len(insights.get('findings', []))} findings; evidence: {insights.get('evidence', {}).get('level')}.",
