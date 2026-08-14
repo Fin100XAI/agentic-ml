@@ -223,7 +223,7 @@ class Orchestrator:
                 run, "Recommendation agent", "Chose the analysis approach",
                 f"Use case: {run.recommendation['use_case']}; "
                 f"ranking: {', '.join(m['key'] for m in run.recommendation['ranked_models'])}; "
-                f"target: {run.recommendation.get('target') or '—'}.",
+                f"target: {run.recommendation.get('target') or '-'}.",
                 run.recommendation.get("reasoning", ""),
                 run.recommendation.get("generated_by", "heuristic"), started,
             )
@@ -553,7 +553,7 @@ class Orchestrator:
             ),
             "next_steps": [
                 "Open the winner and fine-tune its settings for an extra edge.",
-                "If two models score similarly, prefer the simpler one — it is easier to trust and explain.",
+                "If two models score similarly, prefer the simpler one - it is easier to trust and explain.",
             ],
             "generated_by": "heuristic",
         }
@@ -571,7 +571,8 @@ class Orchestrator:
                     "You are the comparison-report agent in an ML workbench used by people "
                     "without ML expertise. Summarize the model comparison in plain language: "
                     "who won, by how much, whether the difference is meaningful, and what to do next. "
-                    "Only cite numbers present in the input."
+                    "Only cite numbers present in the input. Style rule: use plain "
+                    "hyphens (-) only; never use em dashes or en dashes in your output."
                 ),
                 f"Use case: {use_case}. Ranking metric: {metric_key} ({'higher' if higher_better else 'lower'} wins).\n"
                 + json.dumps(slim),

@@ -37,7 +37,7 @@ import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
 const EVIDENCE_TEXT = {
   strong: "The patterns are reliable enough to act on.",
   moderate: "Real patterns, but verify before big commitments.",
-  limited: "Treat as hypotheses — gather more data before acting.",
+  limited: "Treat as hypotheses - gather more data before acting.",
 } as const;
 
 function DriverChart({ driver }: { driver: Driver }) {
@@ -51,7 +51,7 @@ function DriverChart({ driver }: { driver: Driver }) {
         {driver.lift && <Badge tone="accent">{driver.lift}× spread</Badge>}
       </div>
       <p className="mb-3 text-[11px] text-ink-dim">
-        Outcome rate per group — red is the highest-risk group, where action matters most.
+        Outcome rate per group - red is the highest-risk group, where action matters most.
       </p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
@@ -116,7 +116,7 @@ function SegmentCard({ segment }: { segment: Segment }) {
         </ul>
       ) : (
         <p className="mt-3 text-[11px] text-ink-dim">
-          {isOutlier ? "Records that don't match any pattern — review individually." : "Close to the overall average."}
+          {isOutlier ? "Records that don't match any pattern - review individually." : "Close to the overall average."}
         </p>
       )}
     </div>
@@ -141,14 +141,14 @@ function StatTiles({ run, insights, result }: { run: Run; insights: Insights; re
   const tiles: { label: string; value: React.ReactNode; tip?: string }[] = [
     {
       label: "Records analyzed",
-      value: run.profile?.n_rows.toLocaleString() ?? "—",
+      value: run.profile?.n_rows.toLocaleString() ?? "-",
       tip: "Rows in the uploaded dataset.",
     },
   ];
 
   if (insights.use_case === "classification") {
     const m = insights.outcome_summary.match(/([\d.]+)%/);
-    if (m) tiles.push({ label: "Baseline outcome rate", value: `${m[1]}%`, tip: "Share of records with the outcome today — the number your actions would move." });
+    if (m) tiles.push({ label: "Baseline outcome rate", value: `${m[1]}%`, tip: "Share of records with the outcome today - the number your actions would move." });
     const top = insights.drivers?.[0];
     if (top)
       tiles.push({
@@ -181,7 +181,7 @@ function StatTiles({ run, insights, result }: { run: Run; insights: Insights; re
     tiles.push({
       label: `Projected (next ${o.horizon})`,
       value: o.projected_total.toLocaleString(),
-      tip: o.uncertainty_pct !== null ? `Read as ±${o.uncertainty_pct}% — see the trust panel.` : undefined,
+      tip: o.uncertainty_pct !== null ? `Read as ±${o.uncertainty_pct}% - see the trust panel.` : undefined,
     });
   }
 
@@ -410,7 +410,7 @@ export function InsightsScreen({
         <div className="space-y-6">
           <div className="flex items-center gap-2 text-sm text-ink-dim">
             <span className="font-semibold text-ink">{run.config?.model_name}</span>
-            diagnostics — settings: {JSON.stringify(run.config?.hyperparams)}
+            diagnostics - settings: {JSON.stringify(run.config?.hyperparams)}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {metrics.map(([k, v]) => {

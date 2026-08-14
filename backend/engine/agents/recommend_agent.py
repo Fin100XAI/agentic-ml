@@ -22,8 +22,8 @@ _SYSTEM = (
     "keys and column names that actually appear in the input. Explain your "
     "reasoning concretely, referencing the data's characteristics. The profile "
     "includes a 'health' section listing data-quality issues (imbalance, small "
-    "sample, missing data) — factor these into your choice and mention how they "
-    "affect it (e.g. prefer robust models on imbalanced data)."
+    "sample, missing data) - factor these into your choice and mention how they "
+    "affect it (e.g. prefer robust models on imbalanced data). Style rule: use plain hyphens (-) only; never use em dashes or en dashes in your output."
 )
 
 
@@ -124,7 +124,7 @@ def run_recommend_agent(
         prompt = (
             "Dataset profile (JSON):\n" + json.dumps(slim, default=str)
             + "\n\nModel catalog (JSON):\n" + json.dumps(catalog)
-            + "\n\nUser's goal/question: " + (question or "(none provided — infer from the data)")
+            + "\n\nUser's goal/question: " + (question or "(none provided - infer from the data)")
         )
         result = provider.complete_json(_SYSTEM, prompt, _schema([m["key"] for m in catalog], column_names))
 

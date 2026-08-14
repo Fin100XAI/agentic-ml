@@ -28,7 +28,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
     if n_rows < 50:
         issues.append(_issue(
             CRITICAL, "Very few rows",
-            f"Only {n_rows} rows. Models need examples to learn from — results on this little data are unreliable.",
+            f"Only {n_rows} rows. Models need examples to learn from - results on this little data are unreliable.",
             "Treat any result as a rough hint only. If possible, collect more data (a few hundred rows minimum) before acting on findings.",
         ))
     elif n_rows < 200:
@@ -40,7 +40,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
     elif n_rows > 100_000:
         issues.append(_issue(
             INFO, "Large dataset",
-            f"{n_rows:,} rows — great for reliability. Training may take noticeably longer.",
+            f"{n_rows:,} rows - great for reliability. Training may take noticeably longer.",
             "Nothing to fix. If runs feel slow, compare models on defaults first, then tune only the winner.",
         ))
 
@@ -50,7 +50,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
         issues.append(_issue(
             CRITICAL, "Heavy missing data",
             f"{pct_missing}% of all cells are empty. Models fill gaps with typical values, which can badly distort patterns at this level.",
-            "Check whether the export went wrong or whether certain columns are simply unused — consider removing near-empty columns and re-uploading.",
+            "Check whether the export went wrong or whether certain columns are simply unused - consider removing near-empty columns and re-uploading.",
         ))
     elif pct_missing > 5:
         issues.append(_issue(
@@ -64,7 +64,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
             issues.append(_issue(
                 WARNING, f"'{c.get('display_name', c['name'])}' is mostly empty",
                 f"{c['missing_pct']}% of its values are missing.",
-                "Consider excluding this column — a mostly-empty column adds noise, not signal.",
+                "Consider excluding this column - a mostly-empty column adds noise, not signal.",
             ))
 
     # --- Constant / duplicate ----------------------------------------------
@@ -74,7 +74,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
         issues.append(_issue(
             INFO, "Constant column(s)",
             f"{names} {'has' if len(constant) == 1 else 'have'} the same value in every row.",
-            "These carry no information and are ignored automatically — no action needed.",
+            "These carry no information and are ignored automatically - no action needed.",
         ))
 
     n_dupes = int(df.duplicated().sum())
@@ -109,7 +109,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
     if has_datetime and n_rows < 30:
         issues.append(_issue(
             WARNING, "Short time series",
-            f"Only {n_rows} time points — too few to separate trend from noise reliably.",
+            f"Only {n_rows} time points - too few to separate trend from noise reliably.",
             "Forecasts need at least ~30 points (ideally 100+). Use any forecast as a rough direction only.",
         ))
 
@@ -118,7 +118,7 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
         issues.append(_issue(
             INFO, "Many ID-like columns",
             f"{id_like} columns look like identifiers (unique per row) and are excluded from modeling.",
-            "No action needed — just be aware models only learn from the remaining columns.",
+            "No action needed - just be aware models only learn from the remaining columns.",
         ))
 
     # --- Overall score ------------------------------------------------------

@@ -48,7 +48,7 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     title: "You stay in control",
-    text: "Agents propose — nothing runs until you approve. Every decision is logged on a timeline.",
+    text: "Agents propose - nothing runs until you approve. Every decision is logged on a timeline.",
   },
   {
     icon: GitCompare,
@@ -58,7 +58,7 @@ const FEATURES = [
   {
     icon: Sparkles,
     title: "Settings suggested from your data",
-    text: "Group counts, seasonality, tree depths — computed from the dataset you uploaded, with the reasoning shown.",
+    text: "Group counts, seasonality, tree depths - computed from the dataset you uploaded, with the reasoning shown.",
   },
 ];
 
@@ -85,7 +85,7 @@ export function HomeScreen({
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-dim">
           Upload a spreadsheet and get a decision brief: what's driving outcomes, what
-          groups exist, where things are heading — with recommended actions and an honest
+          groups exist, where things are heading - with recommended actions and an honest
           read on how much to trust them. AI agents do the analysis; you approve every step.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>

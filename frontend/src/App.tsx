@@ -27,15 +27,15 @@ const STEPS: { key: Screen; label: string }[] = [
 
 const GUIDE: Record<Screen, string> = {
   home: "",
-  upload: "Step 1 — Pick any CSV file. The agents will figure out what's inside.",
-  eda: "Step 2 — Review what the EDA agent found, tell it what you want to learn, then approve.",
+  upload: "Step 1 - Pick any CSV file. The agents will figure out what's inside.",
+  eda: "Step 2 - Review what the EDA agent found, tell it what you want to learn, then approve.",
   configure:
-    "Step 3 — The agent recommends an analysis method and settings computed from your data. Approve, tweak, or compare every method at once.",
+    "Step 3 - The agent recommends an analysis method and settings computed from your data. Approve, tweak, or compare every method at once.",
   results:
-    "Step 4 — Your decision brief: findings, recommended actions, and how much to trust them. The model details live in the appendix.",
+    "Step 4 - Your decision brief: findings, recommended actions, and how much to trust them. The model details live in the appendix.",
   compare:
-    "Step 4 — Every method ranked on your data. Generate insights with the winner, or tune any of them.",
-  report: "The full report — print it, save it as PDF, or download the markdown.",
+    "Step 4 - Every method ranked on your data. Generate insights with the winner, or tune any of them.",
+  report: "The full report - print it, save it as PDF, or download the markdown.",
 };
 
 // Map a run's backend stage to the screen that shows it.

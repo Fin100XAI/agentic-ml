@@ -12,7 +12,8 @@ _SYSTEM = (
     "chart artifacts. Explain what the results mean in plain language for a "
     "mixed audience, assess whether the model performed well, and suggest "
     "concrete next steps. Never invent numbers; only reference values present "
-    "in the input."
+    "in the input. Style rule: use plain hyphens (-) only; never use em dashes "
+    "or en dashes in your output."
 )
 
 _SCHEMA: dict[str, Any] = {

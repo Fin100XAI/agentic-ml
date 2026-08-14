@@ -1,4 +1,4 @@
-"""In-memory dataset/run store (POC — swap for a DB later)."""
+"""In-memory dataset/run store (POC - swap for a DB later)."""
 from __future__ import annotations
 
 import uuid

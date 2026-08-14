@@ -1,7 +1,7 @@
 """Brief agent: composes a decision-ready executive brief from computed insights.
 
 The insight numbers are computed deterministically in ``engine/insights.py``;
-this agent writes the narrative around them — executive summary, recommended
+this agent writes the narrative around them - executive summary, recommended
 actions, and what to watch out for. Falls back to a template without an API key.
 """
 from __future__ import annotations
@@ -15,8 +15,9 @@ _SYSTEM = (
     "You write executive briefs for policy makers and business decision makers with no ML "
     "background. You are given machine-computed findings from a dataset analysis. Compose a "
     "brief that helps them decide what to do: a crisp executive summary, concrete recommended "
-    "actions grounded in the findings, and honest caveats. Never invent numbers — only use "
-    "figures present in the input. Write plainly; no jargon."
+    "actions grounded in the findings, and honest caveats. Never invent numbers - only use "
+    "figures present in the input. Write plainly; no jargon. Style rule: use plain "
+    "hyphens (-) only; never use em dashes or en dashes in your output."
 )
 
 _SCHEMA: dict[str, Any] = {
@@ -50,7 +51,7 @@ def _heuristic(insights: dict[str, Any], question: str) -> dict[str, Any]:
     summary_bits = [insights.get("outcome_summary", "").rstrip(".")]
     summary_bits += [f["headline"].rstrip(".") for f in findings[1:3]]
     executive_summary = (
-        ". ".join(b for b in summary_bits if b) + f". Evidence strength: {evidence.get('level', 'unknown')} — "
+        ". ".join(b for b in summary_bits if b) + f". Evidence strength: {evidence.get('level', 'unknown')} - "
         + evidence.get("reason", "")
     )
 
@@ -58,7 +59,7 @@ def _heuristic(insights: dict[str, Any], question: str) -> dict[str, Any]:
     if use_case == "classification":
         for d in insights.get("drivers", [])[:2]:
             actions.append(
-                f"Target interventions at the '{d['feature']}' groups with the highest rates — "
+                f"Target interventions at the '{d['feature']}' groups with the highest rates - "
                 f"the data shows up to {d['lift']}× difference across groups." if d.get("lift")
                 else f"Prioritize the '{d['feature']}' groups with the highest outcome rates."
             )
@@ -68,11 +69,11 @@ def _heuristic(insights: dict[str, Any], question: str) -> dict[str, Any]:
         if segs:
             biggest = max(segs, key=lambda s: s["share_pct"])
             actions.append(
-                f"Design differentiated policies per segment — start with {biggest['name']} "
+                f"Design differentiated policies per segment - start with {biggest['name']} "
                 f"({biggest['share_pct']}% of records)."
             )
         if any(s["cluster"] == -1 for s in insights.get("segments", [])):
-            actions.append("Review the outlier records individually — they don't fit any pattern.")
+            actions.append("Review the outlier records individually - they don't fit any pattern.")
         actions.append("Validate the segment profiles with domain experts before acting on them.")
     elif use_case == "forecasting":
         o = insights.get("outlook", {})
@@ -102,7 +103,7 @@ def run_brief_agent(
         return _heuristic(insights, question)
     try:
         prompt = (
-            f"The decision maker's question: {question or '(none given — infer the decision context)'}\n\n"
+            f"The decision maker's question: {question or '(none given - infer the decision context)'}\n\n"
             "Machine-computed findings (JSON):\n" + json.dumps(insights, default=str)
         )
         result = provider.complete_json(_SYSTEM, prompt, _SCHEMA)

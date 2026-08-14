@@ -58,8 +58,8 @@ def build_report(run: Run) -> str:
                 traits = "; ".join(
                     f"{t['feature']} {t['direction']} avg ({t['value']} vs {t['overall']})"
                     for t in s.get("traits", [])
-                ) or "—"
-                add(f"- **{s['name']}** — {s['share_pct']}% ({s['count']:,} records): {traits}")
+                ) or "-"
+                add(f"- **{s['name']}** - {s['share_pct']}% ({s['count']:,} records): {traits}")
             add("")
 
         if brief.get("recommended_actions"):
@@ -71,7 +71,7 @@ def build_report(run: Run) -> str:
 
         add("## How much to trust this")
         add("")
-        add(f"**Evidence strength: {ev.get('level', 'unknown')}** — {ev.get('reason', '')}")
+        add(f"**Evidence strength: {ev.get('level', 'unknown')}** - {ev.get('reason', '')}")
         add("")
         for c in list(ev.get("caveats", [])) + list(brief.get("watch_outs", [])):
             add(f"- {c}")
@@ -118,7 +118,7 @@ def build_report(run: Run) -> str:
         add(head)
         add(sep)
         for i, r in enumerate(comp["results"], 1):
-            vals = " | ".join(str(r["metrics"].get(k, "—")) for k in keys)
+            vals = " | ".join(str(r["metrics"].get(k, "-")) for k in keys)
             status = "❌ " + r["error"] if r["error"] else ("🏆 best" if r["model_key"] == comp["best_model"] else "ok")
             add(f"| {i} | {r['model_name']} | {vals} | {status} |")
         add("")

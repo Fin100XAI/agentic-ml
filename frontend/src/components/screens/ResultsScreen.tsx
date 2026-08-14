@@ -15,9 +15,9 @@ const ASSESSMENT_TONE: Record<Interpretation["assessment"], "good" | "warn" | "b
 
 const ASSESSMENT_TEXT: Record<Interpretation["assessment"], string> = {
   strong: "The model performed well on your data.",
-  moderate: "Decent results — tuning or another model may improve them.",
-  weak: "The signal is weak — the data may not strongly predict this target.",
-  inconclusive: "Not enough evidence to judge — check the metrics below.",
+  moderate: "Decent results - tuning or another model may improve them.",
+  weak: "The signal is weak - the data may not strongly predict this target.",
+  inconclusive: "Not enough evidence to judge - check the metrics below.",
 };
 
 export function ResultsScreen({

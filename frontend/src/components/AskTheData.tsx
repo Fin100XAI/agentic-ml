@@ -1,4 +1,4 @@
-// Interactive Q&A over the analysis — stakeholders ask, Claude answers from the facts.
+// Interactive Q&A over the analysis - stakeholders ask, Claude answers from the facts.
 import { useRef, useState } from "react";
 import { MessageCircleQuestion, Send, User } from "lucide-react";
 import { api } from "../api/client";
@@ -50,7 +50,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
             <MessageCircleQuestion className="h-4 w-4 text-accent" /> Ask the data
           </span>
         }
-        subtitle="Questions are answered from this analysis's computed facts — nothing invented"
+        subtitle="Questions are answered from this analysis's computed facts - nothing invented"
       />
       <CardBody>
         {thread.length === 0 && (

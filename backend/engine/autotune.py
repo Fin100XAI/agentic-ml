@@ -16,7 +16,7 @@ import pandas as pd
 from .catalog import models_for_use_case
 from .catalog.base import ModelPlugin, ParamSpec
 
-# Structural parameters reflect user intent / data shape — not tuned.
+# Structural parameters reflect user intent / data shape - not tuned.
 SKIP_PARAMS = {"test_size", "horizon", "seasonal_period"}
 
 CANDIDATES = {"classification": 8, "clustering": 8, "forecasting": 4}

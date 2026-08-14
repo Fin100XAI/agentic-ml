@@ -265,7 +265,7 @@ export function ConfigureScreen({
                   onChange={(e) => setTarget(e.target.value || null)}
                   className="mt-1 w-full rounded-lg border border-edge bg-panel-2 px-3 py-1.5 text-sm outline-none focus:border-accent"
                 >
-                  <option value="">— choose —</option>
+                  <option value="">- choose -</option>
                   {targetOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -286,7 +286,7 @@ export function ConfigureScreen({
                   onChange={(e) => setTimeColumn(e.target.value || null)}
                   className="mt-1 w-full rounded-lg border border-edge bg-panel-2 px-3 py-1.5 text-sm outline-none focus:border-accent"
                 >
-                  <option value="">— row order —</option>
+                  <option value="">- row order -</option>
                   {timeOptions.map((c) => (
                     <option key={c} value={c}>
                       {c}

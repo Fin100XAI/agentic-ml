@@ -73,7 +73,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
   if (!h) return null;
   const data = h.counts.map((c, i) => ({
     bin: `${h.edges[i] ?? ""}`,
-    label: `${h.edges[i]} – ${h.edges[i + 1]}`,
+    label: `${h.edges[i]} - ${h.edges[i + 1]}`,
     count: c,
   }));
   return (
@@ -149,7 +149,7 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
             const top = data[0];
             const share = total ? Math.round((top.count / total) * 100) : 0;
             return share >= 60
-              ? `'${top.name}' dominates with ${share}% of rows — the rest are much rarer.`
+              ? `'${top.name}' dominates with ${share}% of rows - the rest are much rarer.`
               : `'${top.name}' is the most common (${share}% of rows).`;
           })()}
         </p>
@@ -188,7 +188,7 @@ function MissingnessCard({ profile }: { profile: Profile }) {
         </BarChart>
       </ResponsiveContainer>
       <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
-        Gaps are filled with typical values during modeling — heavy gaps weaken the evidence.
+        Gaps are filled with typical values during modeling - heavy gaps weaken the evidence.
       </p>
     </div>
   );
@@ -349,7 +349,7 @@ export function EdaScreen({
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Main column */}
       <div className="space-y-6 lg:col-span-2">
-        {/* Data health — the human's early-warning panel */}
+        {/* Data health - the human's early-warning panel */}
         {profile.health && <HealthPanel health={profile.health} />}
 
         {/* Agent summary */}
@@ -451,7 +451,7 @@ export function EdaScreen({
                     </td>
                     <td className="max-w-72 break-words px-3 py-2 text-ink-dim">{c.meaning}</td>
                     <td className="px-3 py-2 tabular-nums text-ink-dim">
-                      {c.missing_pct ? `${c.missing_pct}%` : "—"}
+                      {c.missing_pct ? `${c.missing_pct}%` : "-"}
                     </td>
                   </tr>
                 ))}
@@ -478,7 +478,7 @@ export function EdaScreen({
                   <tr key={i} className="border-b border-edge/50 last:border-0">
                     {profile.columns.map((c) => (
                       <td key={c.name} className="whitespace-nowrap px-3 py-1.5 tabular-nums text-ink-dim first:pl-5">
-                        {String(row[c.name] ?? "—")}
+                        {String(row[c.name] ?? "-")}
                       </td>
                     ))}
                   </tr>
@@ -538,8 +538,8 @@ export function EdaScreen({
               })}
               <p className="border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
                 {Math.abs(profile.correlations[0]?.corr ?? 0) > 0.5
-                  ? "The top pair moves strongly together — likely related in the real world."
-                  : "No very strong pairings — columns carry mostly independent information."}
+                  ? "The top pair moves strongly together - likely related in the real world."
+                  : "No very strong pairings - columns carry mostly independent information."}
               </p>
             </CardBody>
           </Card>
@@ -556,7 +556,7 @@ export function EdaScreen({
           />
           <CardBody>
             <p className="text-xs leading-relaxed text-ink-dim">
-              Tell the agents what you want to learn — or pick a suggestion. This steers which
+              Tell the agents what you want to learn - or pick a suggestion. This steers which
               analysis gets recommended next.
             </p>
             <textarea
@@ -585,7 +585,7 @@ export function EdaScreen({
                 <Spinner label="Recommendation agent thinking…" />
               ) : (
                 <Button className="w-full" onClick={() => onApprove(comment)}>
-                  Looks right — recommend an approach
+                  Looks right - recommend an approach
                 </Button>
               )}
             </div>

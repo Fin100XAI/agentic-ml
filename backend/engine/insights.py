@@ -1,8 +1,8 @@
 """Insight extraction: turn a model run into decision-ready findings.
 
 The models are evidence engines; this module converts their output plus the raw
-data into the material a policy maker actually needs — drivers, segments,
-outlooks — each with plain-language statements and the numbers behind them.
+data into the material a policy maker actually needs - drivers, segments,
+outlooks - each with plain-language statements and the numbers behind them.
 """
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ def _driver_groups(df: pd.DataFrame, col: str, target: str, positive: Any) -> li
         except ValueError:
             return []
         grouped = is_event.groupby(bins, observed=True)
-        labels = [f"{iv.left:g}–{iv.right:g}" for iv in grouped.mean().index]
+        labels = [f"{iv.left:g}-{iv.right:g}" for iv in grouped.mean().index]
     else:
         grouped = is_event.groupby(work[col].astype(str))
         labels = [str(i) for i in grouped.mean().index]
@@ -77,7 +77,7 @@ def classification_insights(
     findings: list[dict[str, str]] = [
         {
             "headline": f"{overall}% of records have outcome '{positive}'",
-            "detail": f"Across {n:,} records, {overall}% fall in the '{target_lbl} = {positive}' group — the baseline any intervention would move.",
+            "detail": f"Across {n:,} records, {overall}% fall in the '{target_lbl} = {positive}' group - the baseline any intervention would move.",
         }
     ]
 
@@ -104,7 +104,7 @@ def classification_insights(
                 "detail": (
                     f"Records with {col_lbl.lower()} in '{hi_group['label']}' show a {hi}% rate vs {lo}% for "
                     f"'{lo_group['label']}'"
-                    + (f" — {lift}× higher. " if lift else ". ")
+                    + (f" - {lift}× higher. " if lift else ". ")
                     + "A strong candidate lever for targeted action."
                 ),
             }
@@ -148,7 +148,7 @@ def clustering_insights(df: pd.DataFrame, labels: list[int], names: dict[str, st
                 {
                     "headline": f"{share}% of records don't fit any group",
                     "headline_alt": "",
-                    "detail": f"{len(part):,} records ({share}%) were flagged as outliers — unusual cases worth individual review.",
+                    "detail": f"{len(part):,} records ({share}%) were flagged as outliers - unusual cases worth individual review.",
                 }
             )
             segments.append(
@@ -244,7 +244,7 @@ def forecasting_insights(
             "detail": (
                 f"The model projects a total of {projected_total:,.0f} over the next {h} periods, vs "
                 f"{recent_total:,.0f} over the most recent {h}"
-                + (f" — a change of {'+' if delta_pct >= 0 else ''}{delta_pct}%." if delta_pct is not None else ".")
+                + (f" - a change of {'+' if delta_pct >= 0 else ''}{delta_pct}%." if delta_pct is not None else ".")
             ),
         },
     ]
@@ -253,7 +253,7 @@ def forecasting_insights(
             {
                 "headline": f"Typical forecast error: ±{uncertainty}%",
                 "detail": (
-                    f"On held-back history the model was off by about {uncertainty}% on average — read the "
+                    f"On held-back history the model was off by about {uncertainty}% on average - read the "
                     f"projection as a range of roughly {projected_total * (1 - uncertainty / 100):,.0f} to "
                     f"{projected_total * (1 + uncertainty / 100):,.0f}, not a single number."
                 ),
@@ -293,7 +293,7 @@ def evidence_strength(use_case: str, metrics: dict[str, Any], n_rows: int, pct_m
         elif score >= 0.65:
             level, reason = "moderate", f"The model finds real but imperfect patterns (score {score})."
         else:
-            reason = f"The model separates outcomes only weakly (score {score}) — treat drivers as hypotheses."
+            reason = f"The model separates outcomes only weakly (score {score}) - treat drivers as hypotheses."
     elif use_case == "clustering":
         sil = metrics.get("silhouette") or 0
         if sil >= 0.5:
@@ -301,7 +301,7 @@ def evidence_strength(use_case: str, metrics: dict[str, Any], n_rows: int, pct_m
         elif sil >= 0.25:
             level, reason = "moderate", f"Groups exist but overlap somewhat (silhouette {sil})."
         else:
-            reason = f"Group boundaries are fuzzy (silhouette {sil}) — profiles are indicative only."
+            reason = f"Group boundaries are fuzzy (silhouette {sil}) - profiles are indicative only."
     elif use_case == "forecasting":
         mape = metrics.get("mape_pct")
         if isinstance(mape, (int, float)):
@@ -310,9 +310,9 @@ def evidence_strength(use_case: str, metrics: dict[str, Any], n_rows: int, pct_m
             elif mape <= 25:
                 level, reason = "moderate", f"Backtested forecasts were off by {mape}% on average."
             else:
-                reason = f"Backtested error was high ({mape}%) — use the direction, not the numbers."
+                reason = f"Backtested error was high ({mape}%) - use the direction, not the numbers."
 
-    caveats = ["These patterns are correlations in the data — confirm causation before major policy changes."]
+    caveats = ["These patterns are correlations in the data - confirm causation before major policy changes."]
     if n_rows < 500:
         caveats.append(f"Sample is small ({n_rows:,} records); findings may not generalize.")
     if pct_missing and pct_missing > 5:

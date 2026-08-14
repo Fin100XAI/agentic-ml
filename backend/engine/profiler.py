@@ -52,9 +52,9 @@ def friendly_name(name: str) -> str:
 def _column_meaning(role: str, summary: dict[str, Any]) -> str:
     """A one-line, jargon-free description of what a column holds."""
     if role == IDENTIFIER:
-        return "A unique ID for each row — used to tell records apart, not for analysis."
+        return "A unique ID for each row - used to tell records apart, not for analysis."
     if role == DATETIME:
-        return "Dates or times — lets us look at how things change over time."
+        return "Dates or times - lets us look at how things change over time."
     if role == BOOLEAN:
         vals = ", ".join(str(v) for v in summary.get("sample_values", [])[:2])
         return f"A yes/no style field ({vals})."

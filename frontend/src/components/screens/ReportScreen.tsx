@@ -130,10 +130,10 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
               [
                 "Change",
                 insights.outlook.delta_pct === null
-                  ? "—"
+                  ? "-"
                   : `${insights.outlook.delta_pct >= 0 ? "+" : ""}${insights.outlook.delta_pct}%`,
               ],
-              ["Typical error", insights.outlook.uncertainty_pct === null ? "—" : `±${insights.outlook.uncertainty_pct}%`],
+              ["Typical error", insights.outlook.uncertainty_pct === null ? "-" : `±${insights.outlook.uncertainty_pct}%`],
             ].map(([label, value]) => (
               <div key={String(label)} className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
                 <div className="truncate text-[11px] uppercase tracking-wider text-ink-dim">{label}</div>

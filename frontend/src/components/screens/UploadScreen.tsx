@@ -7,7 +7,7 @@ type Stage = "uploading" | "profiling" | "analyzing" | null;
 const STAGES: { key: Exclude<Stage, null>; icon: typeof Upload; label: string; sub: string }[] = [
   { key: "uploading", icon: Upload, label: "Uploading your file", sub: "Reading the CSV · a few seconds" },
   { key: "profiling", icon: ScanSearch, label: "Profiling the data", sub: "Column types, ranges, missing values, relationships · seconds to ~1 min for large files" },
-  { key: "analyzing", icon: Bot, label: "AI agent analyzing", sub: "Understanding what your data is about, writing findings · usually 10–30 s" },
+  { key: "analyzing", icon: Bot, label: "AI agent analyzing", sub: "Understanding what your data is about, writing findings · usually 10-30 s" },
 ];
 
 function ProgressPanel({ stage }: { stage: Exclude<Stage, null> }) {
@@ -107,7 +107,7 @@ export function UploadScreen({
                     <FileSpreadsheet className="mb-3 h-10 w-10 text-good" />
                     <p className="text-sm font-medium">{file.name}</p>
                     <p className="mt-1 text-xs text-ink-dim">
-                      {(file.size / 1024).toFixed(1)} KB — click to change
+                      {(file.size / 1024).toFixed(1)} KB - click to change
                     </p>
                   </>
                 ) : (
@@ -115,7 +115,7 @@ export function UploadScreen({
                     <Upload className="mb-3 h-10 w-10 text-ink-dim" />
                     <p className="text-sm font-medium">Drop a CSV here, or click to browse</p>
                     <p className="mt-1 text-xs text-ink-dim">
-                      Any industry, any tabular data — the agents will figure it out
+                      Any industry, any tabular data - the agents will figure it out
                     </p>
                   </>
                 )}
@@ -123,7 +123,7 @@ export function UploadScreen({
 
               <label className="mt-6 block">
                 <span className="text-xs font-medium text-ink-dim">
-                  What decision are you trying to make? (optional — you can refine later)
+                  What decision are you trying to make? (optional - you can refine later)
                 </span>
                 <textarea
                   value={question}

@@ -1,8 +1,8 @@
 """Data-aware hyperparameter suggestions.
 
 Computes suggested hyperparameters for every model of a use case *from the
-actual dataset* — e.g. sweeping k by silhouette for clustering, detecting the
-seasonal period for forecasting — each with a plain-language rationale the UI
+actual dataset* - e.g. sweeping k by silhouette for clustering, detecting the
+seasonal period for forecasting - each with a plain-language rationale the UI
 shows next to the pre-filled form.
 """
 from __future__ import annotations
@@ -157,7 +157,7 @@ def _forecasting(df: pd.DataFrame, target: str | None, time_column: str | None) 
     period, seasonal, L, freq_label = _seasonal_period(df, target, time_column)
     horizon = int(np.clip(round(L * 0.15), 5, 30)) if L else 10
     season_txt = (
-        f"Detected {freq_label} with a repeating pattern — seasonality enabled (period {period})."
+        f"Detected {freq_label} with a repeating pattern - seasonality enabled (period {period})."
         if seasonal
         else f"Detected {freq_label}; no strong repeating pattern found, so seasonality is off."
     )

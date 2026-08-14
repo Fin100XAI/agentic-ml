@@ -72,10 +72,10 @@ export function AutotuneModal({
                         {m.n_tried} in {m.elapsed_s}s
                       </td>
                       <td className="px-3 py-2.5 text-xs tabular-nums text-ink-dim">
-                        {m.suggested_score ?? "—"}
+                        {m.suggested_score ?? "-"}
                       </td>
                       <td className="px-3 py-2.5 text-xs font-semibold tabular-nums">
-                        {m.best_score ?? "—"}
+                        {m.best_score ?? "-"}
                       </td>
                       <td className="px-3 py-2.5">
                         {m.improvement_pct !== null && m.improvement_pct > 0 ? (
@@ -85,7 +85,7 @@ export function AutotuneModal({
                         ) : m.improvement_pct !== null ? (
                           <Badge tone="neutral">already optimal</Badge>
                         ) : (
-                          <Badge tone="neutral">—</Badge>
+                          <Badge tone="neutral">-</Badge>
                         )}
                       </td>
                     </tr>
@@ -94,7 +94,7 @@ export function AutotuneModal({
               </table>
             </div>
             <p className="mt-3 text-[11px] leading-snug text-ink-dim">
-              "Already optimal" means the data-suggested settings were not beaten — a good sign the
+              "Already optimal" means the data-suggested settings were not beaten - a good sign the
               suggestions fit your data. Tuned settings are now pre-filled everywhere.
             </p>
             <div className="mt-4 flex justify-end gap-2">

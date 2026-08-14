@@ -44,7 +44,7 @@ export function AgentLogDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {entries.length === 0 ? (
             <p className="text-sm text-ink-dim">
-              Nothing yet — agent decisions will appear here as the analysis progresses.
+              Nothing yet - agent decisions will appear here as the analysis progresses.
             </p>
           ) : (
             <ol className="relative space-y-5 before:absolute before:left-[7px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-edge">

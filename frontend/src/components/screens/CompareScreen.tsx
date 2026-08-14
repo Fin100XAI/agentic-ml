@@ -126,7 +126,7 @@ export function CompareScreen({
                           k === primary ? "font-semibold" : "text-ink-dim"
                         }`}
                       >
-                        {r.metrics[k] ?? "—"}
+                        {r.metrics[k] ?? "-"}
                       </td>
                     ))}
                     <td className="px-3 py-3">

@@ -1,4 +1,4 @@
-# Architecture — Agentic ML Workbench (FIN_ML_POC)
+# Architecture - Agentic ML Workbench (FIN_ML_POC)
 
 An industry-agnostic, LLM-agent-driven workbench. A user uploads a CSV; LLM agents
 profile it, run EDA, recommend an appropriate ML approach, and (with the human
@@ -14,9 +14,9 @@ node in a **wire diagram** of the run.
 ## 1. Principles
 
 - **Human-in-the-loop.** Agents *propose*; nothing advances without explicit human approval.
-- **Provider-swappable.** Claude now, open-source models later — all LLM calls go through one `LLMProvider` interface.
+- **Provider-swappable.** Claude now, open-source models later - all LLM calls go through one `LLMProvider` interface.
 - **Pluggable model catalog.** Each ML model is one self-describing plugin; adding a model is a single file, and the UI hyperparameter form is generated from its schema.
-- **Industry-agnostic.** No domain assumptions — the profiler infers structure from the data itself.
+- **Industry-agnostic.** No domain assumptions - the profiler infers structure from the data itself.
 - **UI-independent core.** The `engine` package (profiler, catalog, agents, orchestrator) has no FastAPI/React imports and could run from a script or notebook.
 
 ---
@@ -47,9 +47,9 @@ The orchestrator records every stage as a **decision node** for the wire diagram
 | # | Stage | Agent | Output | Gate |
 |---|-------|-------|--------|------|
 | 1 | **Profile & EDA** | EDA agent | Inferred schema, stats, missingness, correlations, candidate targets/problem type, plain-language summary | Human reviews; may add a free-text question ("what do you want to understand?") |
-| 2 | **Recommend** | Recommendation agent | Chosen use case (classification/clustering/forecasting), ranked model(s) with rationale, **data-aware suggested hyperparameters** (`engine/suggest.py`: silhouette sweep for k, seasonality detection, size-scaled tree settings — each with a rationale) | Human approves / edits model & hyperparameters |
-| 3a | **Run** | — (execution) | Trained model, metrics, prediction artifacts | Human approves the run |
-| 3b | **Compare** (alternative) | — (execution × N) | Every model of the use case trained with suggested settings, ranked by the use case's primary metric (f1 / silhouette / MAPE), winner + summary | Human triggers; can then tune any model |
+| 2 | **Recommend** | Recommendation agent | Chosen use case (classification/clustering/forecasting), ranked model(s) with rationale, **data-aware suggested hyperparameters** (`engine/suggest.py`: silhouette sweep for k, seasonality detection, size-scaled tree settings - each with a rationale) | Human approves / edits model & hyperparameters |
+| 3a | **Run** | - (execution) | Trained model, metrics, prediction artifacts | Human approves the run |
+| 3b | **Compare** (alternative) | - (execution × N) | Every model of the use case trained with suggested settings, ranked by the use case's primary metric (f1 / silhouette / MAPE), winner + summary | Human triggers; can then tune any model |
 | 4 | **Interpret** | Interpretation agent | Charts + written commentary, findings, next-step suggestions | Presented to human |
 
 A **compact decision timeline** renders every stage as a chip showing the
@@ -59,14 +59,14 @@ decision made and its approval state. A **markdown report** of the full run
 
 ---
 
-## 4. Model catalog (2–3 per use case)
+## 4. Model catalog (2-3 per use case)
 
 The recommendation agent ranks and picks; the human can override.
 
 | Use case | Models | Key metrics |
 |----------|--------|-------------|
 | **Classification** | Logistic Regression · Random Forest · XGBoost | accuracy, precision/recall, F1, ROC-AUC, confusion matrix |
-| **Clustering** | K-Means · DBSCAN · Agglomerative | silhouette, Davies–Bouldin, cluster sizes |
+| **Clustering** | K-Means · DBSCAN · Agglomerative | silhouette, Davies-Bouldin, cluster sizes |
 | **Forecasting** | ARIMA/SARIMA · Prophet · Exponential Smoothing | MAE, RMSE, MAPE, forecast vs. actual |
 
 **Model plugin interface** (each model implements):

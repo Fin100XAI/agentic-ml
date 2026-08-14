@@ -1,4 +1,4 @@
-// Compact horizontal decision timeline — replaces the bulky wire diagram.
+// Compact horizontal decision timeline - replaces the bulky wire diagram.
 // Each decision is a small chip with a status dot; hover shows the detail.
 import {
   BarChart3,
@@ -57,7 +57,7 @@ export function Timeline({ decisions }: { decisions: DecisionNode[] }) {
               {/* hover detail */}
               <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 rounded-lg border border-edge bg-panel-2 px-3 py-2 opacity-0 shadow-xl shadow-slate-900/10 transition-opacity duration-150 group-hover:opacity-100">
                 <div className="mb-0.5 text-[11px] font-semibold">
-                  {d.title} — <span className="font-normal text-ink-dim">{s.label}</span>
+                  {d.title} - <span className="font-normal text-ink-dim">{s.label}</span>
                 </div>
                 {d.detail && <div className="text-[11px] leading-snug text-ink-dim">{d.detail}</div>}
               </div>

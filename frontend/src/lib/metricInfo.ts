@@ -40,7 +40,7 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
   n_train: { label: "Training rows", explain: "Rows used to teach the model.", good: "context" },
   n_test: {
     label: "Test rows",
-    explain: "Rows held back and never shown during training — used to score the model fairly.",
+    explain: "Rows held back and never shown during training - used to score the model fairly.",
     good: "context",
   },
   silhouette: {
@@ -51,7 +51,7 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
   },
   davies_bouldin: {
     label: "Davies-Bouldin",
-    explain: "Another separation score — smaller means tighter, better-separated groups.",
+    explain: "Another separation score - smaller means tighter, better-separated groups.",
     good: "lower",
   },
   inertia: {
@@ -66,7 +66,7 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
   },
   n_noise_points: {
     label: "Noise points",
-    explain: "Rows that didn't fit any group — potential outliers or unusual records worth a look.",
+    explain: "Rows that didn't fit any group - potential outliers or unusual records worth a look.",
     good: "context",
   },
   mae: {

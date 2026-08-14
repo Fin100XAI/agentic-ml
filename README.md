@@ -1,7 +1,7 @@
 # Agentic ML Workbench (FIN_ML_POC)
 
 An industry-agnostic, LLM-agent-driven ML workbench. Upload a CSV and agents profile
-it, run EDA, recommend an ML approach, and — with you approving each step — train a
+it, run EDA, recommend an ML approach, and - with you approving each step - train a
 model and explain the results with charts and written commentary. Every decision is
 human-approved and shown as a node in a wire diagram of the run.
 
@@ -36,6 +36,6 @@ npm run dev                          # http://localhost:5173
 
 ## Use cases (POC)
 
-- **Classification** — Logistic Regression, Random Forest, XGBoost
-- **Clustering** — K-Means, DBSCAN, Agglomerative
-- **Forecasting** — ARIMA/SARIMA, Prophet, Exponential Smoothing
+- **Classification** - Logistic Regression, Random Forest, XGBoost
+- **Clustering** - K-Means, DBSCAN, Agglomerative
+- **Forecasting** - ARIMA/SARIMA, Prophet, Exponential Smoothing
