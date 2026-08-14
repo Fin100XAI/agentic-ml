@@ -70,9 +70,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.listModels().then((r) => setModels(r.models)).catch(() => {});
-    api.health().then((h) => setLlmEnabled(h.llm_enabled)).catch(() => setLlmEnabled(null));
+    const checkHealth = () =>
+      api.health().then((h) => setLlmEnabled(h.llm_enabled)).catch(() => setLlmEnabled(null));
+    const loadModels = () =>
+      api.listModels().then((r) => setModels(r.models)).catch(() => {});
+
+    checkHealth();
+    loadModels();
     refreshRuns();
+
+    // Re-poll so a transient backend restart doesn't leave a stale "offline" badge.
+    const timer = setInterval(() => {
+      checkHealth();
+      // Models list is static per backend; refetch only if the first load failed.
+      setModels((m) => {
+        if (m.length === 0) loadModels();
+        return m;
+      });
+    }, 10_000);
+    return () => clearInterval(timer);
   }, [refreshRuns]);
 
   async function guard<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
