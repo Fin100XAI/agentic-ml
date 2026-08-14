@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Clock3, FlaskConical, GitCompare, Play, Settings2, Sparkles, Undo2 } from "lucide-react";
-import type { ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
+import type { FeatureSuggestion, ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
 import { eta } from "../../lib/eta";
 import { BusyStatus } from "../Elapsed";
 import { InfoTip } from "../InfoTip";
@@ -126,6 +126,7 @@ export function ConfigureScreen({
   recommendation,
   models,
   initialModelKey,
+  featureSuggestions,
   onRun,
   onCompare,
   onAutotune,
@@ -137,11 +138,13 @@ export function ConfigureScreen({
   recommendation: Recommendation;
   models: ModelInfo[];
   initialModelKey?: string;
+  featureSuggestions?: FeatureSuggestion[] | null;
   onRun: (config: {
     model_key: string;
     hyperparams: Record<string, unknown>;
     target: string | null;
     time_column: string | null;
+    feature_ids: string[];
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
   onAutotune: (target: string | null, time_column: string | null, nCandidates?: number) => void;
@@ -175,6 +178,17 @@ export function ConfigureScreen({
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [target, setTarget] = useState<string | null>(recommendation.target);
   const [timeColumn, setTimeColumn] = useState<string | null>(recommendation.time_column);
+  // Engineered features: the agent's recommended ones start ticked.
+  const [featureIds, setFeatureIds] = useState<Set<string>>(
+    () => new Set((featureSuggestions ?? []).filter((f) => f.recommended).map((f) => f.id)),
+  );
+  const toggleFeature = (id: string) =>
+    setFeatureIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Pre-fill with the agent's data-aware suggestion (fallback: schema defaults).
   useEffect(() => {
@@ -256,7 +270,13 @@ export function ConfigureScreen({
             actionLabel="Run"
             disabled={disabled}
             onAction={() =>
-              onRun({ model_key: selected.key, hyperparams: params, target, time_column: timeColumn })
+              onRun({
+                model_key: selected.key,
+                hyperparams: params,
+                target,
+                time_column: timeColumn,
+                feature_ids: [...featureIds],
+              })
             }
           />
           <div className="flex min-w-0 flex-col">
@@ -301,6 +321,62 @@ export function ConfigureScreen({
             onAction={() => onCompare(target, timeColumn)}
           />
         </div>
+      )}
+
+      {/* Agent-proposed engineered features - optional, human ticks them */}
+      {!busy && featureSuggestions && featureSuggestions.length > 0 && (
+        <Card>
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-accent" /> Feature ideas from the agent
+              </span>
+            }
+            subtitle="Optional extra signals computed from your columns. Ticked ones are added when you run the model - the original data is never changed."
+            right={
+              <Badge tone={featureSuggestions[0]?.generated_by === "claude" ? "accent" : "neutral"}>
+                {featureSuggestions[0]?.generated_by ?? "heuristic"}
+              </Badge>
+            }
+          />
+          <CardBody>
+            <div className="grid gap-2.5 md:grid-cols-2">
+              {featureSuggestions.map((f) => {
+                const on = featureIds.has(f.id);
+                return (
+                  <label
+                    key={f.id}
+                    className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-2.5 transition-all ${
+                      on ? "border-accent/50 bg-accent-soft/30" : "border-edge bg-panel-2 hover:border-accent/30"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleFeature(f.id)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-[#4f46e5]"
+                    />
+                    <span className="min-w-0">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-semibold">{f.label}</span>
+                        {f.recommended && <Badge tone="good">recommended</Badge>}
+                        <InfoTip text={`New column: ${f.name} (from ${f.columns.join(", ")})`} />
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-snug text-ink-dim">
+                        {f.rationale}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2.5 text-[10px] text-ink-dim">
+              {featureIds.size === 0
+                ? "None selected - the model will use your columns as-is."
+                : `${featureIds.size} selected - they will appear in the results with plain-language names.`}
+            </p>
+          </CardBody>
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -434,6 +510,7 @@ export function ConfigureScreen({
                         hyperparams: params,
                         target,
                         time_column: timeColumn,
+                        feature_ids: [...featureIds],
                       })
                     }
                   >

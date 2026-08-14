@@ -159,6 +159,7 @@ export default function App() {
     hyperparams: Record<string, unknown>;
     target: string | null;
     time_column: string | null;
+    feature_ids?: string[];
   }) =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
@@ -358,6 +359,7 @@ export default function App() {
             recommendation={run.recommendation}
             models={models}
             initialModelKey={preferredModel}
+            featureSuggestions={run.feature_suggestions}
             onRun={handleRunModel}
             onCompare={handleCompare}
             onAutotune={handleAutotune}

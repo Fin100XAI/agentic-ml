@@ -147,7 +147,8 @@ def approve_config(run_id: str, req: ApproveConfigRequest) -> dict:
         raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'recommend' or later.")
     try:
         _orchestrator().approve_config(
-            run, req.model_key, req.hyperparams, req.target, req.features, req.time_column
+            run, req.model_key, req.hyperparams, req.target, req.features,
+            req.time_column, req.feature_ids,
         )
     except KeyError as exc:
         raise HTTPException(400, str(exc)) from exc

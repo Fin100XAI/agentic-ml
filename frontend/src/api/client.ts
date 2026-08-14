@@ -53,6 +53,7 @@ export const api = {
       target: string | null;
       features: string[] | null;
       time_column: string | null;
+      feature_ids?: string[] | null;
     },
   ) => request<Run>(`/runs/${id}/approve-config`, json(body)),
 

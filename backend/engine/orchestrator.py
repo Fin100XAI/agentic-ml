@@ -19,9 +19,16 @@ import pandas as pd
 
 import time
 
-from engine.agents import run_brief_agent, run_eda_agent, run_interpret_agent, run_recommend_agent
+from engine.agents import (
+    run_brief_agent,
+    run_eda_agent,
+    run_feature_agent,
+    run_interpret_agent,
+    run_recommend_agent,
+)
 from engine.autotune import autotune as run_autotune_sweep
 from engine.catalog import get_model, models_for_use_case
+from engine.features import apply_features, propose_features
 from engine.health import assess_health
 from engine.insights import build_insights, _original_column
 from engine.llm.base import LLMProvider
@@ -84,6 +91,7 @@ class Run:
     insights: dict[str, Any] | None = None
     comparison: dict[str, Any] | None = None
     autotune: dict[str, Any] | None = None
+    feature_suggestions: list[dict[str, Any]] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -123,6 +131,7 @@ class Run:
                 insights=self.insights,
                 comparison=self.comparison,
                 autotune=self.autotune,
+                feature_suggestions=self.feature_suggestions,
             )
         return d
 
@@ -242,6 +251,26 @@ class Orchestrator:
                 " ".join(v["rationale"] for v in list(cfgs.values())[:2]),
                 "deterministic", started,
             )
+            # Agent-proposed feature engineering (non-fatal, human approves later).
+            try:
+                started = time.time()
+                candidates = propose_features(
+                    run.df, run.recommendation.get("target"), run.recommendation["use_case"]
+                )
+                run.feature_suggestions = run_feature_agent(
+                    self.provider, candidates, run.question,
+                    run.recommendation["use_case"], run.labels(),
+                )
+                if run.feature_suggestions:
+                    self._log(
+                        run, "Feature agent", "Proposed engineered features",
+                        "; ".join(f["label"] for f in run.feature_suggestions),
+                        "Each is optional - tick the ones to include when approving the model.",
+                        run.feature_suggestions[0].get("generated_by", "heuristic"), started,
+                    )
+            except Exception:
+                run.feature_suggestions = []
+
             rec_node.status = "proposed"
             top = run.recommendation["ranked_models"][0]["key"] if run.recommendation["ranked_models"] else "?"
             rec_node.agent_output = {
@@ -266,9 +295,14 @@ class Orchestrator:
         target: str | None,
         features: list[str] | None,
         time_column: str | None,
+        feature_ids: list[str] | None = None,
     ) -> Run:
         model = get_model(model_key)  # raises KeyError on bad key
         coerced = model.coerce_hyperparams(hyperparams)
+        chosen = [
+            s for s in (run.feature_suggestions or [])
+            if s["id"] in set(feature_ids or [])
+        ]
         run.config = {
             "model_key": model_key,
             "model_name": model.name,
@@ -277,16 +311,25 @@ class Orchestrator:
             "target": target,
             "features": features,
             "time_column": time_column,
+            "engineered": chosen,
         }
         rec_node = run.node("recommend")
         if rec_node and rec_node.status == "proposed":
             rec_node.status = "approved"
             rec_node.human_input = {"chosen_model": model_key}
 
+        detail = f"{model.name} configured; ready to run."
+        if chosen:
+            detail += f" Includes {len(chosen)} engineered feature(s): " + ", ".join(
+                s["label"] for s in chosen
+            ) + "."
         node = DecisionNode(
             stage="configure", title="Configuration approved", status="approved",
-            human_input={"model": model_key, "hyperparams": coerced, "target": target},
-            detail=f"{model.name} configured; ready to run.",
+            human_input={
+                "model": model_key, "hyperparams": coerced, "target": target,
+                "engineered_features": [s["label"] for s in chosen],
+            },
+            detail=detail,
         )
         run.decisions.append(node)
         run.stage = "configure"
@@ -301,8 +344,9 @@ class Orchestrator:
         try:
             started = time.time()
             model = get_model(run.config["model_key"])
+            df_run = apply_features(run.df, run.config.get("engineered") or [])
             run.result = model.run(
-                run.df,
+                df_run,
                 run.config["hyperparams"],
                 target=run.config.get("target"),
                 features=run.config.get("features"),
@@ -338,7 +382,8 @@ class Orchestrator:
 
         try:
             started = time.time()
-            val = stability_check(run.df, run.config, run.result["metrics"])
+            df_run = apply_features(run.df, run.config.get("engineered") or [])
+            val = stability_check(df_run, run.config, run.result["metrics"])
         except Exception:
             return
         if not val:
@@ -357,6 +402,8 @@ class Orchestrator:
         "days_since": "days since latest",
         "month": "month",
         "day_of_week": "day of week",
+        "log": "log scale",
+        "length": "text length",
     }
 
     def _add_display_labels(self, run: Run) -> None:
@@ -367,8 +414,16 @@ class Orchestrator:
         raw_cols = list(labels.keys())
         for fi in run.result["artifacts"].get("feature_importance", []):
             feat = fi["feature"]
+            if "__per__" in feat:
+                a, b = feat.split("__per__", 1)
+                fi["label"] = f"{labels.get(a, a)} per {labels.get(b, b)}"
+                continue
+            if "__x__" in feat:
+                a, b = feat.split("__x__", 1)
+                fi["label"] = f"{labels.get(a, a)} x {labels.get(b, b)}"
+                continue
             if "__" in feat:
-                # Engineered date part like signup_date__month -> "Signup date (month)"
+                # Engineered part like signup_date__month -> "Signup date (month)"
                 src, part = feat.split("__", 1)
                 part_lbl = self._DATE_PART_LABELS.get(part, part.replace("_", " "))
                 fi["label"] = f"{labels.get(src, src)} ({part_lbl})"

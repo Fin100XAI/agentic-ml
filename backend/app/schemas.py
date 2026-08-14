@@ -21,6 +21,7 @@ class ApproveConfigRequest(BaseModel):
     target: str | None = None
     features: list[str] | None = None
     time_column: str | None = None
+    feature_ids: list[str] | None = None  # approved engineered-feature ids
 
 
 class CompareRequest(BaseModel):

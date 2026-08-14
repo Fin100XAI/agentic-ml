@@ -140,6 +140,17 @@ export interface DecisionNode {
   timestamp: string;
 }
 
+export interface FeatureSuggestion {
+  id: string;
+  kind: string;
+  columns: string[];
+  name: string;
+  label: string;
+  rationale: string;
+  recommended: boolean;
+  generated_by?: string;
+}
+
 export interface Validation {
   skipped?: boolean;
   method?: string;
@@ -298,10 +309,12 @@ export interface Run {
     target: string | null;
     features: string[] | null;
     time_column: string | null;
+    engineered?: FeatureSuggestion[];
   } | null;
   result: RunResult | null;
   interpretation: Interpretation | null;
   insights: Insights | null;
   comparison: Comparison | null;
   autotune: Autotune | null;
+  feature_suggestions?: FeatureSuggestion[] | null;
 }
