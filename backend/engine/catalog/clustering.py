@@ -54,6 +54,9 @@ def _cluster_artifacts(X_scaled: np.ndarray, labels: np.ndarray, feature_names: 
         "artifacts": {
             "scatter": {"points": scatter, "axes": axis_labels},
             "cluster_sizes": sizes,
+            # Full per-row labels for the insight engine; stripped from the API
+            # payload by the orchestrator after insights are computed.
+            "labels": [int(l) for l in labels],
         },
     }
 

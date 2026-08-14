@@ -39,9 +39,9 @@ const AGENTS = [
 const PIPELINE = [
   { icon: FileUp, label: "Upload CSV" },
   { icon: Search, label: "Agent explores it" },
-  { icon: Settings2, label: "You approve model + settings" },
-  { icon: Play, label: "Train & evaluate" },
-  { icon: BarChart3, label: "Charts + plain-language report" },
+  { icon: Settings2, label: "You approve the approach" },
+  { icon: Play, label: "Evidence engines run" },
+  { icon: BarChart3, label: "Decision brief + actions" },
 ];
 
 const FEATURES = [
@@ -80,12 +80,13 @@ export function HomeScreen({
       {/* Hero */}
       <div className="rounded-2xl border border-edge bg-gradient-to-br from-panel via-panel to-accent-soft/30 px-8 py-10 text-center">
         <h2 className="mx-auto max-w-2xl text-2xl font-bold leading-snug">
-          Upload a spreadsheet. Get ML-grade analysis.
+          Turn raw data into decisions.
           <span className="text-accent"> No data-science degree required.</span>
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-dim">
-          Three AI agents explore your data, recommend the right analysis, and explain the
-          results in plain language — while you approve every step.
+          Upload a spreadsheet and get a decision brief: what's driving outcomes, what
+          groups exist, where things are heading — with recommended actions and an honest
+          read on how much to trust them. AI agents do the analysis; you approve every step.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>
           Start a new analysis <ArrowRight className="h-4 w-4" />

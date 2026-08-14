@@ -6,6 +6,7 @@ import { CompareScreen } from "./components/screens/CompareScreen";
 import { ConfigureScreen } from "./components/screens/ConfigureScreen";
 import { EdaScreen } from "./components/screens/EdaScreen";
 import { HomeScreen } from "./components/screens/HomeScreen";
+import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge } from "./components/ui";
@@ -25,9 +26,11 @@ const GUIDE: Record<Screen, string> = {
   upload: "Step 1 — Pick any CSV file. The agents will figure out what's inside.",
   eda: "Step 2 — Review what the EDA agent found, tell it what you want to learn, then approve.",
   configure:
-    "Step 3 — The agent recommends a model and settings computed from your data. Approve them, tweak them, or compare every model at once.",
-  results: "Step 4 — Results explained in plain language. Download the report or keep tuning.",
-  compare: "Step 4 — Every model ranked on your data. Tune the winner, or download the report.",
+    "Step 3 — The agent recommends an analysis method and settings computed from your data. Approve, tweak, or compare every method at once.",
+  results:
+    "Step 4 — Your decision brief: findings, recommended actions, and how much to trust them. The model details live in the appendix.",
+  compare:
+    "Step 4 — Every method ranked on your data. Generate insights with the winner, or tune any of them.",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -275,15 +278,26 @@ export default function App() {
           />
         )}
 
-        {screen === "results" && run?.result && (
-          <ResultsScreen
-            run={run}
-            result={run.result}
-            interpretation={run.interpretation}
-            onTuneAgain={() => setScreen("configure")}
-            onStartOver={startOver}
-          />
-        )}
+        {screen === "results" &&
+          run?.result &&
+          (run.insights ? (
+            <InsightsScreen
+              run={run}
+              insights={run.insights}
+              result={run.result}
+              interpretation={run.interpretation}
+              onTuneAgain={() => setScreen("configure")}
+              onStartOver={startOver}
+            />
+          ) : (
+            <ResultsScreen
+              run={run}
+              result={run.result}
+              interpretation={run.interpretation}
+              onTuneAgain={() => setScreen("configure")}
+              onStartOver={startOver}
+            />
+          ))}
 
         {screen === "compare" && run?.comparison && (
           <CompareScreen
@@ -293,7 +307,20 @@ export default function App() {
               setPreferredModel(key);
               setScreen("configure");
             }}
+            onUseWinner={() => {
+              const comp = run.comparison;
+              const winner = comp?.results.find((r) => r.model_key === comp.best_model);
+              if (!winner || !comp) return;
+              handleRunModel({
+                model_key: winner.model_key,
+                hyperparams: winner.hyperparams,
+                target: comp.target,
+                time_column: comp.time_column,
+              });
+            }}
             onStartOver={startOver}
+            busy={busy}
+            busyLabel={busyLabel}
           />
         )}
       </main>

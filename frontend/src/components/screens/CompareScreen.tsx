@@ -1,20 +1,26 @@
-import { Bot, Download, RotateCcw, SlidersHorizontal, Trophy } from "lucide-react";
+import { Bot, Download, Lightbulb, RotateCcw, SlidersHorizontal, Trophy } from "lucide-react";
 import type { Comparison, Run } from "../../types";
 import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { api } from "../../api/client";
-import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
+import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
 export function CompareScreen({
   run,
   comparison,
   onTuneModel,
+  onUseWinner,
   onStartOver,
+  busy,
+  busyLabel,
 }: {
   run: Run;
   comparison: Comparison;
   onTuneModel: (modelKey: string) => void;
+  onUseWinner: () => void;
   onStartOver: () => void;
+  busy: boolean;
+  busyLabel: string;
 }) {
   const primary = comparison.primary_metric;
   const pInfo = metricInfo(primary);
@@ -41,7 +47,16 @@ export function CompareScreen({
             <InfoTip text={pInfo.explain} />
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {busy ? (
+            <Spinner label={busyLabel} />
+          ) : (
+            comparison.best_model && (
+              <Button size="sm" onClick={onUseWinner}>
+                <Lightbulb className="h-3.5 w-3.5" /> Generate insights with the winner
+              </Button>
+            )
+          )}
           <Button
             variant="outline"
             size="sm"

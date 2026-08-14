@@ -6,6 +6,7 @@ import {
   Check,
   FileUp,
   GitCompare,
+  Lightbulb,
   Play,
   Search,
   Settings2,
@@ -22,6 +23,7 @@ const STAGE_ICON: Record<string, typeof Check> = {
   execute: Play,
   interpret: BarChart3,
   compare: GitCompare,
+  insights: Lightbulb,
 };
 
 const STATUS_STYLE: Record<DecisionNode["status"], { dot: string; ring: string; label: string }> = {

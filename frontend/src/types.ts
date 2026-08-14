@@ -121,6 +121,51 @@ export interface Interpretation {
   generated_by: string;
 }
 
+export interface InsightFinding {
+  headline: string;
+  detail: string;
+}
+
+export interface Driver {
+  feature: string;
+  groups: { label: string; rate_pct: number; count: number }[];
+  lift: number | null;
+}
+
+export interface Segment {
+  cluster: number;
+  name: string;
+  share_pct: number;
+  count: number;
+  traits: { feature: string; value: number; overall: number; direction: "above" | "below" }[];
+}
+
+export interface Outlook {
+  direction: string;
+  trend_pct_per_period: number;
+  horizon: number;
+  projected_total: number;
+  recent_total: number;
+  delta_pct: number | null;
+  uncertainty_pct: number | null;
+}
+
+export interface Insights {
+  use_case: string;
+  outcome_summary: string;
+  findings: InsightFinding[];
+  drivers?: Driver[];
+  segments?: Segment[];
+  outlook?: Outlook;
+  evidence: { level: "strong" | "moderate" | "limited"; reason: string; caveats: string[] };
+  brief: {
+    executive_summary: string;
+    recommended_actions: string[];
+    watch_outs: string[];
+    generated_by: string;
+  };
+}
+
 export interface ComparisonEntry {
   model_key: string;
   model_name: string;
@@ -177,5 +222,6 @@ export interface Run {
   } | null;
   result: RunResult | null;
   interpretation: Interpretation | null;
+  insights: Insights | null;
   comparison: Comparison | null;
 }

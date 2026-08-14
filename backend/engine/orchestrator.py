@@ -17,8 +17,9 @@ from typing import Any
 
 import pandas as pd
 
-from engine.agents import run_eda_agent, run_interpret_agent, run_recommend_agent
+from engine.agents import run_brief_agent, run_eda_agent, run_interpret_agent, run_recommend_agent
 from engine.catalog import get_model, models_for_use_case
+from engine.insights import build_insights
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
 from engine.suggest import suggest_hyperparams
@@ -76,6 +77,7 @@ class Run:
     config: dict[str, Any] | None = None  # approved model + hyperparams + columns
     result: dict[str, Any] | None = None
     interpretation: dict[str, Any] | None = None
+    insights: dict[str, Any] | None = None
     comparison: dict[str, Any] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
@@ -105,6 +107,7 @@ class Run:
                 config=self.config,
                 result=self.result,
                 interpretation=self.interpretation,
+                insights=self.insights,
                 comparison=self.comparison,
             )
         return d
@@ -236,9 +239,35 @@ class Orchestrator:
             run.error = str(exc)
             return run
 
-        # Interpretation runs automatically after a successful execution.
-        interp_node = self._interpret(run)
+        # Interpretation + insight extraction run automatically after execution.
+        self._interpret(run)
+        self._build_insights(run)
         return run
+
+    def _build_insights(self, run: Run) -> None:
+        """Turn the model run into decision-ready findings + an executive brief."""
+        node = DecisionNode(stage="insights", title="Insight extraction")
+        run.decisions.append(node)
+        try:
+            cluster_labels = run.result["artifacts"].pop("labels", None)  # strip from payload
+            insights = build_insights(
+                run.df,
+                run.config["use_case"],
+                run.config.get("target"),
+                run.result["metrics"],
+                run.result["artifacts"],
+                cluster_labels,
+                n_rows=run.profile["n_rows"] if run.profile else len(run.df),
+                pct_missing=(run.profile or {}).get("missingness", {}).get("pct_missing") or 0,
+            )
+            insights["brief"] = run_brief_agent(self.provider, insights, run.question)
+            run.insights = insights
+            node.status = "done"
+            node.detail = f"{len(insights.get('findings', []))} findings + executive brief."
+            node.agent_output = {"evidence": insights.get("evidence", {}).get("level")}
+        except Exception as exc:
+            node.status = "error"
+            node.detail = str(exc)
 
     def _interpret(self, run: Run) -> DecisionNode:
         interp_node = DecisionNode(stage="interpret", title="Results interpretation")
@@ -288,6 +317,7 @@ class Orchestrator:
             }
             try:
                 out = model.run(run.df, hp, target=target, features=None, time_column=time_column)
+                out["artifacts"].pop("labels", None)  # insight-only payload; keep response slim
                 entry["metrics"] = out["metrics"]
                 entry["artifacts"] = out["artifacts"]
                 entry["error"] = None

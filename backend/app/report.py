@@ -20,7 +20,7 @@ def build_report(run: Run) -> str:
     lines: list[str] = []
     add = lines.append
 
-    add("# ML Analysis Report")
+    add("# Decision Brief")
     add("")
     add(f"- **Dataset:** {run.filename}")
     if run.profile:
@@ -29,6 +29,57 @@ def build_report(run: Run) -> str:
     add(f"- **Run ID:** {run.id}")
     add(f"- **Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     add("")
+
+    # ---- Decision-ready content first -------------------------------------
+    if run.insights:
+        ins = run.insights
+        brief = ins.get("brief", {})
+        ev = ins.get("evidence", {})
+
+        if brief.get("executive_summary"):
+            add("## Executive summary")
+            add("")
+            add(brief["executive_summary"])
+            add("")
+
+        if ins.get("findings"):
+            add("## Key findings")
+            add("")
+            for f in ins["findings"]:
+                add(f"### {f['headline']}")
+                add("")
+                add(f.get("detail", ""))
+                add("")
+
+        if ins.get("segments"):
+            add("## Segment profiles")
+            add("")
+            for s in ins["segments"]:
+                traits = "; ".join(
+                    f"{t['feature']} {t['direction']} avg ({t['value']} vs {t['overall']})"
+                    for t in s.get("traits", [])
+                ) or "—"
+                add(f"- **{s['name']}** — {s['share_pct']}% ({s['count']:,} records): {traits}")
+            add("")
+
+        if brief.get("recommended_actions"):
+            add("## Recommended actions")
+            add("")
+            for i, a in enumerate(brief["recommended_actions"], 1):
+                add(f"{i}. {a}")
+            add("")
+
+        add("## How much to trust this")
+        add("")
+        add(f"**Evidence strength: {ev.get('level', 'unknown')}** — {ev.get('reason', '')}")
+        add("")
+        for c in list(ev.get("caveats", [])) + list(brief.get("watch_outs", [])):
+            add(f"- {c}")
+        add("")
+        add("---")
+        add("")
+        add("# Technical appendix")
+        add("")
 
     if run.eda:
         add("## Data exploration (EDA)")
