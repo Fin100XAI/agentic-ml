@@ -1,13 +1,14 @@
 ﻿// Chart components for run results (Recharts).
 import { useState } from "react";
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -263,31 +264,183 @@ export function ClusterSizesChart({
   );
 }
 
+type ForecastView = "focus" | "full" | "forecast";
+
+const FORECAST_VIEWS: { key: ForecastView; label: string; hint: string }[] = [
+  { key: "focus", label: "Recent + forecast", hint: "The last stretch of history plus the projection - the decision view." },
+  { key: "full", label: "Full history", hint: "Everything the model saw. Long histories compress; switch back to zoom in." },
+  { key: "forecast", label: "Forecast zoom", hint: "Just the projection with a short tail of history for anchoring." },
+];
+
 export function ForecastChart({
   series,
   forecast,
+  uncertaintyPct,
+  context,
 }: {
   series: { t: string; actual: number; predicted?: number }[];
   forecast: { t: string; forecast: number }[];
+  uncertaintyPct?: number | null;
+  context?: { name: string; label?: string; values: (number | null)[] }[];
 }) {
-  // Stitch history + future into one x-axis.
-  const combined = [
-    ...series.map((p) => ({ ...p })),
-    ...forecast.map((p) => ({ t: p.t, forecast: p.forecast })),
+  const [view, setView] = useState<ForecastView>("focus");
+  const [companion, setCompanion] = useState("");
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const horizon = forecast.length;
+  // How much history each view keeps.
+  const keep =
+    view === "full"
+      ? series.length
+      : view === "focus"
+        ? Math.min(series.length, Math.max(3 * horizon, 30))
+        : Math.min(series.length, Math.max(horizon, 10));
+  const offset = series.length - keep;
+  const hist = series.slice(offset);
+
+  // Shaded band: forecast +/- holdout error (MAPE). Clamp so a bad fit stays readable.
+  const pct = uncertaintyPct != null ? Math.min(uncertaintyPct, 50) : null;
+  const last = hist[hist.length - 1];
+  const combined: Record<string, unknown>[] = [
+    ...hist.map((p, i) => {
+      const row: Record<string, unknown> = { ...p };
+      if (companion) {
+        const ctx = context?.find((c) => c.name === companion);
+        row.companion = ctx?.values[offset + i] ?? null;
+      }
+      return row;
+    }),
+    ...forecast.map((p) => {
+      const row: Record<string, unknown> = { t: p.t, forecast: p.forecast };
+      if (pct != null) row.band = [p.forecast * (1 - pct / 100), p.forecast * (1 + pct / 100)];
+      return row;
+    }),
   ];
+  // Bridge the visual gap: dashed line starts from the last actual point.
+  if (last && combined.length > hist.length) {
+    combined[hist.length - 1] = {
+      ...combined[hist.length - 1],
+      forecast: last.actual,
+      ...(pct != null ? { band: [last.actual, last.actual] } : {}),
+    };
+  }
+
+  const activeView = FORECAST_VIEWS.find((v) => v.key === view)!;
+  const companionLabel = context?.find((c) => c.name === companion)?.label ?? companion;
+  const toggle = (key: string) =>
+    setHidden((h) => {
+      const next = new Set(h);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const LINES: { key: string; label: string; color: string }[] = [
+    { key: "actual", label: "actual", color: "#64748b" },
+    { key: "predicted", label: "holdout check", color: "#d97706" },
+    { key: "forecast", label: "forecast", color: "#4f46e5" },
+  ];
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={combined} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid stroke={GRID} />
-        <XAxis dataKey="t" tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} minTickGap={40} />
-        <YAxis tick={AXIS} stroke={GRID} domain={["auto", "auto"]} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Line type="monotone" dataKey="actual" stroke="#64748b" dot={false} strokeWidth={1.5} name="actual" />
-        <Line type="monotone" dataKey="predicted" stroke="#d97706" dot={false} strokeWidth={2} name="holdout prediction" />
-        <Line type="monotone" dataKey="forecast" stroke="#4f46e5" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" />
-      </LineChart>
-    </ResponsiveContainer>
+    <div>
+      {/* Controls: view selector, series toggles, companion overlay */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <div className="flex items-center gap-1">
+          {FORECAST_VIEWS.map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                view === v.key
+                  ? "border-[#4f46e5]/40 bg-[#4f46e5]/10 font-medium text-[#4f46e5]"
+                  : "border-edge bg-white/50 text-ink-dim"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {LINES.map((l) => {
+            const off = hidden.has(l.key);
+            return (
+              <button
+                key={l.key}
+                onClick={() => toggle(l.key)}
+                title={off ? "Click to show this line" : "Click to hide this line"}
+                className={`flex items-center gap-1.5 rounded-full border border-edge px-2.5 py-1 text-[11px] transition-all ${
+                  off ? "opacity-40" : "bg-white/50"
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
+                {l.label}
+              </button>
+            );
+          })}
+        </div>
+        {context && context.length > 0 && (
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+            Also show
+            <select
+              value={companion}
+              onChange={(e) => setCompanion(e.target.value)}
+              className="rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px] text-ink"
+            >
+              <option value="">none</option>
+              {context.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.label ?? c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      <ResponsiveContainer width="100%" height={320}>
+        <ComposedChart data={combined} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis
+            dataKey="t"
+            tick={{ ...AXIS, fontSize: 9 }}
+            stroke={GRID}
+            minTickGap={40}
+            tickFormatter={(v) => String(v).split("T")[0]}
+          />
+          <YAxis yAxisId="left" tick={AXIS} stroke={GRID} domain={["auto", "auto"]} />
+          {companion && (
+            <YAxis yAxisId="right" orientation="right" tick={{ ...AXIS, fill: "#0891b2" }} stroke={GRID} domain={["auto", "auto"]} />
+          )}
+          <Tooltip contentStyle={TOOLTIP_STYLE} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {pct != null && !hidden.has("forecast") && (
+            <Area
+              yAxisId="left"
+              dataKey="band"
+              stroke="none"
+              fill="#4f46e5"
+              fillOpacity={0.1}
+              isAnimationActive={false}
+              name={`likely range (+/- ${pct}%)`}
+              legendType="none"
+              tooltipType="none"
+            />
+          )}
+          <Line yAxisId="left" type="monotone" dataKey="actual" stroke="#64748b" dot={false} strokeWidth={1.5} name="actual" hide={hidden.has("actual")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="predicted" stroke="#d97706" dot={false} strokeWidth={2} name="holdout check" hide={hidden.has("predicted")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="forecast" stroke="#4f46e5" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" hide={hidden.has("forecast")} isAnimationActive={false} />
+          {companion && (
+            <Line yAxisId="right" type="monotone" dataKey="companion" stroke="#0891b2" dot={false} strokeWidth={1.5} strokeDasharray="2 3" name={companionLabel} connectNulls isAnimationActive={false} />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      <p className="mt-1 text-[10px] leading-snug text-ink-dim">
+        {activeView.hint}
+        {pct != null && !hidden.has("forecast") && ` Shaded band = the forecast +/- ${pct}% (the model's typical miss on held-back history).`}
+        {companion && ` ${companionLabel} is drawn on the right-hand axis.`}
+      </p>
+    </div>
   );
 }
 
@@ -361,10 +514,15 @@ export function ResultCharts({ result }: { result: RunResult }) {
       {a.series && a.forecast && (
         <ChartPanel
           title="History & forecast"
-          caption="Grey = what actually happened. Amber = the model's practice run on held-back history (closer to grey is better). Dashed blue = the projection."
+          caption="Grey = what actually happened. Amber = the model's practice run on held-back history (closer to grey is better). Dashed blue = the projection. Use the buttons to change view, hide lines, or overlay another measure."
           wide
         >
-          <ForecastChart series={a.series} forecast={a.forecast} />
+          <ForecastChart
+            series={a.series}
+            forecast={a.forecast}
+            uncertaintyPct={result.metrics.mape_pct ?? null}
+            context={a.context_series}
+          />
         </ChartPanel>
       )}
     </div>

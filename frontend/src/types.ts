@@ -150,6 +150,7 @@ export interface RunResult {
     cluster_sizes?: { cluster: number; count: number }[];
     series?: { t: string; actual: number; predicted?: number }[];
     forecast?: { t: string; forecast: number }[];
+    context_series?: { name: string; label?: string; values: (number | null)[] }[];
   };
 }
 

@@ -34,6 +34,37 @@ def _prepare_series(
     return series, stamps
 
 
+def _context_series(
+    df: pd.DataFrame, target: str, time_column: str | None, max_cols: int = 6
+) -> list[dict[str, Any]]:
+    """Other numeric columns aligned to the same timeline, for overlay charts.
+
+    Rows are ordered and filtered exactly like ``_prepare_series`` (sorted by
+    time, kept where the target is numeric) so values line up index-for-index
+    with the history series.
+    """
+    work = df.copy()
+    if time_column and time_column in work.columns:
+        ts = pd.to_datetime(work[time_column], errors="coerce", format="mixed")
+        work = work.assign(_ts=ts).dropna(subset=["_ts"]).sort_values("_ts")
+    work = work[pd.to_numeric(work[target], errors="coerce").notna()]
+
+    out: list[dict[str, Any]] = []
+    for col in work.columns:
+        if col in (target, time_column, "_ts"):
+            continue
+        vals = pd.to_numeric(work[col], errors="coerce")
+        if vals.notna().mean() < 0.5 or vals.nunique(dropna=True) < 3:
+            continue  # non-numeric, mostly missing, or near-constant
+        out.append({
+            "name": col,
+            "values": [round(float(v), 4) if pd.notna(v) else None for v in vals],
+        })
+        if len(out) >= max_cols:
+            break
+    return out
+
+
 def _forecast_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, Any]:
     err = actual - predicted
     mae = float(np.mean(np.abs(err)))
@@ -53,6 +84,7 @@ def _build_result(
     holdout: int,
     fitted_test: np.ndarray,
     future: np.ndarray,
+    context: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Assemble metrics + chart series (history, test predictions, future forecast)."""
     actual_test = series.iloc[-holdout:].values
@@ -72,10 +104,13 @@ def _build_result(
         {"t": f"+{j + 1}", "forecast": round(float(v), 4)} for j, v in enumerate(future)
     ]
 
-    return {
-        "metrics": metrics,
-        "artifacts": {"series": history, "forecast": forecast},
-    }
+    artifacts: dict[str, Any] = {"series": history, "forecast": forecast}
+    if context:
+        # Trim to the plotted history length so overlays stay index-aligned.
+        artifacts["context_series"] = [
+            {**c, "values": c["values"][: len(history)]} for c in context
+        ]
+    return {"metrics": metrics, "artifacts": artifacts}
 
 
 @register
@@ -120,7 +155,10 @@ class ArimaModel(ModelPlugin):
             ).fit(disp=False)
             future = full_fit.forecast(steps=horizon)
 
-        return _build_result(series, stamps, holdout, np.asarray(test_pred), np.asarray(future))
+        return _build_result(
+            series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
+            context=_context_series(df, target, time_column),
+        )
 
 
 @register
@@ -165,7 +203,10 @@ class ExpSmoothingModel(ModelPlugin):
             full = ExponentialSmoothing(series.values, trend=trend, seasonal=seasonal, seasonal_periods=sp).fit()
             future = full.forecast(horizon)
 
-        return _build_result(series, stamps, holdout, np.asarray(test_pred), np.asarray(future))
+        return _build_result(
+            series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
+            context=_context_series(df, target, time_column),
+        )
 
 
 @register
@@ -230,4 +271,7 @@ class XGBForecastModel(ModelPlugin):
             future.append(p)
             window.append(p)
 
-        return _build_result(series, stamps, holdout, np.asarray(test_pred), np.asarray(future))
+        return _build_result(
+            series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
+            context=_context_series(df, target, time_column),
+        )

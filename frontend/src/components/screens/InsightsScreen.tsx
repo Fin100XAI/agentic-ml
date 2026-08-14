@@ -316,8 +316,13 @@ export function InsightsScreen({
               {insights.use_case === "forecasting" && a.series && a.forecast && (
                 <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">History & projection</h4>
-                  <p className="mb-2 text-[11px] text-ink-dim">Grey = actual history · dashed blue = the projection ahead.</p>
-                  <ForecastChart series={a.series} forecast={a.forecast} />
+                  <p className="mb-2 text-[11px] text-ink-dim">Grey = actual history · dashed blue = the projection ahead · shaded = the likely range.</p>
+                  <ForecastChart
+                    series={a.series}
+                    forecast={a.forecast}
+                    uncertaintyPct={result.metrics.mape_pct ?? null}
+                    context={a.context_series}
+                  />
                 </div>
               )}
               {insights.use_case === "classification" && insights.drivers && insights.drivers.length > 0 && (

@@ -358,6 +358,8 @@ class Orchestrator:
                 fi["label"] = f"{labels[src]}: {suffix}"
             else:
                 fi["label"] = labels.get(feat, feat)
+        for cs in run.result["artifacts"].get("context_series", []):
+            cs["label"] = labels.get(cs["name"], cs["name"])
 
     def _build_insights(self, run: Run) -> None:
         """Turn the model run into decision-ready findings + an executive brief."""
