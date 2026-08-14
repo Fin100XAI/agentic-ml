@@ -26,3 +26,8 @@ class ApproveConfigRequest(BaseModel):
 class CompareRequest(BaseModel):
     target: str | None = None
     time_column: str | None = None
+
+
+class AskRequest(BaseModel):
+    question: str
+    history: list[dict[str, str]] = Field(default_factory=list)

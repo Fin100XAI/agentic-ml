@@ -5,9 +5,9 @@ import { Button, Card, CardBody } from "../ui";
 type Stage = "uploading" | "profiling" | "analyzing" | null;
 
 const STAGES: { key: Exclude<Stage, null>; icon: typeof Upload; label: string; sub: string }[] = [
-  { key: "uploading", icon: Upload, label: "Uploading your file", sub: "Reading the CSV" },
-  { key: "profiling", icon: ScanSearch, label: "Profiling the data", sub: "Column types, ranges, missing values, relationships" },
-  { key: "analyzing", icon: Bot, label: "AI agent analyzing", sub: "Understanding what your data is about, writing findings" },
+  { key: "uploading", icon: Upload, label: "Uploading your file", sub: "Reading the CSV · a few seconds" },
+  { key: "profiling", icon: ScanSearch, label: "Profiling the data", sub: "Column types, ranges, missing values, relationships · seconds to ~1 min for large files" },
+  { key: "analyzing", icon: Bot, label: "AI agent analyzing", sub: "Understanding what your data is about, writing findings · usually 10–30 s" },
 ];
 
 function ProgressPanel({ stage }: { stage: Exclude<Stage, null> }) {

@@ -60,6 +60,15 @@ export const api = {
   compare: (id: string, target: string | null, time_column: string | null) =>
     request<Run>(`/runs/${id}/compare`, json({ target, time_column })),
 
+  autotune: (id: string, target: string | null, time_column: string | null) =>
+    request<Run>(`/runs/${id}/autotune`, json({ target, time_column })),
+
+  ask: (id: string, question: string, history: { q: string; a: string }[]) =>
+    request<{ answer: string; generated_by: string }>(
+      `/runs/${id}/ask`,
+      json({ question, history }),
+    ),
+
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
 
   downloadReport: async (id: string, filename: string) => {

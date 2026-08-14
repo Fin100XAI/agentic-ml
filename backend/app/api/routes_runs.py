@@ -5,8 +5,15 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from app.report import build_report
-from app.schemas import ApproveConfigRequest, ApproveEdaRequest, CompareRequest, StartRunRequest
+from app.schemas import (
+    ApproveConfigRequest,
+    ApproveEdaRequest,
+    AskRequest,
+    CompareRequest,
+    StartRunRequest,
+)
 from app.store import store
+from engine.agents import run_ask_agent
 from engine.llm import get_provider
 from engine.orchestrator import Orchestrator, Run
 
@@ -93,6 +100,26 @@ def compare(run_id: str, req: CompareRequest) -> dict:
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return run.to_dict()
+
+
+@router.post("/runs/{run_id}/autotune")
+def autotune(run_id: str, req: CompareRequest) -> dict:
+    run = _get_run(run_id)
+    if not run.recommendation:
+        raise HTTPException(409, "Approve the EDA first so a use case is chosen.")
+    try:
+        _orchestrator().run_autotune(run, req.target, req.time_column)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return run.to_dict()
+
+
+@router.post("/runs/{run_id}/ask")
+def ask(run_id: str, req: AskRequest) -> dict:
+    run = _get_run(run_id)
+    if not req.question.strip():
+        raise HTTPException(400, "Please enter a question.")
+    return run_ask_agent(get_provider(), run.to_dict(), req.question, req.history)
 
 
 @router.post("/runs/{run_id}/approve-config")

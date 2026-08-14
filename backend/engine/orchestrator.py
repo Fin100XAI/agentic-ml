@@ -20,6 +20,7 @@ import pandas as pd
 import time
 
 from engine.agents import run_brief_agent, run_eda_agent, run_interpret_agent, run_recommend_agent
+from engine.autotune import autotune as run_autotune_sweep
 from engine.catalog import get_model, models_for_use_case
 from engine.health import assess_health
 from engine.insights import build_insights, _original_column
@@ -82,6 +83,7 @@ class Run:
     interpretation: dict[str, Any] | None = None
     insights: dict[str, Any] | None = None
     comparison: dict[str, Any] | None = None
+    autotune: dict[str, Any] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -120,6 +122,7 @@ class Run:
                 interpretation=self.interpretation,
                 insights=self.insights,
                 comparison=self.comparison,
+                autotune=self.autotune,
             )
         return d
 
@@ -419,6 +422,48 @@ class Orchestrator:
             interp_node.status = "error"
             interp_node.detail = str(exc)
         return interp_node
+
+    # -- Auto-tune: try hyperparameter combinations for every model -------------
+    def run_autotune(self, run: Run, target: str | None, time_column: str | None) -> Run:
+        if not run.recommendation:
+            raise ValueError("Approve the EDA first so a use case is chosen.")
+        use_case = run.recommendation["use_case"]
+        started = time.time()
+
+        node = DecisionNode(stage="autotune", title=f"Auto-tune {use_case} models")
+        run.decisions.append(node)
+
+        result = run_autotune_sweep(
+            run.df, use_case, target, time_column,
+            run.recommendation.get("model_configs", {}),
+        )
+        run.autotune = result
+
+        # Fold the tuned settings back into the suggestions the UI pre-fills.
+        cfgs = run.recommendation.setdefault("model_configs", {})
+        tuned_summary = []
+        for key, r in result["models"].items():
+            if r["error"] is None and r["best_score"] is not None:
+                cfgs[key] = {
+                    "hyperparams": r["best_hyperparams"],
+                    "rationale": (
+                        f"Auto-tuned: best of {r['n_tried']} tried combinations "
+                        f"({result['metric']} {r['best_score']} vs {r['suggested_score']} suggested"
+                        + (f", +{r['improvement_pct']}% better" if (r["improvement_pct"] or 0) > 0 else "")
+                        + ")."
+                    ),
+                }
+                tuned_summary.append(f"{r['model_name']}: {result['metric']}={r['best_score']}")
+
+        node.status = "done"
+        node.detail = f"Tried combinations for {len(result['models'])} models; tuned settings applied."
+        self._log(
+            run, "Auto-tuner", f"Searched settings for all {use_case} models",
+            "; ".join(tuned_summary) or "No valid scores produced.",
+            f"Sampled combinations around the suggested settings, validated on held-out data, ranked by {result['metric']}.",
+            "deterministic", started,
+        )
+        return run
 
     # -- Stage: compare all models of the use case ------------------------------
     def compare(self, run: Run, target: str | None, time_column: str | None) -> Run:

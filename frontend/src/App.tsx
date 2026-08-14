@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Bot, BrainCircuit, Check, Home } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
+import { AutotuneModal } from "./components/AutotuneModal";
 import { Timeline } from "./components/Timeline";
+import { eta } from "./lib/eta";
 import { CompareScreen } from "./components/screens/CompareScreen";
 import { ConfigureScreen } from "./components/screens/ConfigureScreen";
 import { EdaScreen } from "./components/screens/EdaScreen";
@@ -66,6 +68,8 @@ export default function App() {
   const [preferredModel, setPreferredModel] = useState<string | undefined>(undefined);
   const [uploadStage, setUploadStage] = useState<"uploading" | "profiling" | "analyzing" | null>(null);
   const [logOpen, setLogOpen] = useState(false);
+  const [tuneOpen, setTuneOpen] = useState(false);
+  const [tuneRunning, setTuneRunning] = useState(false);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -142,7 +146,7 @@ export default function App() {
     target: string | null;
     time_column: string | null;
   }) =>
-    guard("Training & evaluating…", async () => {
+    guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
       let r = await api.approveConfig(run.id, { ...config, features: null });
       setRun(r);
@@ -153,13 +157,33 @@ export default function App() {
     });
 
   const handleCompare = (target: string | null, time_column: string | null) =>
-    guard("Training every model — this takes a moment…", async () => {
-      if (!run) return;
-      const r = await api.compare(run.id, target, time_column);
+    guard(
+      `Training every model… (${eta("compare", run?.profile?.n_rows ?? 0, true)})`,
+      async () => {
+        if (!run) return;
+        const r = await api.compare(run.id, target, time_column);
+        setRun(r);
+        if (r.error) setError(r.error);
+        else setScreen("compare");
+      },
+    );
+
+  const handleAutotune = async (target: string | null, time_column: string | null) => {
+    if (!run) return;
+    setTuneOpen(true);
+    setTuneRunning(true);
+    setError(null);
+    try {
+      const r = await api.autotune(run.id, target, time_column);
       setRun(r);
-      if (r.error) setError(r.error);
-      else setScreen("compare");
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setTuneOpen(false);
+    } finally {
+      setTuneRunning(false);
+      refreshRuns();
+    }
+  };
 
   const handleResume = (id: string) =>
     guard("Loading analysis…", async () => {
@@ -318,6 +342,7 @@ export default function App() {
             initialModelKey={preferredModel}
             onRun={handleRunModel}
             onCompare={handleCompare}
+            onAutotune={handleAutotune}
             busy={busy}
             busyLabel={busyLabel}
           />
@@ -379,6 +404,15 @@ export default function App() {
         entries={run?.agent_log ?? []}
         open={logOpen}
         onClose={() => setLogOpen(false)}
+      />
+
+      <AutotuneModal
+        open={tuneOpen}
+        running={tuneRunning}
+        etaText={eta("autotune", run?.profile?.n_rows ?? 0, true)}
+        result={run?.autotune ?? null}
+        onClose={() => setTuneOpen(false)}
+        onApply={() => setTuneOpen(false)}
       />
     </div>
   );

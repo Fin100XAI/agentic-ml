@@ -217,6 +217,25 @@ export interface Comparison {
   };
 }
 
+export interface AutotuneModelResult {
+  model_name: string;
+  tried: { hyperparams: Record<string, unknown>; score: number | null }[];
+  n_tried: number;
+  best_hyperparams: Record<string, unknown>;
+  best_score: number | null;
+  suggested_score: number | null;
+  improvement_pct: number | null;
+  elapsed_s: number;
+  error: string | null;
+}
+
+export interface Autotune {
+  use_case: string;
+  metric: string;
+  higher_is_better: boolean;
+  models: Record<string, AutotuneModelResult>;
+}
+
 export interface RunSummary {
   id: string;
   filename: string;
@@ -251,4 +270,5 @@ export interface Run {
   interpretation: Interpretation | null;
   insights: Insights | null;
   comparison: Comparison | null;
+  autotune: Autotune | null;
 }

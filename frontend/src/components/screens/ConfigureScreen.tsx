@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, GitCompare, Play, Settings2, Sparkles } from "lucide-react";
+import { Bot, FlaskConical, GitCompare, Play, Settings2, Sparkles } from "lucide-react";
 import type { ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
+import { eta } from "../../lib/eta";
 import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
@@ -72,6 +73,7 @@ export function ConfigureScreen({
   initialModelKey,
   onRun,
   onCompare,
+  onAutotune,
   busy,
   busyLabel,
 }: {
@@ -86,6 +88,7 @@ export function ConfigureScreen({
     time_column: string | null;
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
+  onAutotune: (target: string | null, time_column: string | null) => void;
   busy: boolean;
   busyLabel: string;
 }) {
@@ -156,17 +159,33 @@ export function ConfigureScreen({
         />
         <CardBody className="flex flex-wrap items-center justify-between gap-4">
           <p className="max-w-2xl text-sm leading-relaxed text-ink-dim">{recommendation.reasoning}</p>
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
             {busy ? (
               <Spinner label={busyLabel} />
             ) : (
-              <Button
-                variant="outline"
-                disabled={needsTarget && !target}
-                onClick={() => onCompare(target, timeColumn)}
-              >
-                <GitCompare className="h-4 w-4" /> Compare all {ordered.length} models
-              </Button>
+              <>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={needsTarget && !target}
+                    onClick={() => onAutotune(target, timeColumn)}
+                  >
+                    <FlaskConical className="h-3.5 w-3.5" /> Auto-tune all models
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={needsTarget && !target}
+                    onClick={() => onCompare(target, timeColumn)}
+                  >
+                    <GitCompare className="h-3.5 w-3.5" /> Compare all models
+                  </Button>
+                </div>
+                <span className="text-[10px] text-ink-dim">
+                  auto-tune {eta("autotune", profile.n_rows, true)} · compare {eta("compare", profile.n_rows, true)}
+                </span>
+              </>
             )}
           </div>
         </CardBody>
@@ -293,20 +312,25 @@ export function ConfigureScreen({
               {busy ? (
                 <Spinner label={busyLabel} />
               ) : (
-                <Button
-                  className="w-full"
-                  disabled={needsTarget && !target}
-                  onClick={() =>
-                    onRun({
-                      model_key: selected.key,
-                      hyperparams: params,
-                      target,
-                      time_column: timeColumn,
-                    })
-                  }
-                >
-                  <Play className="h-4 w-4" /> Approve & run {selected.name}
-                </Button>
+                <>
+                  <Button
+                    className="w-full"
+                    disabled={needsTarget && !target}
+                    onClick={() =>
+                      onRun({
+                        model_key: selected.key,
+                        hyperparams: params,
+                        target,
+                        time_column: timeColumn,
+                      })
+                    }
+                  >
+                    <Play className="h-4 w-4" /> Approve & run {selected.name}
+                  </Button>
+                  <p className="mt-1.5 text-center text-[10px] text-ink-dim">
+                    {eta("train", profile.n_rows, true)}
+                  </p>
+                </>
               )}
             </div>
           </CardBody>
