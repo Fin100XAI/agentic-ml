@@ -18,11 +18,19 @@ from typing import Any
 import pandas as pd
 
 from engine.agents import run_eda_agent, run_interpret_agent, run_recommend_agent
-from engine.catalog import get_model
+from engine.catalog import get_model, models_for_use_case
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
+from engine.suggest import suggest_hyperparams
 
-STAGES = ["upload", "eda", "recommend", "configure", "execute", "interpret"]
+STAGES = ["upload", "eda", "recommend", "configure", "execute", "interpret", "compare"]
+
+# Metric used to rank models in a comparison; (key, higher_is_better).
+PRIMARY_METRIC = {
+    "classification": ("f1", True),
+    "clustering": ("silhouette", True),
+    "forecasting": ("mape_pct", False),
+}
 
 
 def _now() -> str:
@@ -61,12 +69,14 @@ class Run:
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     question: str = ""
     stage: str = "upload"
+    created_at: str = field(default_factory=_now)
     profile: dict[str, Any] | None = None
     eda: dict[str, Any] | None = None
     recommendation: dict[str, Any] | None = None
     config: dict[str, Any] | None = None  # approved model + hyperparams + columns
     result: dict[str, Any] | None = None
     interpretation: dict[str, Any] | None = None
+    comparison: dict[str, Any] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
 
@@ -83,6 +93,7 @@ class Run:
             "filename": self.filename,
             "question": self.question,
             "stage": self.stage,
+            "created_at": self.created_at,
             "error": self.error,
             "decisions": [n.to_dict() for n in self.decisions],
         }
@@ -94,6 +105,7 @@ class Run:
                 config=self.config,
                 result=self.result,
                 interpretation=self.interpretation,
+                comparison=self.comparison,
             )
         return d
 
@@ -141,6 +153,13 @@ class Orchestrator:
         run.decisions.append(rec_node)
         try:
             run.recommendation = run_recommend_agent(self.provider, run.profile, run.question)
+            # Data-aware hyperparameter suggestions for every model of the use case.
+            run.recommendation["model_configs"] = suggest_hyperparams(
+                run.df,
+                run.recommendation["use_case"],
+                target=run.recommendation.get("target"),
+                time_column=run.recommendation.get("time_column"),
+            )
             rec_node.status = "proposed"
             top = run.recommendation["ranked_models"][0]["key"] if run.recommendation["ranked_models"] else "?"
             rec_node.agent_output = {
@@ -218,6 +237,10 @@ class Orchestrator:
             return run
 
         # Interpretation runs automatically after a successful execution.
+        interp_node = self._interpret(run)
+        return run
+
+    def _interpret(self, run: Run) -> DecisionNode:
         interp_node = DecisionNode(stage="interpret", title="Results interpretation")
         run.decisions.append(interp_node)
         try:
@@ -240,4 +263,121 @@ class Orchestrator:
         except Exception as exc:
             interp_node.status = "error"
             interp_node.detail = str(exc)
+        return interp_node
+
+    # -- Stage: compare all models of the use case ------------------------------
+    def compare(self, run: Run, target: str | None, time_column: str | None) -> Run:
+        if not run.recommendation:
+            raise ValueError("Approve the EDA first so a use case is chosen.")
+        use_case = run.recommendation["use_case"]
+        suggestions = run.recommendation.get("model_configs", {})
+        metric_key, higher_better = PRIMARY_METRIC[use_case]
+
+        node = DecisionNode(stage="compare", title=f"Compare {use_case} models")
+        run.decisions.append(node)
+
+        rows: list[dict[str, Any]] = []
+        for model in models_for_use_case(use_case):
+            suggested = suggestions.get(model.key, {})
+            hp = model.coerce_hyperparams(suggested.get("hyperparams", {}))
+            entry: dict[str, Any] = {
+                "model_key": model.key,
+                "model_name": model.name,
+                "hyperparams": hp,
+                "rationale": suggested.get("rationale", ""),
+            }
+            try:
+                out = model.run(run.df, hp, target=target, features=None, time_column=time_column)
+                entry["metrics"] = out["metrics"]
+                entry["artifacts"] = out["artifacts"]
+                entry["error"] = None
+            except Exception as exc:
+                entry["metrics"] = {}
+                entry["artifacts"] = {}
+                entry["error"] = str(exc)
+            rows.append(entry)
+
+        # Rank by the primary metric; failed/missing metric goes last.
+        def sort_key(r: dict[str, Any]) -> float:
+            v = r["metrics"].get(metric_key)
+            if not isinstance(v, (int, float)):
+                return float("inf")
+            return -v if higher_better else v
+
+        rows.sort(key=sort_key)
+        best = next((r for r in rows if r["error"] is None and isinstance(r["metrics"].get(metric_key), (int, float))), None)
+
+        run.comparison = {
+            "use_case": use_case,
+            "target": target,
+            "time_column": time_column,
+            "primary_metric": metric_key,
+            "higher_is_better": higher_better,
+            "results": rows,
+            "best_model": best["model_key"] if best else None,
+            "interpretation": self._compare_summary(rows, use_case, metric_key, higher_better, best),
+        }
+        node.status = "done"
+        node.detail = (
+            f"Ran {len(rows)} models; best: {best['model_name']} ({metric_key}={best['metrics'].get(metric_key)})"
+            if best
+            else "Comparison ran, but no model produced a valid score."
+        )
+        node.agent_output = {"best_model": run.comparison["best_model"]}
+        run.stage = "compare"
+        run.error = None
         return run
+
+    def _compare_summary(
+        self,
+        rows: list[dict[str, Any]],
+        use_case: str,
+        metric_key: str,
+        higher_better: bool,
+        best: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """LLM (or heuristic) summary of the model comparison."""
+        heuristic: dict[str, Any] = {
+            "summary": (
+                f"All {use_case} models were trained on your data with agent-suggested settings and "
+                f"ranked by {metric_key.replace('_', ' ')} ({'higher' if higher_better else 'lower'} is better)."
+                + (f" {best['model_name']} came out on top." if best else "")
+            ),
+            "next_steps": [
+                "Open the winner and fine-tune its settings for an extra edge.",
+                "If two models score similarly, prefer the simpler one — it is easier to trust and explain.",
+            ],
+            "generated_by": "heuristic",
+        }
+        if self.provider is None:
+            return heuristic
+        try:
+            import json
+
+            slim = [
+                {"model": r["model_name"], "metrics": r["metrics"], "error": r["error"]}
+                for r in rows
+            ]
+            result = self.provider.complete_json(
+                (
+                    "You are the comparison-report agent in an ML workbench used by people "
+                    "without ML expertise. Summarize the model comparison in plain language: "
+                    "who won, by how much, whether the difference is meaningful, and what to do next. "
+                    "Only cite numbers present in the input."
+                ),
+                f"Use case: {use_case}. Ranking metric: {metric_key} ({'higher' if higher_better else 'lower'} wins).\n"
+                + json.dumps(slim),
+                {
+                    "type": "object",
+                    "properties": {
+                        "summary": {"type": "string"},
+                        "next_steps": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["summary", "next_steps"],
+                    "additionalProperties": False,
+                },
+            )
+            result["generated_by"] = "claude"
+            return result
+        except Exception:
+            return heuristic

@@ -54,6 +54,11 @@ export interface RankedModel {
   rationale: string;
 }
 
+export interface ModelConfigSuggestion {
+  hyperparams: Record<string, unknown>;
+  rationale: string;
+}
+
 export interface Recommendation {
   use_case: string;
   reasoning: string;
@@ -61,6 +66,7 @@ export interface Recommendation {
   target: string | null;
   time_column: string | null;
   generated_by: string;
+  model_configs?: Record<string, ModelConfigSuggestion>;
 }
 
 export interface ParamSpec {
@@ -115,12 +121,46 @@ export interface Interpretation {
   generated_by: string;
 }
 
+export interface ComparisonEntry {
+  model_key: string;
+  model_name: string;
+  hyperparams: Record<string, unknown>;
+  rationale: string;
+  metrics: Record<string, number | null>;
+  artifacts: RunResult["artifacts"];
+  error: string | null;
+}
+
+export interface Comparison {
+  use_case: string;
+  target: string | null;
+  time_column: string | null;
+  primary_metric: string;
+  higher_is_better: boolean;
+  results: ComparisonEntry[];
+  best_model: string | null;
+  interpretation: {
+    summary: string;
+    next_steps: string[];
+    generated_by: string;
+  };
+}
+
+export interface RunSummary {
+  id: string;
+  filename: string;
+  question: string;
+  stage: string;
+  created_at: string;
+}
+
 export interface Run {
   id: string;
   dataset_id: string;
   filename: string;
   question: string;
   stage: string;
+  created_at: string;
   error: string | null;
   decisions: DecisionNode[];
   profile: Profile | null;
@@ -137,4 +177,5 @@ export interface Run {
   } | null;
   result: RunResult | null;
   interpretation: Interpretation | null;
+  comparison: Comparison | null;
 }

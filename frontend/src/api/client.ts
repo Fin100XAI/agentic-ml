@@ -1,4 +1,4 @@
-import type { ModelInfo, Run, UploadResponse } from "../types";
+import type { ModelInfo, Run, RunSummary, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -54,4 +54,21 @@ export const api = {
   ) => request<Run>(`/runs/${id}/approve-config`, json(body)),
 
   execute: (id: string) => request<Run>(`/runs/${id}/execute`, { method: "POST" }),
+
+  compare: (id: string, target: string | null, time_column: string | null) =>
+    request<Run>(`/runs/${id}/compare`, json({ target, time_column })),
+
+  listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
+
+  downloadReport: async (id: string, filename: string) => {
+    const res = await fetch(`${BASE}/runs/${id}/report`);
+    if (!res.ok) throw new Error("Could not generate report.");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };

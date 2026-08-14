@@ -47,12 +47,15 @@ The orchestrator records every stage as a **decision node** for the wire diagram
 | # | Stage | Agent | Output | Gate |
 |---|-------|-------|--------|------|
 | 1 | **Profile & EDA** | EDA agent | Inferred schema, stats, missingness, correlations, candidate targets/problem type, plain-language summary | Human reviews; may add a free-text question ("what do you want to understand?") |
-| 2 | **Recommend** | Recommendation agent | Chosen use case (classification/clustering/forecasting), ranked model(s) with rationale, proposed hyperparameters | Human approves / edits model & hyperparameters |
-| 3 | **Run** | — (execution) | Trained model, metrics, prediction artifacts | Human approves the run |
+| 2 | **Recommend** | Recommendation agent | Chosen use case (classification/clustering/forecasting), ranked model(s) with rationale, **data-aware suggested hyperparameters** (`engine/suggest.py`: silhouette sweep for k, seasonality detection, size-scaled tree settings — each with a rationale) | Human approves / edits model & hyperparameters |
+| 3a | **Run** | — (execution) | Trained model, metrics, prediction artifacts | Human approves the run |
+| 3b | **Compare** (alternative) | — (execution × N) | Every model of the use case trained with suggested settings, ranked by the use case's primary metric (f1 / silhouette / MAPE), winner + summary | Human triggers; can then tune any model |
 | 4 | **Interpret** | Interpretation agent | Charts + written commentary, findings, next-step suggestions | Presented to human |
 
-The **wire diagram** renders stages 1→4 as nodes, each showing the decision made,
-the agent's recommendation, and its approval state.
+A **compact decision timeline** renders every stage as a chip showing the
+decision made and its approval state. A **markdown report** of the full run
+(EDA, decisions, comparison, metrics, interpretation) is downloadable via
+`GET /api/runs/{id}/report`.
 
 ---
 

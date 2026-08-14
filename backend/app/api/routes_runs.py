@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import PlainTextResponse
 
-from app.schemas import ApproveConfigRequest, ApproveEdaRequest, StartRunRequest
+from app.report import build_report
+from app.schemas import ApproveConfigRequest, ApproveEdaRequest, CompareRequest, StartRunRequest
 from app.store import store
 from engine.llm import get_provider
 from engine.orchestrator import Orchestrator, Run
@@ -37,9 +39,30 @@ def start_run(req: StartRunRequest) -> dict:
     return run.to_dict()
 
 
+@router.get("/runs")
+def list_runs() -> dict:
+    return {
+        "runs": [
+            {
+                "id": r.id,
+                "filename": r.filename,
+                "question": r.question,
+                "stage": r.stage,
+                "created_at": r.created_at,
+            }
+            for r in sorted(store.runs.values(), key=lambda r: r.created_at, reverse=True)
+        ]
+    }
+
+
 @router.get("/runs/{run_id}")
 def get_run(run_id: str) -> dict:
     return _get_run(run_id).to_dict()
+
+
+@router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
+def get_report(run_id: str) -> str:
+    return build_report(_get_run(run_id))
 
 
 @router.post("/runs/{run_id}/approve-eda")
@@ -51,10 +74,22 @@ def approve_eda(run_id: str, req: ApproveEdaRequest) -> dict:
     return run.to_dict()
 
 
+@router.post("/runs/{run_id}/compare")
+def compare(run_id: str, req: CompareRequest) -> dict:
+    run = _get_run(run_id)
+    if not run.recommendation:
+        raise HTTPException(409, "Approve the EDA first so a use case is chosen.")
+    try:
+        _orchestrator().compare(run, req.target, req.time_column)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return run.to_dict()
+
+
 @router.post("/runs/{run_id}/approve-config")
 def approve_config(run_id: str, req: ApproveConfigRequest) -> dict:
     run = _get_run(run_id)
-    if run.stage not in ("recommend", "configure", "execute", "interpret"):
+    if run.stage not in ("recommend", "configure", "execute", "interpret", "compare"):
         raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'recommend' or later.")
     try:
         _orchestrator().approve_config(

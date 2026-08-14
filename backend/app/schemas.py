@@ -21,3 +21,8 @@ class ApproveConfigRequest(BaseModel):
     target: str | None = None
     features: list[str] | None = None
     time_column: str | None = None
+
+
+class CompareRequest(BaseModel):
+    target: str | None = None
+    time_column: str | None = None

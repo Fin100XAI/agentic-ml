@@ -1,13 +1,23 @@
-import { Bot, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Bot, Download, RotateCcw, SlidersHorizontal } from "lucide-react";
 import type { Interpretation, Run, RunResult } from "../../types";
+import { metricInfo } from "../../lib/metricInfo";
+import { InfoTip } from "../InfoTip";
+import { api } from "../../api/client";
 import { ResultCharts } from "../charts";
-import { Badge, Button, Card, CardBody, CardHeader, Stat } from "../ui";
+import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
 
 const ASSESSMENT_TONE: Record<Interpretation["assessment"], "good" | "warn" | "bad" | "neutral"> = {
   strong: "good",
   moderate: "warn",
   weak: "bad",
   inconclusive: "neutral",
+};
+
+const ASSESSMENT_TEXT: Record<Interpretation["assessment"], string> = {
+  strong: "The model performed well on your data.",
+  moderate: "Decent results — tuning or another model may improve them.",
+  weak: "The signal is weak — the data may not strongly predict this target.",
+  inconclusive: "Not enough evidence to judge — check the metrics below.",
 };
 
 export function ResultsScreen({
@@ -27,18 +37,28 @@ export function ResultsScreen({
 
   return (
     <div className="space-y-6">
-      {/* Header row: model + actions */}
+      {/* Header row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold">{run.config?.model_name}</h2>
           <Badge tone="accent">{run.config?.use_case}</Badge>
           {interpretation && (
-            <Badge tone={ASSESSMENT_TONE[interpretation.assessment]}>
-              {interpretation.assessment}
-            </Badge>
+            <span className="inline-flex items-center gap-1">
+              <Badge tone={ASSESSMENT_TONE[interpretation.assessment]}>
+                {interpretation.assessment}
+              </Badge>
+              <InfoTip text={ASSESSMENT_TEXT[interpretation.assessment]} />
+            </span>
           )}
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => api.downloadReport(run.id, `analysis-report-${run.id}.md`)}
+          >
+            <Download className="h-3.5 w-3.5" /> Download report
+          </Button>
           <Button variant="outline" size="sm" onClick={onTuneAgain}>
             <SlidersHorizontal className="h-3.5 w-3.5" /> Tune & re-run
           </Button>
@@ -48,11 +68,20 @@ export function ResultsScreen({
         </div>
       </div>
 
-      {/* Metrics */}
+      {/* Metrics with explanations */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        {metrics.map(([k, v]) => (
-          <Stat key={k} label={k.replace(/_/g, " ")} value={String(v)} />
-        ))}
+        {metrics.map(([k, v]) => {
+          const info = metricInfo(k);
+          return (
+            <div key={k} className="rounded-lg border border-edge bg-panel-2 px-3 py-2">
+              <div className="flex items-center gap-1 text-[11px] uppercase tracking-wider text-ink-dim">
+                {info.label}
+                <InfoTip text={info.explain} />
+              </div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums">{String(v)}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Interpretation */}
@@ -61,7 +90,7 @@ export function ResultsScreen({
           <CardHeader
             title={
               <span className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-accent" /> Interpretation agent
+                <Bot className="h-4 w-4 text-accent" /> What this means
               </span>
             }
             right={
@@ -88,7 +117,7 @@ export function ResultsScreen({
               </div>
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
-                  Suggested next steps
+                  What to do next
                 </h4>
                 <ul className="space-y-1.5">
                   {interpretation.next_steps.map((s, i) => (
