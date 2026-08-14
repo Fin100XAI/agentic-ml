@@ -29,9 +29,32 @@ export interface ColumnProfile {
   top_values?: { value: unknown; count: number }[];
 }
 
+export interface HealthIssue {
+  severity: "info" | "warning" | "critical";
+  title: string;
+  detail: string;
+  suggestion: string;
+}
+
+export interface Health {
+  score: "good" | "caution" | "poor";
+  issues: HealthIssue[];
+}
+
+export interface AgentLogEntry {
+  agent: string;
+  action: string;
+  decision: string;
+  reasoning: string;
+  generated_by: string;
+  duration_ms: number;
+  timestamp: string;
+}
+
 export interface Profile {
   n_rows: number;
   n_cols: number;
+  health?: Health;
   columns: ColumnProfile[];
   preview: Record<string, unknown>[];
   missingness: {
@@ -106,7 +129,7 @@ export interface RunResult {
   metrics: Record<string, number | null>;
   artifacts: {
     confusion_matrix?: { labels: string[]; matrix: number[][] };
-    feature_importance?: { feature: string; importance: number }[];
+    feature_importance?: { feature: string; label?: string; importance: number }[];
     class_distribution?: { label: string; count: number }[];
     scatter?: { points: { x: number; y: number; cluster: number }[]; axes: string[] };
     cluster_sizes?: { cluster: number; count: number }[];
@@ -130,6 +153,7 @@ export interface InsightFinding {
 
 export interface Driver {
   feature: string;
+  label?: string;
   groups: { label: string; rate_pct: number; count: number }[];
   lift: number | null;
 }
@@ -139,7 +163,7 @@ export interface Segment {
   name: string;
   share_pct: number;
   count: number;
-  traits: { feature: string; value: number; overall: number; direction: "above" | "below" }[];
+  traits: { feature: string; label?: string; value: number; overall: number; direction: "above" | "below" }[];
 }
 
 export interface Outlook {
@@ -210,6 +234,7 @@ export interface Run {
   created_at: string;
   error: string | null;
   decisions: DecisionNode[];
+  agent_log?: AgentLogEntry[];
   profile: Profile | null;
   eda: Eda | null;
   recommendation: Recommendation | null;

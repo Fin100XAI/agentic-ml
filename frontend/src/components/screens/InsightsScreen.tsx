@@ -44,10 +44,14 @@ function DriverChart({ driver }: { driver: Driver }) {
   return (
     <div className="rounded-xl border border-edge bg-panel p-4">
       <div className="mb-1 flex items-center justify-between">
-        <h4 className="text-xs font-semibold">{driver.feature}</h4>
+        <h4 className="min-w-0 truncate text-xs font-semibold" title={`raw column: ${driver.feature}`}>
+          {driver.label ?? driver.feature}
+        </h4>
         {driver.lift && <Badge tone="accent">{driver.lift}× spread</Badge>}
       </div>
-      <p className="mb-3 text-[11px] text-ink-dim">outcome rate per group</p>
+      <p className="mb-3 text-[11px] text-ink-dim">
+        Outcome rate per group — the red bar is the highest-risk group, where action matters most.
+      </p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
           <CartesianGrid stroke="#dde3ee" horizontal={false} />
@@ -88,8 +92,10 @@ function SegmentCard({ segment }: { segment: Segment }) {
       {segment.traits.length > 0 ? (
         <ul className="mt-3 space-y-1.5">
           {segment.traits.map((t) => (
-            <li key={t.feature} className="flex items-center justify-between text-xs">
-              <span className="text-ink-dim">{t.feature}</span>
+            <li key={t.feature} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate text-ink-dim" title={`raw column: ${t.feature}`}>
+                {t.label ?? t.feature}
+              </span>
               <span className={`font-medium tabular-nums ${t.direction === "above" ? "text-good" : "text-warn"}`}>
                 {t.direction === "above" ? "▲" : "▼"} {t.value}
                 <span className="ml-1 text-[10px] text-ink-dim">(avg {t.overall})</span>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { BrainCircuit, Check, Home } from "lucide-react";
+import { Bot, BrainCircuit, Check, Home } from "lucide-react";
 import { api } from "./api/client";
+import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { Timeline } from "./components/Timeline";
 import { CompareScreen } from "./components/screens/CompareScreen";
 import { ConfigureScreen } from "./components/screens/ConfigureScreen";
@@ -64,6 +65,7 @@ export default function App() {
   const [llmEnabled, setLlmEnabled] = useState<boolean | null>(null);
   const [preferredModel, setPreferredModel] = useState<string | undefined>(undefined);
   const [uploadStage, setUploadStage] = useState<"uploading" | "profiling" | "analyzing" | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -232,6 +234,17 @@ export default function App() {
           )}
 
           <div className="flex items-center gap-2">
+            {run && (run.agent_log?.length ?? 0) > 0 && (
+              <button
+                onClick={() => setLogOpen(true)}
+                className="flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-3 py-1 text-xs font-medium text-ink-dim backdrop-blur transition-colors hover:border-accent/40 hover:text-accent"
+              >
+                <Bot className="h-3.5 w-3.5" /> Agent activity
+                <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">
+                  {run.agent_log?.length}
+                </span>
+              </button>
+            )}
             {llmEnabled === null ? (
               <Badge tone="bad">backend offline?</Badge>
             ) : llmEnabled ? (
@@ -361,6 +374,12 @@ export default function App() {
           />
         )}
       </main>
+
+      <AgentLogDrawer
+        entries={run?.agent_log ?? []}
+        open={logOpen}
+        onClose={() => setLogOpen(false)}
+      />
     </div>
   );
 }

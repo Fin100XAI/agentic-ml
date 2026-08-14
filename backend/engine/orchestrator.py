@@ -17,9 +17,12 @@ from typing import Any
 
 import pandas as pd
 
+import time
+
 from engine.agents import run_brief_agent, run_eda_agent, run_interpret_agent, run_recommend_agent
 from engine.catalog import get_model, models_for_use_case
-from engine.insights import build_insights
+from engine.health import assess_health
+from engine.insights import build_insights, _original_column
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
 from engine.suggest import suggest_hyperparams
@@ -81,6 +84,13 @@ class Run:
     comparison: dict[str, Any] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
+    agent_log: list[dict[str, Any]] = field(default_factory=list)
+
+    def labels(self) -> dict[str, str]:
+        """Raw column name -> human-friendly display name."""
+        if not self.profile:
+            return {}
+        return {c["name"]: c.get("display_name", c["name"]) for c in self.profile["columns"]}
 
     def node(self, stage: str) -> DecisionNode | None:
         for d in self.decisions:
@@ -98,6 +108,7 @@ class Run:
             "created_at": self.created_at,
             "error": self.error,
             "decisions": [n.to_dict() for n in self.decisions],
+            "agent_log": self.agent_log,
         }
         if include_data:
             d.update(
@@ -119,6 +130,21 @@ class Orchestrator:
     def __init__(self, provider: LLMProvider | None) -> None:
         self.provider = provider
 
+    @staticmethod
+    def _log(
+        run: Run, agent: str, action: str, decision: str, reasoning: str,
+        generated_by: str, started: float,
+    ) -> None:
+        run.agent_log.append({
+            "agent": agent,
+            "action": action,
+            "decision": decision,
+            "reasoning": reasoning,
+            "generated_by": generated_by,
+            "duration_ms": int((time.time() - started) * 1000),
+            "timestamp": _now(),
+        })
+
     # -- Stage 1a: profile (fast, deterministic) -------------------------------
     def start(self, run: Run, question: str) -> Run:
         run.question = question or ""
@@ -131,9 +157,19 @@ class Orchestrator:
         node = DecisionNode(stage="profile", title="Data profiling")
         run.decisions.append(node)
         try:
+            started = time.time()
             run.profile = profile_dataframe(run.df)
+            run.profile["health"] = assess_health(run.df, run.profile)
+            health = run.profile["health"]
+            n_issues = len(health["issues"])
             node.status = "done"
-            node.detail = f"Profiled {run.profile['n_cols']} columns."
+            node.detail = f"Profiled {run.profile['n_cols']} columns; data health: {health['score']}."
+            self._log(
+                run, "Profiler", "Profiled the dataset",
+                f"{run.profile['n_rows']:,} rows × {run.profile['n_cols']} cols; health '{health['score']}' with {n_issues} finding(s).",
+                "; ".join(i["title"] for i in health["issues"][:4]) or "No data-quality issues detected.",
+                "deterministic", started,
+            )
             run.stage = "profiled"
         except Exception as exc:  # surface profiling errors to the UI
             node.status = "error"
@@ -148,10 +184,17 @@ class Orchestrator:
         node = DecisionNode(stage="eda", title="AI data analysis")
         run.decisions.append(node)
         try:
+            started = time.time()
             run.eda = run_eda_agent(self.provider, run.profile)
             node.status = "proposed"
             node.agent_output = {"summary": run.eda.get("summary", "")}
             node.detail = "Findings ready; awaiting your review."
+            self._log(
+                run, "EDA agent", "Analyzed the dataset",
+                run.eda.get("summary", ""),
+                "Key findings: " + " | ".join(run.eda.get("key_findings", [])[:3]),
+                run.eda.get("generated_by", "heuristic"), started,
+            )
             run.stage = "eda"
         except Exception as exc:
             node.status = "error"
@@ -171,13 +214,30 @@ class Orchestrator:
         rec_node = DecisionNode(stage="recommend", title="Model recommendation")
         run.decisions.append(rec_node)
         try:
+            started = time.time()
             run.recommendation = run_recommend_agent(self.provider, run.profile, run.question)
+            self._log(
+                run, "Recommendation agent", "Chose the analysis approach",
+                f"Use case: {run.recommendation['use_case']}; "
+                f"ranking: {', '.join(m['key'] for m in run.recommendation['ranked_models'])}; "
+                f"target: {run.recommendation.get('target') or '—'}.",
+                run.recommendation.get("reasoning", ""),
+                run.recommendation.get("generated_by", "heuristic"), started,
+            )
             # Data-aware hyperparameter suggestions for every model of the use case.
+            started = time.time()
             run.recommendation["model_configs"] = suggest_hyperparams(
                 run.df,
                 run.recommendation["use_case"],
                 target=run.recommendation.get("target"),
                 time_column=run.recommendation.get("time_column"),
+            )
+            cfgs = run.recommendation["model_configs"]
+            self._log(
+                run, "Settings suggester", "Computed settings from your data",
+                "; ".join(f"{k}: {v['hyperparams']}" for k, v in list(cfgs.items())[:3]),
+                " ".join(v["rationale"] for v in list(cfgs.values())[:2]),
+                "deterministic", started,
             )
             rec_node.status = "proposed"
             top = run.recommendation["ranked_models"][0]["key"] if run.recommendation["ranked_models"] else "?"
@@ -236,6 +296,7 @@ class Orchestrator:
         node = DecisionNode(stage="execute", title=f"Run {run.config['model_name']}")
         run.decisions.append(node)
         try:
+            started = time.time()
             model = get_model(run.config["model_key"])
             run.result = model.run(
                 run.df,
@@ -244,9 +305,16 @@ class Orchestrator:
                 features=run.config.get("features"),
                 time_column=run.config.get("time_column"),
             )
+            self._add_display_labels(run)
             node.status = "done"
             node.agent_output = {"metrics": run.result["metrics"]}
             node.detail = "Model trained and evaluated."
+            self._log(
+                run, "Model runner", f"Trained {run.config['model_name']}",
+                f"Metrics: {run.result['metrics']}",
+                f"Settings used: {run.config['hyperparams']}",
+                "deterministic", started,
+            )
             run.stage = "execute"
             run.error = None
         except Exception as exc:
@@ -260,11 +328,27 @@ class Orchestrator:
         self._build_insights(run)
         return run
 
+    def _add_display_labels(self, run: Run) -> None:
+        """Attach human-friendly labels to chart artifacts (feature importance etc.)."""
+        if not run.result or not run.profile:
+            return
+        labels = run.labels()
+        raw_cols = list(labels.keys())
+        for fi in run.result["artifacts"].get("feature_importance", []):
+            src = _original_column(fi["feature"], raw_cols)
+            if src and src != fi["feature"]:
+                # One-hot feature like contract_type_two-year -> "Contract type: two-year"
+                suffix = fi["feature"][len(src) + 1 :]
+                fi["label"] = f"{labels[src]}: {suffix}"
+            else:
+                fi["label"] = labels.get(fi["feature"], fi["feature"])
+
     def _build_insights(self, run: Run) -> None:
         """Turn the model run into decision-ready findings + an executive brief."""
         node = DecisionNode(stage="insights", title="Insight extraction")
         run.decisions.append(node)
         try:
+            started = time.time()
             cluster_labels = run.result["artifacts"].pop("labels", None)  # strip from payload
             insights = build_insights(
                 run.df,
@@ -275,8 +359,27 @@ class Orchestrator:
                 cluster_labels,
                 n_rows=run.profile["n_rows"] if run.profile else len(run.df),
                 pct_missing=(run.profile or {}).get("missingness", {}).get("pct_missing") or 0,
+                display_labels=run.labels(),
             )
+            # Fold data-health warnings into the trust caveats.
+            health = (run.profile or {}).get("health", {})
+            for issue in health.get("issues", []):
+                if issue["severity"] in ("warning", "critical"):
+                    insights["evidence"]["caveats"].append(f"{issue['title']}: {issue['suggestion']}")
+            self._log(
+                run, "Insight engine", "Extracted decision-ready findings",
+                f"{len(insights.get('findings', []))} findings; evidence: {insights.get('evidence', {}).get('level')}.",
+                insights.get("outcome_summary", ""),
+                "deterministic", started,
+            )
+            started = time.time()
             insights["brief"] = run_brief_agent(self.provider, insights, run.question)
+            self._log(
+                run, "Brief agent", "Wrote the executive brief",
+                insights["brief"].get("executive_summary", "")[:300],
+                "Actions: " + " | ".join(insights["brief"].get("recommended_actions", [])[:2]),
+                insights["brief"].get("generated_by", "heuristic"), started,
+            )
             run.insights = insights
             node.status = "done"
             node.detail = f"{len(insights.get('findings', []))} findings + executive brief."
@@ -289,6 +392,7 @@ class Orchestrator:
         interp_node = DecisionNode(stage="interpret", title="Results interpretation")
         run.decisions.append(interp_node)
         try:
+            started = time.time()
             run.interpretation = run_interpret_agent(
                 self.provider,
                 run.config["model_name"],
@@ -297,6 +401,12 @@ class Orchestrator:
                 run.result["metrics"],
                 run.result["artifacts"],
                 run.question,
+            )
+            self._log(
+                run, "Interpretation agent", "Judged the model's results",
+                f"Assessment: {run.interpretation.get('assessment')}. {run.interpretation.get('summary', '')[:200]}",
+                " | ".join(run.interpretation.get("highlights", [])[:2]),
+                run.interpretation.get("generated_by", "heuristic"), started,
             )
             interp_node.status = "done"
             interp_node.agent_output = {
@@ -317,6 +427,7 @@ class Orchestrator:
         use_case = run.recommendation["use_case"]
         suggestions = run.recommendation.get("model_configs", {})
         metric_key, higher_better = PRIMARY_METRIC[use_case]
+        started_cmp = time.time()
 
         node = DecisionNode(stage="compare", title=f"Compare {use_case} models")
         run.decisions.append(node)
@@ -370,6 +481,12 @@ class Orchestrator:
             else "Comparison ran, but no model produced a valid score."
         )
         node.agent_output = {"best_model": run.comparison["best_model"]}
+        self._log(
+            run, "Model runner", f"Compared all {use_case} models",
+            "; ".join(f"{r['model_name']}: {metric_key}={r['metrics'].get(metric_key)}" for r in rows),
+            f"Ranked by {metric_key} ({'higher' if higher_better else 'lower'} wins); winner: {best['model_name'] if best else 'none'}.",
+            "deterministic", started_cmp,
+        )
         run.stage = "compare"
         run.error = None
         return run

@@ -104,7 +104,9 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
                 <ul className="mt-2 space-y-1">
                   {s.traits.map((t) => (
                     <li key={t.feature} className="flex justify-between gap-2 text-xs">
-                      <span className="min-w-0 truncate text-ink-dim">{t.feature}</span>
+                      <span className="min-w-0 truncate text-ink-dim" title={`raw column: ${t.feature}`}>
+                        {t.label ?? t.feature}
+                      </span>
                       <span className="shrink-0 tabular-nums">
                         {t.direction === "above" ? "▲" : "▼"} {t.value}{" "}
                         <span className="text-ink-dim">(avg {t.overall})</span>

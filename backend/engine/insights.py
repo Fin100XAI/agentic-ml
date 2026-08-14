@@ -66,17 +66,18 @@ def _driver_groups(df: pd.DataFrame, col: str, target: str, positive: Any) -> li
 
 
 def classification_insights(
-    df: pd.DataFrame, target: str, artifacts: dict[str, Any]
+    df: pd.DataFrame, target: str, artifacts: dict[str, Any], names: dict[str, str]
 ) -> dict[str, Any]:
     data = df.dropna(subset=[target])
     positive = _positive_class(data[target])
     overall = _pct((data[target] == positive).mean())
     n = len(data)
+    target_lbl = names.get(target, target)
 
     findings: list[dict[str, str]] = [
         {
             "headline": f"{overall}% of records have outcome '{positive}'",
-            "detail": f"Across {n:,} records, {overall}% fall in the '{target} = {positive}' group — the baseline any intervention would move.",
+            "detail": f"Across {n:,} records, {overall}% fall in the '{target_lbl} = {positive}' group — the baseline any intervention would move.",
         }
     ]
 
@@ -90,17 +91,18 @@ def classification_insights(
         groups = _driver_groups(data, col, target, positive)
         if len(groups) < 2:
             continue
+        col_lbl = names.get(col, col)
         rates = [g["rate_pct"] for g in groups]
         hi, lo = max(rates), min(rates)
         lift = round(hi / lo, 1) if lo > 0 else None
         hi_group = groups[rates.index(hi)]
         lo_group = groups[rates.index(lo)]
-        drivers.append({"feature": col, "groups": groups, "lift": lift})
+        drivers.append({"feature": col, "label": col_lbl, "groups": groups, "lift": lift})
         findings.append(
             {
-                "headline": f"'{col}' separates outcomes {f'{lift}×' if lift else 'sharply'}",
+                "headline": f"{col_lbl} separates outcomes {f'{lift}×' if lift else 'sharply'}",
                 "detail": (
-                    f"Records with {col} in '{hi_group['label']}' show a {hi}% rate vs {lo}% for "
+                    f"Records with {col_lbl.lower()} in '{hi_group['label']}' show a {hi}% rate vs {lo}% for "
                     f"'{lo_group['label']}'"
                     + (f" — {lift}× higher. " if lift else ". ")
                     + "A strong candidate lever for targeted action."
@@ -111,7 +113,7 @@ def classification_insights(
             break
 
     return {
-        "outcome_summary": f"{overall}% of {n:,} records have outcome '{positive}' ({target})",
+        "outcome_summary": f"{overall}% of {n:,} records have outcome '{positive}' ({target_lbl})",
         "findings": findings,
         "drivers": drivers,
     }
@@ -121,7 +123,8 @@ def classification_insights(
 # Clustering → segment profiles
 # --------------------------------------------------------------------------- #
 
-def clustering_insights(df: pd.DataFrame, labels: list[int]) -> dict[str, Any]:
+def clustering_insights(df: pd.DataFrame, labels: list[int], names: dict[str, str] | None = None) -> dict[str, Any]:
+    names = names or {}
     numeric_cols = [
         c for c in df.columns
         if pd.api.types.is_numeric_dtype(df[c]) and df[c].nunique() > 2
@@ -159,6 +162,7 @@ def clustering_insights(df: pd.DataFrame, labels: list[int]) -> dict[str, Any]:
         traits = [
             {
                 "feature": feat,
+                "label": names.get(feat, feat),
                 "value": round(float(part[feat].mean()), 2),
                 "overall": round(float(overall_mean[feat]), 2),
                 "direction": "above" if z[feat] > 0 else "below",
@@ -175,11 +179,11 @@ def clustering_insights(df: pd.DataFrame, labels: list[int]) -> dict[str, Any]:
             lead = traits[0]
             findings.append(
                 {
-                    "headline": f"{name}: {share}% of records, defined by {lead['feature']} {lead['direction']} average",
+                    "headline": f"{name}: {share}% of records, defined by {lead['label']} {lead['direction']} average",
                     "detail": (
                         f"{name} covers {len(part):,} records ({share}%). Typical profile: "
                         + "; ".join(
-                            f"{t['feature']} {t['direction']} average ({t['value']} vs {t['overall']})"
+                            f"{t['label']} {t['direction']} average ({t['value']} vs {t['overall']})"
                             for t in traits[:3]
                         )
                         + ". Policies can be tailored to this group's profile."
@@ -330,13 +334,15 @@ def build_insights(
     cluster_labels: list[int] | None,
     n_rows: int,
     pct_missing: float,
+    display_labels: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    names = display_labels or {}
     if use_case == "classification" and target:
-        core = classification_insights(df, target, artifacts)
+        core = classification_insights(df, target, artifacts, names)
     elif use_case == "clustering" and cluster_labels:
-        core = clustering_insights(df, cluster_labels)
+        core = clustering_insights(df, cluster_labels, names)
     elif use_case == "forecasting":
-        core = forecasting_insights(artifacts, metrics, target or "the series")
+        core = forecasting_insights(artifacts, metrics, names.get(target or "", target or "the series"))
     else:
         core = {"outcome_summary": "", "findings": []}
 

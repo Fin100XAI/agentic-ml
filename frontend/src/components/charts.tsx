@@ -95,21 +95,27 @@ export function ConfusionMatrix({
 export function FeatureImportanceChart({
   data,
 }: {
-  data: { feature: string; importance: number }[];
+  data: { feature: string; label?: string; importance: number }[];
 }) {
+  // Show human-friendly labels; the raw column name lives in the tooltip.
+  const named = data.map((d) => ({ ...d, name: d.label ?? d.feature }));
   return (
-    <ResponsiveContainer width="100%" height={Math.max(180, data.length * 26)}>
-      <BarChart data={data} layout="vertical" margin={{ left: 40, right: 16 }}>
+    <ResponsiveContainer width="100%" height={Math.max(180, named.length * 26)}>
+      <BarChart data={named} layout="vertical" margin={{ left: 40, right: 16 }}>
         <CartesianGrid stroke={GRID} horizontal={false} />
         <XAxis type="number" tick={AXIS} stroke={GRID} />
         <YAxis
           type="category"
-          dataKey="feature"
+          dataKey="name"
           tick={{ ...AXIS, fontSize: 10 }}
           stroke={GRID}
-          width={120}
+          width={130}
         />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          cursor={{ fill: "rgba(79,70,229,0.06)" }}
+          formatter={(v, _n, item) => [v, (item?.payload as { feature?: string })?.feature ?? ""]}
+        />
         <Bar dataKey="importance" fill="#4f46e5" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
@@ -230,32 +236,52 @@ export function ResultCharts({ result }: { result: RunResult }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {a.confusion_matrix && (
-        <ChartPanel title="Confusion matrix">
+        <ChartPanel
+          title="Right vs wrong predictions"
+          caption="Rows = what actually happened, columns = what the model predicted. Green cells (the diagonal) are correct; red cells are mistakes."
+        >
           <ConfusionMatrix labels={a.confusion_matrix.labels} matrix={a.confusion_matrix.matrix} />
         </ChartPanel>
       )}
       {a.feature_importance && a.feature_importance.length > 0 && (
-        <ChartPanel title="Feature importance">
+        <ChartPanel
+          title="What influenced predictions most"
+          caption="Longer bars = bigger influence on the model's predictions. Hover a bar to see the raw column name."
+        >
           <FeatureImportanceChart data={a.feature_importance} />
         </ChartPanel>
       )}
       {a.class_distribution && (
-        <ChartPanel title="Class distribution">
+        <ChartPanel
+          title="How the outcomes are split"
+          caption="How many rows fall into each outcome. A very lopsided split makes plain accuracy misleading."
+        >
           <ClassDistributionChart data={a.class_distribution} />
         </ChartPanel>
       )}
       {a.scatter && (
-        <ChartPanel title={`Clusters (${a.scatter.axes.filter(Boolean).join(" vs ")})`} wide>
+        <ChartPanel
+          title="The groups, mapped"
+          caption="Each dot is one row, placed by its overall similarity and colored by group. Clear color islands = well-separated groups."
+          wide
+        >
           <ClusterScatter points={a.scatter.points} axes={a.scatter.axes} />
         </ChartPanel>
       )}
       {a.cluster_sizes && (
-        <ChartPanel title="Cluster sizes">
+        <ChartPanel
+          title="Group sizes"
+          caption="How many rows landed in each group. 'Noise' means rows that didn't fit any pattern."
+        >
           <ClusterSizesChart data={a.cluster_sizes} />
         </ChartPanel>
       )}
       {a.series && a.forecast && (
-        <ChartPanel title="History, holdout fit & forecast" wide>
+        <ChartPanel
+          title="History & forecast"
+          caption="Grey = what actually happened. Amber = the model's practice run on held-back history (closer to grey is better). Dashed blue = the projection."
+          wide
+        >
           <ForecastChart series={a.series} forecast={a.forecast} />
         </ChartPanel>
       )}
@@ -265,20 +291,23 @@ export function ResultCharts({ result }: { result: RunResult }) {
 
 function ChartPanel({
   title,
+  caption,
   wide,
   children,
 }: {
   title: string;
+  caption?: string;
   wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
-      className={`rounded-xl border border-edge bg-panel p-4 ${wide ? "lg:col-span-2" : ""}`}
+      className={`rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl ${wide ? "lg:col-span-2" : ""}`}
     >
-      <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-dim">
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">
         {title}
       </h4>
+      {caption && <p className="mb-3 text-[11px] leading-snug text-ink-dim">{caption}</p>}
       {children}
     </div>
   );

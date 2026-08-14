@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   ChevronRight,
+  Info,
   Lightbulb,
   MessageSquare,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Bar,
@@ -14,7 +18,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { ColumnProfile, Eda, Profile } from "../../types";
+import type { ColumnProfile, Eda, Health, Profile } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner, Stat } from "../ui";
@@ -46,6 +50,22 @@ const ROLE_LABEL: Record<string, string> = {
   identifier: "IDs",
   text: "text",
 };
+
+/** One-line, data-derived caption: what can be read off this histogram. */
+function histogramCaption(col: ColumnProfile): string {
+  const s = col.stats;
+  const h = col.histogram;
+  if (!s || !h || s.mean === null || s.median === null) return "";
+  const maxBin = h.counts.indexOf(Math.max(...h.counts));
+  const lo = h.edges[maxBin];
+  const hi = h.edges[maxBin + 1];
+  const where = lo !== null && hi !== null ? `Most rows sit between ${lo} and ${hi}.` : "";
+  if (s.median !== 0 && s.mean > s.median * 1.25)
+    return `${where} A few unusually high values pull the average up.`;
+  if (s.median !== 0 && s.mean < s.median * 0.75)
+    return `${where} A few unusually low values pull the average down.`;
+  return `${where} Values are fairly evenly spread.`;
+}
 
 /** Mini histogram for a numeric column. */
 function HistogramCard({ col }: { col: ColumnProfile }) {
@@ -79,6 +99,9 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
         <span>{col.stats?.min}</span>
         <span>{col.stats?.max}</span>
       </div>
+      <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
+        {histogramCaption(col)}
+      </p>
     </div>
   );
 }
@@ -119,7 +142,116 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
           />
         </BarChart>
       </ResponsiveContainer>
+      {data.length > 0 && (
+        <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
+          {(() => {
+            const total = (col.top_values ?? []).reduce((s, t) => s + t.count, 0);
+            const top = data[0];
+            const share = total ? Math.round((top.count / total) * 100) : 0;
+            return share >= 60
+              ? `'${top.name}' dominates with ${share}% of rows — the rest are much rarer.`
+              : `'${top.name}' is the most common (${share}% of rows).`;
+          })()}
+        </p>
+      )}
     </div>
+  );
+}
+
+/** Missing-data bar chart, shown only when gaps exist. */
+function MissingnessCard({ profile }: { profile: Profile }) {
+  const cols = profile.columns
+    .filter((c) => (c.missing_pct ?? 0) > 0)
+    .sort((a, b) => (b.missing_pct ?? 0) - (a.missing_pct ?? 0))
+    .slice(0, 8);
+  if (cols.length === 0) return null;
+  const data = cols.map((c) => ({ name: c.display_name, pct: c.missing_pct ?? 0 }));
+  return (
+    <div className="min-w-0 rounded-xl border border-warn/30 bg-panel p-3 backdrop-blur-xl">
+      <div className="mb-1 flex items-center gap-1.5">
+        <AlertTriangle className="h-3.5 w-3.5 text-warn" />
+        <span className="text-xs font-semibold">Where data is missing</span>
+      </div>
+      <ResponsiveContainer width="100%" height={Math.max(90, data.length * 22)}>
+        <BarChart data={data} layout="vertical" margin={{ top: 2, left: 0, right: 30, bottom: 0 }}>
+          <XAxis type="number" hide domain={[0, 100]} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={90}
+            tick={AXIS}
+            stroke={GRID}
+            tickFormatter={(v: string) => (v.length > 12 ? v.slice(0, 11) + "…" : v)}
+          />
+          <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}% missing`, ""]} cursor={{ fill: "rgba(217,119,6,0.06)" }} />
+          <Bar dataKey="pct" fill="#d97706" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "#64748b", fontSize: 9, formatter: (v) => `${v}%` }} />
+        </BarChart>
+      </ResponsiveContainer>
+      <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
+        Gaps are filled with typical values during modeling — heavy gaps weaken the evidence.
+      </p>
+    </div>
+  );
+}
+
+/** Prominent data-health panel with prompts + suggestions. */
+function HealthPanel({ health }: { health: Health }) {
+  const [expanded, setExpanded] = useState(health.score !== "good");
+  const tone =
+    health.score === "good"
+      ? { border: "border-good/40", icon: ShieldCheck, color: "text-good", label: "Data looks healthy" }
+      : health.score === "caution"
+        ? { border: "border-warn/50", icon: ShieldAlert, color: "text-warn", label: "Data needs some care" }
+        : { border: "border-bad/50", icon: ShieldAlert, color: "text-bad", label: "Data has serious limitations" };
+  const Icon = tone.icon;
+  const SEV_STYLE = {
+    critical: { icon: ShieldAlert, cls: "text-bad", chip: "bad" as const },
+    warning: { icon: AlertTriangle, cls: "text-warn", chip: "warn" as const },
+    info: { icon: Info, cls: "text-ink-dim", chip: "neutral" as const },
+  };
+  return (
+    <Card className={tone.border}>
+      <button className="flex w-full items-center justify-between px-5 py-3.5 text-left" onClick={() => setExpanded((e) => !e)}>
+        <span className="flex items-center gap-2">
+          <Icon className={`h-4 w-4 ${tone.color}`} />
+          <span className="text-sm font-semibold">{tone.label}</span>
+          {health.issues.length > 0 && (
+            <Badge tone={health.score === "poor" ? "bad" : health.score === "caution" ? "warn" : "neutral"}>
+              {health.issues.length} finding{health.issues.length !== 1 ? "s" : ""}
+            </Badge>
+          )}
+        </span>
+        {expanded ? <ChevronDown className="h-4 w-4 text-ink-dim" /> : <ChevronRight className="h-4 w-4 text-ink-dim" />}
+      </button>
+      {expanded && health.issues.length > 0 && (
+        <div className="space-y-3 border-t border-edge px-5 py-4">
+          {health.issues.map((issue, i) => {
+            const s = SEV_STYLE[issue.severity];
+            const SevIcon = s.icon;
+            return (
+              <div key={i} className="flex gap-2.5">
+                <SevIcon className={`mt-0.5 h-4 w-4 shrink-0 ${s.cls}`} />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold">{issue.title}</span>
+                    <Badge tone={s.chip}>{issue.severity}</Badge>
+                  </div>
+                  <p className="mt-0.5 break-words text-[11px] leading-relaxed text-ink-dim">{issue.detail}</p>
+                  <p className="mt-1 break-words text-[11px] font-medium leading-relaxed text-ink">
+                    → {issue.suggestion}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {expanded && health.issues.length === 0 && (
+        <p className="border-t border-edge px-5 py-3 text-xs text-ink-dim">
+          No size, balance, or missing-data problems detected. Good to proceed.
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -217,6 +349,9 @@ export function EdaScreen({
     <div className="grid gap-6 lg:grid-cols-3">
       {/* Main column */}
       <div className="space-y-6 lg:col-span-2">
+        {/* Data health — the human's early-warning panel */}
+        {profile.health && <HealthPanel health={profile.health} />}
+
         {/* Agent summary */}
         <Card>
           <CardHeader
@@ -250,6 +385,7 @@ export function EdaScreen({
             <TypeComposition profile={profile} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visibleCharts.map((c) => (c.histogram ? <HistogramCard key={c.name} col={c} /> : <TopValuesCard key={c.name} col={c} />))}
+              <MissingnessCard profile={profile} />
             </div>
             {chartCols.length > 6 && (
               <button
@@ -382,20 +518,29 @@ export function EdaScreen({
               }
             />
             <CardBody className="space-y-1.5">
-              {profile.correlations.slice(0, 5).map((c, i) => (
-                <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0 truncate text-ink-dim" title={`${c.a} × ${c.b}`}>
-                    {c.a} × {c.b}
-                  </span>
-                  <span
-                    className={`shrink-0 font-semibold tabular-nums ${
-                      Math.abs(c.corr ?? 0) > 0.5 ? "text-accent" : "text-ink-dim"
-                    }`}
-                  >
-                    {c.corr}
-                  </span>
-                </div>
-              ))}
+              {profile.correlations.slice(0, 5).map((c, i) => {
+                const nameOf = (raw: string) =>
+                  profile.columns.find((col) => col.name === raw)?.display_name ?? raw;
+                return (
+                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate text-ink-dim" title={`${c.a} × ${c.b} (raw column names)`}>
+                      {nameOf(c.a)} × {nameOf(c.b)}
+                    </span>
+                    <span
+                      className={`shrink-0 font-semibold tabular-nums ${
+                        Math.abs(c.corr ?? 0) > 0.5 ? "text-accent" : "text-ink-dim"
+                      }`}
+                    >
+                      {c.corr}
+                    </span>
+                  </div>
+                );
+              })}
+              <p className="border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
+                {Math.abs(profile.correlations[0]?.corr ?? 0) > 0.5
+                  ? "The top pair moves strongly together — likely related in the real world."
+                  : "No very strong pairings — columns carry mostly independent information."}
+              </p>
             </CardBody>
           </Card>
         )}

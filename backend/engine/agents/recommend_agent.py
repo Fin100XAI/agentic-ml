@@ -20,7 +20,10 @@ _SYSTEM = (
     "catalog. Based on the dataset profile and the user's goal, choose the most "
     "appropriate use case and rank the available models for it. Only use model "
     "keys and column names that actually appear in the input. Explain your "
-    "reasoning concretely, referencing the data's characteristics."
+    "reasoning concretely, referencing the data's characteristics. The profile "
+    "includes a 'health' section listing data-quality issues (imbalance, small "
+    "sample, missing data) — factor these into your choice and mention how they "
+    "affect it (e.g. prefer robust models on imbalanced data)."
 )
 
 
