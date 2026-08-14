@@ -2,7 +2,8 @@
 import { FlaskConical, TrendingUp, X } from "lucide-react";
 import type { Autotune } from "../types";
 import { metricInfo } from "../lib/metricInfo";
-import { Badge, Button, Spinner } from "./ui";
+import { BusyStatus } from "./Elapsed";
+import { Badge, Button } from "./ui";
 
 export function AutotuneModal({
   open,
@@ -38,10 +39,14 @@ export function AutotuneModal({
         </div>
 
         {running ? (
-          <div className="flex flex-col items-center gap-3 py-10">
-            <Spinner label="Trying combinations for every model…" />
-            <p className="text-xs text-ink-dim">
-              Each model tests several settings, validated on held-back data · {etaText}
+          <div className="py-8">
+            <BusyStatus
+              running={running}
+              label="Trying combinations for every model…"
+              expected={etaText}
+            />
+            <p className="mt-2 text-center text-xs text-ink-dim">
+              Each model tests up to 8 setting combinations, validated on held-back data.
             </p>
           </div>
         ) : result ? (

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, FlaskConical, GitCompare, Play, Settings2, Sparkles } from "lucide-react";
+import { Bot, Clock3, FlaskConical, GitCompare, Play, Settings2, Sparkles, Undo2 } from "lucide-react";
 import type { ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
 import { eta } from "../../lib/eta";
+import { BusyStatus } from "../Elapsed";
 import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
@@ -66,6 +67,60 @@ function ParamField({
   );
 }
 
+/** One of the three "what happens next" path cards. */
+function PathCard({
+  icon: Icon,
+  title,
+  steps,
+  time,
+  actionLabel,
+  onAction,
+  disabled,
+  primary,
+}: {
+  icon: typeof Play;
+  title: string;
+  steps: string[];
+  time: string;
+  actionLabel: string;
+  onAction: () => void;
+  disabled: boolean;
+  primary?: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-w-0 flex-col rounded-2xl border p-4 backdrop-blur-xl ${
+        primary ? "border-accent/50 bg-accent-soft/30" : "border-edge bg-panel"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`rounded-lg p-1.5 ${primary ? "bg-accent text-white" : "bg-accent-soft text-accent"}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <h4 className="text-sm font-semibold">{title}</h4>
+      </div>
+      <ol className="mt-3 flex-1 space-y-1.5">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-2 text-[11px] leading-snug text-ink-dim">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-slate-500/10 text-[9px] font-semibold">
+              {i + 1}
+            </span>
+            <span className="min-w-0">{s}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-edge/60 pt-2.5">
+        <span className="inline-flex items-center gap-1 text-[10px] text-ink-dim">
+          <Clock3 className="h-3 w-3" /> {time}
+        </span>
+        <Button size="sm" variant={primary ? "primary" : "outline"} disabled={disabled} onClick={onAction}>
+          {actionLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function ConfigureScreen({
   profile,
   recommendation,
@@ -74,6 +129,7 @@ export function ConfigureScreen({
   onRun,
   onCompare,
   onAutotune,
+  onChangeDirection,
   busy,
   busyLabel,
 }: {
@@ -89,6 +145,7 @@ export function ConfigureScreen({
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
   onAutotune: (target: string | null, time_column: string | null) => void;
+  onChangeDirection: () => void;
   busy: boolean;
   busyLabel: string;
 }) {
@@ -109,6 +166,7 @@ export function ConfigureScreen({
   );
 
   const [selectedKey, setSelectedKey] = useState(initialModelKey ?? ordered[0]?.key ?? "");
+  const [showReasoning, setShowReasoning] = useState(false);
   const selected = ordered.find((m) => m.key === selectedKey) ?? ordered[0];
   const suggestion = recommendation.model_configs?.[selected?.key ?? ""];
 
@@ -137,59 +195,96 @@ export function ConfigureScreen({
 
   if (!selected) return null;
   const suggestedValues = suggestion?.hyperparams ?? {};
+  const disabled = (needsTarget && !target) || busy;
 
   return (
     <div className="space-y-6">
-      {/* Agent recommendation banner */}
+      {/* Recommendation summary - one line, details on demand */}
       <Card>
-        <CardHeader
-          title={
-            <span className="flex items-center gap-2">
-              <Bot className="h-4 w-4 text-accent" /> Recommendation agent
+        <CardBody className="flex flex-wrap items-center justify-between gap-3 py-3.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Bot className="h-4 w-4 shrink-0 text-accent" />
+            <span className="text-sm">
+              Agent recommends <span className="font-semibold capitalize">{recommendation.use_case}</span>
+              {" "}with <span className="font-semibold">{ordered[0]?.name}</span> as top pick
             </span>
-          }
-          right={
-            <div className="flex gap-2">
-              <Badge tone="accent">{recommendation.use_case}</Badge>
-              <Badge tone={recommendation.generated_by === "claude" ? "accent" : "neutral"}>
-                {recommendation.generated_by}
-              </Badge>
-            </div>
-          }
-        />
-        <CardBody className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-2xl text-sm leading-relaxed text-ink-dim">{recommendation.reasoning}</p>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            {busy ? (
-              <Spinner label={busyLabel} />
-            ) : (
-              <>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={needsTarget && !target}
-                    onClick={() => onAutotune(target, timeColumn)}
-                  >
-                    <FlaskConical className="h-3.5 w-3.5" /> Auto-tune all models
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={needsTarget && !target}
-                    onClick={() => onCompare(target, timeColumn)}
-                  >
-                    <GitCompare className="h-3.5 w-3.5" /> Compare all models
-                  </Button>
-                </div>
-                <span className="text-[10px] text-ink-dim">
-                  auto-tune {eta("autotune", profile.n_rows, true)} · compare {eta("compare", profile.n_rows, true)}
-                </span>
-              </>
-            )}
+            <Badge tone={recommendation.generated_by === "claude" ? "accent" : "neutral"}>
+              {recommendation.generated_by}
+            </Badge>
+            <button
+              onClick={() => setShowReasoning((s) => !s)}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              {showReasoning ? "Hide why" : "Why?"}
+            </button>
           </div>
+          <Button variant="ghost" size="sm" onClick={onChangeDirection}>
+            <Undo2 className="h-3.5 w-3.5" /> Change direction
+          </Button>
         </CardBody>
+        {showReasoning && (
+          <div className="border-t border-edge px-5 py-3">
+            <p className="text-xs leading-relaxed text-ink-dim">{recommendation.reasoning}</p>
+          </div>
+        )}
       </Card>
+
+      {/* Busy status with live timer */}
+      {busy && (
+        <Card>
+          <CardBody>
+            <BusyStatus running={busy} label={busyLabel} expected={eta("compare", profile.n_rows, true)} />
+          </CardBody>
+        </Card>
+      )}
+
+      {/* Three paths - what happens if you click each */}
+      {!busy && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <PathCard
+            icon={Play}
+            title="Run the model"
+            primary
+            steps={[
+              `Trains ${selected.name} with the settings on the right`,
+              "Extracts drivers, findings and an executive brief",
+              "You land on the decision brief",
+            ]}
+            time={eta("train", profile.n_rows, true)}
+            actionLabel="Run"
+            disabled={disabled}
+            onAction={() =>
+              onRun({ model_key: selected.key, hyperparams: params, target, time_column: timeColumn })
+            }
+          />
+          <PathCard
+            icon={FlaskConical}
+            title="Auto-tune first"
+            steps={[
+              `Tries up to 8 setting combos for each of the ${ordered.length} models`,
+              "Scores every combo on held-back data",
+              "Best settings get pre-filled - you still choose what to run",
+            ]}
+            time={eta("autotune", profile.n_rows, true)}
+            actionLabel="Auto-tune"
+            disabled={disabled}
+            onAction={() => onAutotune(target, timeColumn)}
+          />
+          <PathCard
+            icon={GitCompare}
+            title="Compare everything"
+            steps={[
+              `Trains all ${ordered.length} models with suggested settings`,
+              "Ranks them on a leaderboard",
+              "Generate insights with the winner in one click",
+            ]}
+            time={eta("compare", profile.n_rows, true)}
+            actionLabel="Compare"
+            disabled={disabled}
+            onAction={() => onCompare(target, timeColumn)}
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Model cards */}

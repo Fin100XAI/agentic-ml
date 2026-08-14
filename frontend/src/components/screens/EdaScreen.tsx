@@ -13,6 +13,7 @@ import {
 import {
   Bar,
   BarChart,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -194,6 +195,45 @@ function MissingnessCard({ profile }: { profile: Profile }) {
   );
 }
 
+/** Horizontal correlation chart: green = move together, red = move opposite. */
+function CorrelationChart({ profile }: { profile: Profile }) {
+  const nameOf = (raw: string) =>
+    profile.columns.find((col) => col.name === raw)?.display_name ?? raw;
+  const data = profile.correlations.slice(0, 6).map((c) => ({
+    pair: `${nameOf(c.a)} × ${nameOf(c.b)}`,
+    corr: c.corr ?? 0,
+  }));
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(100, data.length * 30)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 2, left: 0, right: 34, bottom: 0 }}>
+        <XAxis type="number" domain={[-1, 1]} hide />
+        <YAxis
+          type="category"
+          dataKey="pair"
+          width={130}
+          tick={{ fill: "#64748b", fontSize: 9 }}
+          stroke={GRID}
+          tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 21) + "…" : v)}
+        />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          formatter={(v) => [v, "correlation"]}
+          cursor={{ fill: "rgba(79,70,229,0.06)" }}
+        />
+        <Bar
+          dataKey="corr"
+          radius={[0, 3, 3, 0]}
+          label={{ position: "right", fill: "#64748b", fontSize: 9 }}
+        >
+          {data.map((d, i) => (
+            <Cell key={i} fill={d.corr >= 0 ? "#059669" : "#dc2626"} opacity={0.35 + Math.abs(d.corr) * 0.6} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 /** Prominent data-health panel with prompts + suggestions. */
 function HealthPanel({ health }: { health: Health }) {
   const [expanded, setExpanded] = useState(health.score !== "good");
@@ -335,6 +375,7 @@ export function EdaScreen({
 }) {
   const [comment, setComment] = useState(question);
   const [showAllCharts, setShowAllCharts] = useState(false);
+  const [showFindings, setShowFindings] = useState(false);
 
   const chartCols = useMemo(() => {
     const numeric = profile.columns.filter((c) => c.role === "numeric" && c.histogram);
@@ -352,7 +393,7 @@ export function EdaScreen({
         {/* Data health - the human's early-warning panel */}
         {profile.health && <HealthPanel health={profile.health} />}
 
-        {/* Agent summary */}
+        {/* Agent summary - short by default, details on demand */}
         <Card>
           <CardHeader
             title={
@@ -364,16 +405,65 @@ export function EdaScreen({
           />
           <CardBody>
             <p className="text-sm leading-relaxed">{eda.summary}</p>
-            <ul className="mt-3 space-y-1.5">
-              {eda.key_findings.slice(0, 4).map((f, i) => (
-                <li key={i} className="flex gap-2 text-xs leading-relaxed text-ink-dim">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                  <span className="min-w-0 break-words">{f}</span>
-                </li>
-              ))}
-            </ul>
+            {eda.key_findings.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowFindings((s) => !s)}
+                  className="mt-2 text-xs font-medium text-accent hover:underline"
+                >
+                  {showFindings ? "Hide details" : `Detailed findings (${eda.key_findings.length})`}
+                </button>
+                {showFindings && (
+                  <ul className="mt-2 space-y-1.5">
+                    {eda.key_findings.map((f, i) => (
+                      <li key={i} className="flex gap-2 text-xs leading-relaxed text-ink-dim">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                        <span className="min-w-0 break-words">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
           </CardBody>
         </Card>
+
+        {/* Problem statements the human will recognize */}
+        {(eda.problem_statements?.length ?? 0) > 0 && (
+          <Card className="border-accent/30">
+            <CardHeader
+              title={
+                <span className="flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-accent" /> Problems this data could answer
+                </span>
+              }
+              subtitle="Pick one to set the direction - or write your own on the right"
+            />
+            <CardBody className="grid gap-3 sm:grid-cols-1">
+              {eda.problem_statements!.map((p, i) => {
+                const info = USE_CASE_INFO[p.use_case];
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setComment(p.statement)}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                      comment === p.statement
+                        ? "border-accent bg-accent-soft/40"
+                        : "border-edge bg-panel-2 hover:border-accent/50"
+                    }`}
+                  >
+                    <span className="min-w-0 break-words text-sm leading-snug">{p.statement}</span>
+                    {info && (
+                      <span className="shrink-0 text-[11px] text-ink-dim">
+                        {info.icon} {info.title}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </CardBody>
+          </Card>
+        )}
 
         {/* Column charts */}
         <Card>
@@ -513,30 +603,13 @@ export function EdaScreen({
               title={
                 <span className="inline-flex items-center gap-1">
                   Strongest relationships
-                  <InfoTip text="Values close to 1 or -1 mean two columns move together; close to 0 means no clear link." />
+                  <InfoTip text="Bars to the right (green): the pair rises together. Bars to the left (red): one rises as the other falls. Longer bar = stronger link." />
                 </span>
               }
             />
-            <CardBody className="space-y-1.5">
-              {profile.correlations.slice(0, 5).map((c, i) => {
-                const nameOf = (raw: string) =>
-                  profile.columns.find((col) => col.name === raw)?.display_name ?? raw;
-                return (
-                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="min-w-0 truncate text-ink-dim" title={`${c.a} × ${c.b} (raw column names)`}>
-                      {nameOf(c.a)} × {nameOf(c.b)}
-                    </span>
-                    <span
-                      className={`shrink-0 font-semibold tabular-nums ${
-                        Math.abs(c.corr ?? 0) > 0.5 ? "text-accent" : "text-ink-dim"
-                      }`}
-                    >
-                      {c.corr}
-                    </span>
-                  </div>
-                );
-              })}
-              <p className="border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
+            <CardBody>
+              <CorrelationChart profile={profile} />
+              <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
                 {Math.abs(profile.correlations[0]?.corr ?? 0) > 0.5
                   ? "The top pair moves strongly together - likely related in the real world."
                   : "No very strong pairings - columns carry mostly independent information."}
@@ -545,50 +618,35 @@ export function EdaScreen({
           </Card>
         )}
 
-        <Card className="border-warn/30">
+        <Card className="border-accent/40 shadow-lg shadow-accent/5">
           <CardHeader
             title={
               <span className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-warn" /> Your turn
+                <MessageSquare className="h-4 w-4 text-accent" /> Set the direction
               </span>
             }
-            subtitle="The agents pause here until you approve"
+            subtitle="Decision point - the agents wait for you"
           />
           <CardBody>
-            <p className="text-xs leading-relaxed text-ink-dim">
-              Tell the agents what you want to learn - or pick a suggestion. This steers which
-              analysis gets recommended next.
-            </p>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
-              placeholder={eda.suggested_questions[0] ?? "e.g. what drives churn, find groups…"}
-              className="mt-2 w-full resize-none rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
+              placeholder="What do you want to find out? Pick a problem on the left, or write your own here…"
+              className="w-full resize-none rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
             />
-            {eda.suggested_questions.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {eda.suggested_questions.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setComment(q)}
-                    className="max-w-full truncate rounded-full border border-edge px-2.5 py-1 text-[11px] text-ink-dim transition-colors hover:border-accent hover:text-accent"
-                    title={q}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="mt-4">
+            <div className="mt-3">
               {busy ? (
                 <Spinner label="Recommendation agent thinking…" />
               ) : (
                 <Button className="w-full" onClick={() => onApprove(comment)}>
-                  Looks right - recommend an approach
+                  Set direction & recommend an approach
                 </Button>
               )}
             </div>
+            <p className="mt-2 text-center text-[10px] leading-snug text-ink-dim">
+              Not locked in - you can come back and change the direction any time.
+            </p>
           </CardBody>
         </Card>
       </div>

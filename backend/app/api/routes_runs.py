@@ -84,8 +84,10 @@ def run_eda(run_id: str) -> dict:
 @router.post("/runs/{run_id}/approve-eda")
 def approve_eda(run_id: str, req: ApproveEdaRequest) -> dict:
     run = _get_run(run_id)
-    if run.stage != "eda":
-        raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'eda'.")
+    # Allowed from any post-EDA stage too, so the human can change direction
+    # later and get a fresh recommendation.
+    if run.stage in ("upload", "profiled"):
+        raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'eda' or later.")
     _orchestrator().approve_eda(run, req.comment)
     return run.to_dict()
 

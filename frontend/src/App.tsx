@@ -343,6 +343,7 @@ export default function App() {
             onRun={handleRunModel}
             onCompare={handleCompare}
             onAutotune={handleAutotune}
+            onChangeDirection={() => setScreen("eda")}
             busy={busy}
             busyLabel={busyLabel}
           />

@@ -67,10 +67,16 @@ export interface Profile {
   suggested_use_cases: string[];
 }
 
+export interface ProblemStatement {
+  statement: string;
+  use_case: string;
+}
+
 export interface Eda {
   summary: string;
   key_findings: string[];
   suggested_questions: string[];
+  problem_statements?: ProblemStatement[];
   generated_by: string;
 }
 

@@ -33,6 +33,25 @@ _SCHEMA: dict[str, Any] = {
             "items": {"type": "string"},
             "description": "2-4 questions the user might want to ask of this data.",
         },
+        "problem_statements": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "statement": {
+                        "type": "string",
+                        "description": "A concrete business/policy problem this data could answer, in one plain sentence. Use everyday words and the friendly column labels - never raw column headers.",
+                    },
+                    "use_case": {
+                        "type": "string",
+                        "enum": ["classification", "clustering", "forecasting"],
+                    },
+                },
+                "required": ["statement", "use_case"],
+                "additionalProperties": False,
+            },
+            "description": "2-4 problem statements a decision maker would recognize, each mapped to the analysis type that answers it.",
+        },
         "column_labels": {
             "type": "array",
             "items": {
@@ -48,9 +67,37 @@ _SCHEMA: dict[str, Any] = {
             "description": "A friendly label + meaning for every column in the profile.",
         },
     },
-    "required": ["summary", "key_findings", "suggested_questions", "column_labels"],
+    "required": ["summary", "key_findings", "suggested_questions", "problem_statements", "column_labels"],
     "additionalProperties": False,
 }
+
+
+def _heuristic_problems(profile: dict[str, Any]) -> list[dict[str, str]]:
+    """Plain-language problem statements built from the profile (no raw headers)."""
+    out: list[dict[str, str]] = []
+    cols = profile["columns"]
+    label = {c["name"]: c.get("display_name", c["name"]) for c in cols}
+
+    if "classification" in profile.get("suggested_use_cases", []):
+        cands = [c for c in profile.get("candidate_targets", []) if c["role"] in ("boolean", "categorical")]
+        if cands:
+            out.append({
+                "statement": f"Understand what makes '{label.get(cands[0]['name'], cands[0]['name']).lower()}' differ between records, and who is most at risk.",
+                "use_case": "classification",
+            })
+    if "clustering" in profile.get("suggested_use_cases", []):
+        out.append({
+            "statement": "Find the natural groups hiding in these records so each group can be treated differently.",
+            "use_case": "clustering",
+        })
+    if "forecasting" in profile.get("suggested_use_cases", []):
+        num = next((c for c in cols if c["role"] == "numeric"), None)
+        if num:
+            out.append({
+                "statement": f"See where '{num.get('display_name', num['name']).lower()}' is heading over the coming periods.",
+                "use_case": "forecasting",
+            })
+    return out
 
 
 def _fallback(profile: dict[str, Any]) -> dict[str, Any]:
@@ -89,6 +136,7 @@ def _fallback(profile: dict[str, Any]) -> dict[str, Any]:
             "Which columns most influence the likely target?",
             "Are there natural groups or segments in this data?",
         ],
+        "problem_statements": _heuristic_problems(profile),
         "generated_by": "heuristic",
     }
 
@@ -114,6 +162,8 @@ def run_eda_agent(provider: LLMProvider | None, profile: dict[str, Any]) -> dict
             if cl:
                 col["display_name"] = cl["label"]
                 col["meaning"] = cl["meaning"]
+        if not result.get("problem_statements"):
+            result["problem_statements"] = _heuristic_problems(profile)
         result["generated_by"] = "claude"
         return result
     except Exception:
