@@ -252,8 +252,8 @@ export function InsightsScreen({
           <Button size="sm" onClick={onViewReport}>
             <FileText className="h-3.5 w-3.5" /> View full report
           </Button>
-          <Button variant="outline" size="sm" onClick={() => api.downloadReport(run.id, `decision-brief-${run.id}.md`)}>
-            <Download className="h-3.5 w-3.5" /> Download
+          <Button variant="outline" size="sm" onClick={() => api.downloadReportPdf(run.id)}>
+            <Download className="h-3.5 w-3.5" /> Download PDF
           </Button>
           <Button variant="outline" size="sm" onClick={onTuneAgain}>
             <SlidersHorizontal className="h-3.5 w-3.5" /> Adjust

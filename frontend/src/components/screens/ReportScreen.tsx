@@ -41,8 +41,11 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-3.5 w-3.5" /> Print / save as PDF
           </Button>
-          <Button size="sm" onClick={() => api.downloadReport(run.id, `decision-brief-${run.id}.md`)}>
-            <Download className="h-3.5 w-3.5" /> Download markdown
+          <Button size="sm" onClick={() => api.downloadReportPdf(run.id)}>
+            <Download className="h-3.5 w-3.5" /> Download PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => api.downloadReport(run.id, `decision-brief-${run.id}.md`)}>
+            <Download className="h-3.5 w-3.5" /> Markdown
           </Button>
         </div>
       </div>

@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 
+from app.pdf_report import build_report_pdf
 from app.report import build_report
 from app.schemas import (
     ApproveConfigRequest,
@@ -71,6 +72,16 @@ def get_run(run_id: str) -> dict:
 @router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
 def get_report(run_id: str) -> str:
     return build_report(_get_run(run_id))
+
+
+@router.get("/runs/{run_id}/report.pdf")
+def get_report_pdf(run_id: str) -> Response:
+    run = _get_run(run_id)
+    return Response(
+        content=build_report_pdf(run),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="decision_brief_{run.id}.pdf"'},
+    )
 
 
 @router.post("/runs/{run_id}/eda")

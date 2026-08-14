@@ -72,15 +72,21 @@ export const api = {
 
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
 
-  downloadReport: async (id: string, filename: string) => {
-    const res = await fetch(`${BASE}/runs/${id}/report`);
-    if (!res.ok) throw new Error("Could not generate report.");
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  },
+  downloadReport: (id: string, filename: string) =>
+    downloadFile(`/runs/${id}/report`, filename),
+
+  downloadReportPdf: (id: string) =>
+    downloadFile(`/runs/${id}/report.pdf`, `decision-brief-${id}.pdf`),
 };
+
+async function downloadFile(path: string, filename: string) {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) throw new Error("Could not generate report.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
