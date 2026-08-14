@@ -331,6 +331,12 @@ class Orchestrator:
         self._build_insights(run)
         return run
 
+    _DATE_PART_LABELS = {
+        "days_since": "days since latest",
+        "month": "month",
+        "day_of_week": "day of week",
+    }
+
     def _add_display_labels(self, run: Run) -> None:
         """Attach human-friendly labels to chart artifacts (feature importance etc.)."""
         if not run.result or not run.profile:
@@ -338,13 +344,20 @@ class Orchestrator:
         labels = run.labels()
         raw_cols = list(labels.keys())
         for fi in run.result["artifacts"].get("feature_importance", []):
-            src = _original_column(fi["feature"], raw_cols)
-            if src and src != fi["feature"]:
+            feat = fi["feature"]
+            if "__" in feat:
+                # Engineered date part like signup_date__month -> "Signup date (month)"
+                src, part = feat.split("__", 1)
+                part_lbl = self._DATE_PART_LABELS.get(part, part.replace("_", " "))
+                fi["label"] = f"{labels.get(src, src)} ({part_lbl})"
+                continue
+            src = _original_column(feat, raw_cols)
+            if src and src != feat:
                 # One-hot feature like contract_type_two-year -> "Contract type: two-year"
-                suffix = fi["feature"][len(src) + 1 :]
+                suffix = feat[len(src) + 1 :]
                 fi["label"] = f"{labels[src]}: {suffix}"
             else:
-                fi["label"] = labels.get(fi["feature"], fi["feature"])
+                fi["label"] = labels.get(feat, feat)
 
     def _build_insights(self, run: Run) -> None:
         """Turn the model run into decision-ready findings + an executive brief."""

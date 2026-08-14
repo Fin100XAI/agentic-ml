@@ -88,6 +88,13 @@ def classification_insights(
         if not col or col == target or col in seen:
             continue
         seen.add(col)
+        # Raw dates and very-high-cardinality text produce meaningless
+        # group-rate tables; they still appear in feature importance.
+        s = data[col]
+        if pd.api.types.is_datetime64_any_dtype(s):
+            continue
+        if s.dtype == object and s.nunique() > 30:
+            continue
         groups = _driver_groups(data, col, target, positive)
         if len(groups) < 2:
             continue

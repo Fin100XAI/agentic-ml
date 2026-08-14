@@ -8,13 +8,46 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 RANDOM_SEED = 42
 
 
+def _expand_datetime(work: pd.DataFrame) -> pd.DataFrame:
+    """Turn date columns into model-usable parts instead of dropping them.
+
+    Emits ``col__days_since`` (recency vs the latest date), ``col__month`` and
+    ``col__day_of_week`` - each only when it actually varies. Recognizes both
+    true datetime dtypes and object columns that parse as dates.
+    """
+    for col in list(work.columns):
+        s = work[col]
+        ts = None
+        if pd.api.types.is_datetime64_any_dtype(s):
+            ts = s
+        elif s.dtype == object:
+            sample = s.dropna().astype(str).head(50)
+            if len(sample) > 0:
+                parsed = pd.to_datetime(sample, errors="coerce", format="mixed")
+                if parsed.notna().mean() > 0.9:
+                    ts = pd.to_datetime(s.astype(str), errors="coerce", format="mixed")
+        if ts is None:
+            continue
+        latest = ts.max()
+        parts = {
+            f"{col}__days_since": (latest - ts).dt.days,
+            f"{col}__month": ts.dt.month,
+            f"{col}__day_of_week": ts.dt.dayofweek,
+        }
+        for name, vals in parts.items():
+            if vals.nunique(dropna=True) > 1:
+                work[name] = vals.astype(float)
+        work = work.drop(columns=[col])
+    return work
+
+
 def select_feature_frame(
     df: pd.DataFrame,
     target: str | None = None,
     features: list[str] | None = None,
     max_onehot_cardinality: int = 12,
 ) -> pd.DataFrame:
-    """Build a numeric feature matrix: drop ids/dates/target, one-hot low-card cats."""
+    """Build a numeric feature matrix: expand dates, one-hot low-card cats, drop ids."""
     work = df.copy()
     if target and target in work.columns:
         work = work.drop(columns=[target])
@@ -22,11 +55,13 @@ def select_feature_frame(
         keep = [c for c in features if c in work.columns]
         work = work[keep]
 
+    work = _expand_datetime(work)
+
     drop: list[str] = []
     for col in work.columns:
         s = work[col]
         if pd.api.types.is_datetime64_any_dtype(s):
-            drop.append(col)
+            drop.append(col)  # unparseable leftovers
         elif not pd.api.types.is_numeric_dtype(s):
             nunique = s.nunique(dropna=True)
             if nunique > max_onehot_cardinality or nunique >= 0.9 * len(work):
