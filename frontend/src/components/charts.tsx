@@ -14,7 +14,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  ZAxis,
 } from "recharts";
 import type { RunResult } from "../types";
 
@@ -131,9 +130,9 @@ export function ClusterScatter({
   axes: string[];
 }) {
   const clusters = [...new Set(points.map((p) => p.cluster))].sort((a, b) => a - b);
-  // Interactive controls: point size + opacity sliders and per-group filters,
+  // Interactive controls: point radius + opacity sliders and per-group filters,
   // so dense overlapping clouds can be thinned out and inspected.
-  const [size, setSize] = useState(18);
+  const [size, setSize] = useState(2);
   const [opacity, setOpacity] = useState(0.75);
   const [hidden, setHidden] = useState<Set<number>>(new Set());
 
@@ -177,17 +176,26 @@ export function ClusterScatter({
           <CartesianGrid stroke={GRID} />
           <XAxis dataKey="x" name={axes[0]} tick={AXIS} stroke={GRID} type="number" />
           <YAxis dataKey="y" name={axes[1]} tick={AXIS} stroke={GRID} type="number" />
-          <ZAxis range={[size, size]} />
           <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
           {clusters
             .filter((c) => !hidden.has(c))
             .map((c) => (
               <Scatter
-                key={c}
+                key={`${c}-${size}`}
                 name={c === -1 ? "noise" : `group ${c}`}
                 data={points.filter((p) => p.cluster === c)}
                 fill={colorOf(c, clusters.indexOf(c))}
-                fillOpacity={opacity}
+                isAnimationActive={false}
+                // Custom shape: exact pixel radius, reliably driven by the slider.
+                shape={(props: { cx?: number; cy?: number; fill?: string }) => (
+                  <circle
+                    cx={props.cx}
+                    cy={props.cy}
+                    r={size}
+                    fill={props.fill}
+                    fillOpacity={opacity}
+                  />
+                )}
               />
             ))}
         </ScatterChart>
@@ -199,12 +207,13 @@ export function ClusterScatter({
           Point size
           <input
             type="range"
-            min={4}
-            max={60}
+            min={1}
+            max={12}
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
             className="w-28 accent-[#4f46e5]"
           />
+          <span className="w-5 tabular-nums">{size}px</span>
         </label>
         <label className="flex items-center gap-2 text-[11px] text-ink-dim">
           Opacity
