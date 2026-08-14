@@ -55,7 +55,7 @@ export function Timeline({ decisions }: { decisions: DecisionNode[] }) {
               <span className="text-[11px] font-medium">{d.title}</span>
               {d.status === "error" && <X className="h-3 w-3 text-bad" />}
               {/* hover detail */}
-              <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 rounded-lg border border-edge bg-panel-2 px-3 py-2 opacity-0 shadow-xl shadow-black/40 transition-opacity duration-150 group-hover:opacity-100">
+              <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 rounded-lg border border-edge bg-panel-2 px-3 py-2 opacity-0 shadow-xl shadow-slate-900/10 transition-opacity duration-150 group-hover:opacity-100">
                 <div className="mb-0.5 text-[11px] font-semibold">
                   {d.title} — <span className="font-normal text-ink-dim">{s.label}</span>
                 </div>

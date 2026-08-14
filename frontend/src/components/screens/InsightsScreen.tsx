@@ -50,23 +50,23 @@ function DriverChart({ driver }: { driver: Driver }) {
       <p className="mb-3 text-[11px] text-ink-dim">outcome rate per group</p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
-          <CartesianGrid stroke="#1e293b" horizontal={false} />
+          <CartesianGrid stroke="#dde3ee" horizontal={false} />
           <XAxis type="number" hide domain={[0, max * 1.15]} />
           <YAxis
             type="category"
             dataKey="label"
             width={90}
-            tick={{ fill: "#8b96a8", fontSize: 10 }}
-            stroke="#1e293b"
+            tick={{ fill: "#64748b", fontSize: 10 }}
+            stroke="#dde3ee"
           />
           <Tooltip
-            contentStyle={{ backgroundColor: "#111827", border: "1px solid #263042", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ backgroundColor: "rgba(255,255,255,0.95)", border: "1px solid #dde3ee", color: "#0f172a", borderRadius: 8, fontSize: 12 }}
             formatter={(v) => [`${v}% of group`, "rate"]}
-            cursor={{ fill: "#1a2332" }}
+            cursor={{ fill: "rgba(79,70,229,0.06)" }}
           />
-          <Bar dataKey="rate_pct" radius={[0, 4, 4, 0]} label={{ position: "right", fill: "#e5eaf2", fontSize: 10, formatter: (v) => `${v}%` }}>
+          <Bar dataKey="rate_pct" radius={[0, 4, 4, 0]} label={{ position: "right", fill: "#0f172a", fontSize: 10, formatter: (v) => `${v}%` }}>
             {driver.groups.map((g, i) => (
-              <Cell key={i} fill={g.rate_pct === max ? "#f87171" : "#4f8ef7"} />
+              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#4f46e5"} />
             ))}
           </Bar>
         </BarChart>
@@ -146,6 +146,7 @@ export function InsightsScreen({
   interpretation,
   onTuneAgain,
   onStartOver,
+  onViewReport,
 }: {
   run: Run;
   insights: Insights;
@@ -153,6 +154,7 @@ export function InsightsScreen({
   interpretation: Interpretation | null;
   onTuneAgain: () => void;
   onStartOver: () => void;
+  onViewReport: () => void;
 }) {
   const [showAppendix, setShowAppendix] = useState(false);
   const brief = insights.brief;
@@ -172,7 +174,10 @@ export function InsightsScreen({
           </span>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => api.downloadReport(run.id, `decision-brief-${run.id}.md`)}>
+          <Button size="sm" onClick={onViewReport}>
+            <FileText className="h-3.5 w-3.5" /> View full report
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => api.downloadReport(run.id, `decision-brief-${run.id}.md`)}>
             <Download className="h-3.5 w-3.5" /> Download brief
           </Button>
           <Button variant="outline" size="sm" onClick={onTuneAgain}>

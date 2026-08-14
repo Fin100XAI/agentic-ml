@@ -1,17 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-surface: #0b0f17;
-  --color-panel: #111827;
-  --color-panel-2: #1a2332;
-  --color-edge: #263042;
-  --color-ink: #e5eaf2;
-  --color-ink-dim: #8b96a8;
-  --color-accent: #4f8ef7;
-  --color-accent-soft: #1d3355;
-  --color-good: #34d399;
-  --color-warn: #fbbf24;
-  --color-bad: #f87171;
+  /* Light glassmorphism palette */
+  --color-surface: #eef2f9;
+  --color-panel: rgba(255, 255, 255, 0.62);
+  --color-panel-2: rgba(255, 255, 255, 0.78);
+  --color-edge: rgba(15, 23, 42, 0.09);
+  --color-ink: #0f172a;
+  --color-ink-dim: #64748b;
+  --color-accent: #4f46e5;
+  --color-accent-soft: #e0e7ff;
+  --color-good: #059669;
+  --color-warn: #d97706;
+  --color-bad: #dc2626;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -22,10 +23,16 @@ body,
 }
 
 body {
-  background: var(--color-surface);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  background-color: var(--color-surface);
+  /* Soft mesh gradient for the glass panels to blur against */
+  background-image:
+    radial-gradient(40rem 40rem at 110% -10%, rgba(99, 102, 241, 0.16), transparent 60%),
+    radial-gradient(36rem 36rem at -15% 20%, rgba(14, 165, 233, 0.14), transparent 60%),
+    radial-gradient(30rem 30rem at 50% 120%, rgba(244, 114, 182, 0.1), transparent 60%);
+  background-attachment: fixed;
 }
 
 ::-webkit-scrollbar {
@@ -33,9 +40,18 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a3547;
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

@@ -1,4 +1,4 @@
-// Chart components for run results (Recharts).
+﻿// Chart components for run results (Recharts).
 import {
   Bar,
   BarChart,
@@ -17,25 +17,27 @@ import {
 } from "recharts";
 import type { RunResult } from "../types";
 
-const AXIS = { stroke: "#8b96a8", fontSize: 11 };
-const GRID = "#1e293b";
+const AXIS = { stroke: "#64748b", fontSize: 11 };
+const GRID = "#dde3ee";
 const PALETTE = [
-  "#4f8ef7",
-  "#34d399",
-  "#fbbf24",
-  "#f87171",
-  "#a78bfa",
-  "#22d3ee",
-  "#fb923c",
-  "#e879f9",
-  "#94a3b8",
+  "#4f46e5",
+  "#059669",
+  "#d97706",
+  "#dc2626",
+  "#7c3aed",
+  "#0891b2",
+  "#ea580c",
+  "#c026d3",
+  "#64748b",
 ];
 
 const TOOLTIP_STYLE = {
-  backgroundColor: "#111827",
-  border: "1px solid #263042",
-  borderRadius: 8,
+  backgroundColor: "rgba(255,255,255,0.95)",
+  border: "1px solid #dde3ee",
+  borderRadius: 10,
   fontSize: 12,
+  color: "#0f172a",
+  boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
 };
 
 export function ConfusionMatrix({
@@ -74,8 +76,8 @@ export function ConfusionMatrix({
                     className="h-12 w-16 rounded-md text-center text-sm font-semibold tabular-nums"
                     style={{
                       backgroundColor: onDiag
-                        ? `rgba(52, 211, 153, ${0.12 + heat * 0.55})`
-                        : `rgba(248, 113, 113, ${0.08 + heat * 0.45})`,
+                        ? `rgba(5, 150, 105, ${0.12 + heat * 0.55})`
+                        : `rgba(220, 38, 38, ${0.08 + heat * 0.45})`,
                     }}
                   >
                     {v}
@@ -107,8 +109,8 @@ export function FeatureImportanceChart({
           stroke={GRID}
           width={120}
         />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "#1a2332" }} />
-        <Bar dataKey="importance" fill="#4f8ef7" radius={[0, 4, 4, 0]} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Bar dataKey="importance" fill="#4f46e5" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -136,7 +138,7 @@ export function ClusterScatter({
             key={c}
             name={c === -1 ? "noise" : `cluster ${c}`}
             data={points.filter((p) => p.cluster === c)}
-            fill={c === -1 ? "#4b5563" : PALETTE[i % PALETTE.length]}
+            fill={c === -1 ? "#94a3b8" : PALETTE[i % PALETTE.length]}
           />
         ))}
       </ScatterChart>
@@ -159,12 +161,12 @@ export function ClusterSizesChart({
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="name" tick={AXIS} stroke={GRID} />
         <YAxis tick={AXIS} stroke={GRID} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "#1a2332" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {named.map((d, i) => (
             <Cell
               key={i}
-              fill={d.name === "noise" ? "#4b5563" : PALETTE[i % PALETTE.length]}
+              fill={d.name === "noise" ? "#94a3b8" : PALETTE[i % PALETTE.length]}
             />
           ))}
         </Bar>
@@ -193,9 +195,9 @@ export function ForecastChart({
         <YAxis tick={AXIS} stroke={GRID} domain={["auto", "auto"]} />
         <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Line type="monotone" dataKey="actual" stroke="#8b96a8" dot={false} strokeWidth={1.5} name="actual" />
-        <Line type="monotone" dataKey="predicted" stroke="#fbbf24" dot={false} strokeWidth={2} name="holdout prediction" />
-        <Line type="monotone" dataKey="forecast" stroke="#4f8ef7" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" />
+        <Line type="monotone" dataKey="actual" stroke="#64748b" dot={false} strokeWidth={1.5} name="actual" />
+        <Line type="monotone" dataKey="predicted" stroke="#d97706" dot={false} strokeWidth={2} name="holdout prediction" />
+        <Line type="monotone" dataKey="forecast" stroke="#4f46e5" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -212,7 +214,7 @@ export function ClassDistributionChart({
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="label" tick={AXIS} stroke={GRID} />
         <YAxis tick={AXIS} stroke={GRID} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "#1a2332" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {data.map((_, i) => (
             <Cell key={i} fill={PALETTE[i % PALETTE.length]} />

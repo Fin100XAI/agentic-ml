@@ -119,7 +119,7 @@ class Orchestrator:
     def __init__(self, provider: LLMProvider | None) -> None:
         self.provider = provider
 
-    # -- Stage 1: profile + EDA ------------------------------------------------
+    # -- Stage 1a: profile (fast, deterministic) -------------------------------
     def start(self, run: Run, question: str) -> Run:
         run.question = question or ""
         run.decisions.append(
@@ -128,16 +128,32 @@ class Orchestrator:
                 detail=f"{run.filename}: {len(run.df):,} rows × {run.df.shape[1]} cols",
             )
         )
-        node = DecisionNode(stage="eda", title="EDA & profiling")
+        node = DecisionNode(stage="profile", title="Data profiling")
         run.decisions.append(node)
         try:
             run.profile = profile_dataframe(run.df)
+            node.status = "done"
+            node.detail = f"Profiled {run.profile['n_cols']} columns."
+            run.stage = "profiled"
+        except Exception as exc:  # surface profiling errors to the UI
+            node.status = "error"
+            node.detail = str(exc)
+            run.error = str(exc)
+        return run
+
+    # -- Stage 1b: EDA agent (slower; separate call so the UI can show progress)
+    def run_eda(self, run: Run) -> Run:
+        if run.profile is None:
+            raise ValueError("Profile the dataset first.")
+        node = DecisionNode(stage="eda", title="AI data analysis")
+        run.decisions.append(node)
+        try:
             run.eda = run_eda_agent(self.provider, run.profile)
             node.status = "proposed"
             node.agent_output = {"summary": run.eda.get("summary", "")}
-            node.detail = f"Profiled {run.profile['n_cols']} columns; awaiting your review."
+            node.detail = "Findings ready; awaiting your review."
             run.stage = "eda"
-        except Exception as exc:  # surface profiling errors to the UI
+        except Exception as exc:
             node.status = "error"
             node.detail = str(exc)
             run.error = str(exc)

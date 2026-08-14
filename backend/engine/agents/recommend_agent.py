@@ -115,8 +115,9 @@ def run_recommend_agent(
         return _heuristic(profile, question)
     try:
         slim = {k: v for k, v in profile.items() if k != "preview"}
-        for c in slim.get("columns", []):
-            c.pop("histogram", None)
+        slim["columns"] = [
+            {k: v for k, v in c.items() if k != "histogram"} for c in slim.get("columns", [])
+        ]
         prompt = (
             "Dataset profile (JSON):\n" + json.dumps(slim, default=str)
             + "\n\nModel catalog (JSON):\n" + json.dumps(catalog)

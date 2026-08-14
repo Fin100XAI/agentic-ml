@@ -37,6 +37,8 @@ export const api = {
   startRun: (dataset_id: string, question: string) =>
     request<Run>("/runs", json({ dataset_id, question })),
 
+  runEda: (id: string) => request<Run>(`/runs/${id}/eda`, { method: "POST" }),
+
   getRun: (id: string) => request<Run>(`/runs/${id}`),
 
   approveEda: (id: string, comment: string) =>

@@ -7,12 +7,13 @@ import { ConfigureScreen } from "./components/screens/ConfigureScreen";
 import { EdaScreen } from "./components/screens/EdaScreen";
 import { HomeScreen } from "./components/screens/HomeScreen";
 import { InsightsScreen } from "./components/screens/InsightsScreen";
+import { ReportScreen } from "./components/screens/ReportScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge } from "./components/ui";
 import type { ModelInfo, Run, RunSummary } from "./types";
 
-type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare";
+type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -31,6 +32,7 @@ const GUIDE: Record<Screen, string> = {
     "Step 4 — Your decision brief: findings, recommended actions, and how much to trust them. The model details live in the appendix.",
   compare:
     "Step 4 — Every method ranked on your data. Generate insights with the winner, or tune any of them.",
+  report: "The full report — print it, save it as PDF, or download the markdown.",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -61,6 +63,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [llmEnabled, setLlmEnabled] = useState<boolean | null>(null);
   const [preferredModel, setPreferredModel] = useState<string | undefined>(undefined);
+  const [uploadStage, setUploadStage] = useState<"uploading" | "profiling" | "analyzing" | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -87,10 +90,21 @@ export default function App() {
   }
 
   const handleUpload = (file: File, question: string) =>
-    guard("Profiling your data…", async () => {
+    guard("Analyzing…", async () => {
+      setUploadStage("uploading");
       const ds = await api.uploadDataset(file);
-      const r = await api.startRun(ds.dataset_id, question);
+      setUploadStage("profiling");
+      let r = await api.startRun(ds.dataset_id, question);
       setRun(r);
+      if (r.error) {
+        setError(r.error);
+        setUploadStage(null);
+        return;
+      }
+      setUploadStage("analyzing");
+      r = await api.runEda(r.id);
+      setRun(r);
+      setUploadStage(null);
       if (r.error) setError(r.error);
       else setScreen("eda");
     });
@@ -150,13 +164,13 @@ export default function App() {
   };
 
   const stepIndex = STEPS.findIndex(
-    (s) => s.key === (screen === "compare" ? "results" : screen),
+    (s) => s.key === (screen === "compare" || screen === "report" ? "results" : screen),
   );
 
   return (
     <div className="min-h-full">
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-edge bg-surface/85 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-edge bg-white/55 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <button className="flex items-center gap-2.5 text-left" onClick={goHome}>
             <BrainCircuit className="h-6 w-6 text-accent" />
@@ -214,7 +228,7 @@ export default function App() {
 
         {/* Guide bar */}
         {screen !== "home" && GUIDE[screen] && (
-          <div className="border-t border-edge/60 bg-panel/40">
+          <div className="border-t border-edge/60 bg-white/35">
             <div className="mx-auto max-w-7xl px-6 py-1.5 text-[11px] text-ink-dim">
               {GUIDE[screen]}
             </div>
@@ -225,7 +239,7 @@ export default function App() {
       <main className="mx-auto max-w-7xl px-6 py-6">
         {/* Compact decision timeline */}
         {screen !== "home" && run && run.decisions.length > 0 && (
-          <div className="mb-6 rounded-xl border border-edge bg-panel/50">
+          <div className="mb-6 rounded-xl border border-edge bg-panel backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-edge/60 px-4 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
                 Decision trail
@@ -253,7 +267,9 @@ export default function App() {
           />
         )}
 
-        {screen === "upload" && <UploadScreen onSubmit={handleUpload} busy={busy} />}
+        {screen === "upload" && (
+          <UploadScreen onSubmit={handleUpload} busy={busy} stage={uploadStage} />
+        )}
 
         {screen === "eda" && run?.profile && run.eda && (
           <EdaScreen
@@ -278,6 +294,10 @@ export default function App() {
           />
         )}
 
+        {screen === "report" && run && (
+          <ReportScreen run={run} onBack={() => setScreen(run.insights ? "results" : "home")} />
+        )}
+
         {screen === "results" &&
           run?.result &&
           (run.insights ? (
@@ -288,6 +308,7 @@ export default function App() {
               interpretation={run.interpretation}
               onTuneAgain={() => setScreen("configure")}
               onStartOver={startOver}
+              onViewReport={() => setScreen("report")}
             />
           ) : (
             <ResultsScreen

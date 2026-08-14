@@ -10,6 +10,8 @@ export interface UploadResponse {
 
 export interface ColumnProfile {
   name: string;
+  display_name: string;
+  meaning: string;
   role: string;
   dtype: string;
   missing_count: number;

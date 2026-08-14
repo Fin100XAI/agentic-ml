@@ -46,7 +46,7 @@ function ParamField({
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-2 h-4 w-4 accent-[#4f8ef7]"
+          className="mt-2 h-4 w-4 accent-[#4f46e5]"
         />
       ) : (
         <input

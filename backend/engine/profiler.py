@@ -20,6 +20,55 @@ BOOLEAN = "boolean"
 TEXT = "text"
 IDENTIFIER = "identifier"
 
+# Common abbreviations expanded when building human-friendly column labels.
+_ABBREV = {
+    "id": "ID", "no": "number", "num": "number", "qty": "quantity", "amt": "amount",
+    "pct": "percent", "avg": "average", "min": "minimum", "max": "maximum",
+    "mo": "month", "mos": "months", "yr": "year", "yrs": "years", "wk": "week",
+    "dob": "date of birth", "acct": "account", "cust": "customer", "txn": "transaction",
+    "dept": "department", "addr": "address", "tel": "phone", "rev": "revenue",
+    "exp": "expense", "bal": "balance", "chg": "charge", "dt": "date", "ts": "timestamp",
+}
+
+
+def _split_words(name: str) -> list[str]:
+    """Split snake_case / kebab-case / camelCase into words."""
+    import re
+
+    s = re.sub(r"[_\-\.]+", " ", str(name))
+    s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s)
+    return [w for w in s.split() if w]
+
+
+def friendly_name(name: str) -> str:
+    """'tenure_months' -> 'Tenure months'; 'custAcctNo' -> 'Customer account number'."""
+    words = [_ABBREV.get(w.lower(), w.lower()) for w in _split_words(name)]
+    if not words:
+        return str(name)
+    label = " ".join(words)
+    return label[0].upper() + label[1:]
+
+
+def _column_meaning(role: str, summary: dict[str, Any]) -> str:
+    """A one-line, jargon-free description of what a column holds."""
+    if role == IDENTIFIER:
+        return "A unique ID for each row — used to tell records apart, not for analysis."
+    if role == DATETIME:
+        return "Dates or times — lets us look at how things change over time."
+    if role == BOOLEAN:
+        vals = ", ".join(str(v) for v in summary.get("sample_values", [])[:2])
+        return f"A yes/no style field ({vals})."
+    if role == CATEGORICAL:
+        n = summary.get("unique_count", 0)
+        return f"One of {n} categories."
+    if role == NUMERIC:
+        stats = summary.get("stats") or {}
+        lo, hi = stats.get("min"), stats.get("max")
+        if lo is not None and hi is not None:
+            return f"A number, ranging from {lo} to {hi} in this data."
+        return "A numeric value."
+    return "Free text."
+
 
 def _clean(value: Any) -> Any:
     """Make a value JSON-safe (no NaN/inf, numpy scalars -> python)."""
@@ -165,7 +214,10 @@ def profile_dataframe(df: pd.DataFrame) -> dict[str, Any]:
     columns: list[dict[str, Any]] = []
     for name in df.columns:
         role = _infer_role(df[name], n_rows)
-        columns.append(_column_summary(df[name], role))
+        summary = _column_summary(df[name], role)
+        summary["display_name"] = friendly_name(name)
+        summary["meaning"] = _column_meaning(role, summary)
+        columns.append(summary)
 
     numeric_cols = [c["name"] for c in columns if c["role"] == NUMERIC]
     total_missing = int(df.isna().sum().sum())

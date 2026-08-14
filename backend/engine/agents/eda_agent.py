@@ -33,8 +33,22 @@ _SCHEMA: dict[str, Any] = {
             "items": {"type": "string"},
             "description": "2-4 questions the user might want to ask of this data.",
         },
+        "column_labels": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "The raw column name exactly as in the profile."},
+                    "label": {"type": "string", "description": "A short, human-friendly label a non-expert instantly understands (2-4 words, no jargon)."},
+                    "meaning": {"type": "string", "description": "One plain sentence on what this column likely represents."},
+                },
+                "required": ["name", "label", "meaning"],
+                "additionalProperties": False,
+            },
+            "description": "A friendly label + meaning for every column in the profile.",
+        },
     },
-    "required": ["summary", "key_findings", "suggested_questions"],
+    "required": ["summary", "key_findings", "suggested_questions", "column_labels"],
     "additionalProperties": False,
 }
 
@@ -85,13 +99,21 @@ def run_eda_agent(provider: LLMProvider | None, profile: dict[str, Any]) -> dict
     try:
         # Keep the prompt compact: strip previews/histograms the model doesn't need.
         slim = {k: v for k, v in profile.items() if k != "preview"}
-        for c in slim.get("columns", []):
-            c.pop("histogram", None)
+        slim["columns"] = [
+            {k: v for k, v in c.items() if k != "histogram"} for c in slim.get("columns", [])
+        ]
         result = provider.complete_json(
             _SYSTEM,
             "Dataset profile (JSON):\n" + json.dumps(slim, default=str),
             _SCHEMA,
         )
+        # Merge Claude's friendlier labels/meanings back into the profile columns.
+        labels = {cl["name"]: cl for cl in result.pop("column_labels", [])}
+        for col in profile.get("columns", []):
+            cl = labels.get(col["name"])
+            if cl:
+                col["display_name"] = cl["label"]
+                col["meaning"] = cl["meaning"]
         result["generated_by"] = "claude"
         return result
     except Exception:

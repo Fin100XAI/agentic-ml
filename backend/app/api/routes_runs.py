@@ -65,6 +65,15 @@ def get_report(run_id: str) -> str:
     return build_report(_get_run(run_id))
 
 
+@router.post("/runs/{run_id}/eda")
+def run_eda(run_id: str) -> dict:
+    run = _get_run(run_id)
+    if run.stage != "profiled":
+        raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'profiled'.")
+    _orchestrator().run_eda(run)
+    return run.to_dict()
+
+
 @router.post("/runs/{run_id}/approve-eda")
 def approve_eda(run_id: str, req: ApproveEdaRequest) -> dict:
     run = _get_run(run_id)
