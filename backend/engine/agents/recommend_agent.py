@@ -23,7 +23,13 @@ _SYSTEM = (
     "reasoning concretely, referencing the data's characteristics. The profile "
     "includes a 'health' section listing data-quality issues (imbalance, small "
     "sample, missing data) - factor these into your choice and mention how they "
-    "affect it (e.g. prefer robust models on imbalanced data). Style rule: use plain hyphens (-) only; never use em dashes or en dashes in your output."
+    "affect it (e.g. prefer robust models on imbalanced data). Also judge "
+    "alignment: can the user's question actually be answered with the columns in "
+    "this dataset? If the question refers to information the data does not "
+    "contain (different domain, missing measures), set alignment.aligned=false "
+    "and write a short, kind note saying what is missing and what this data CAN "
+    "answer instead - but still recommend the closest sensible use case. Style "
+    "rule: use plain hyphens (-) only; never use em dashes or en dashes in your output."
 )
 
 
@@ -53,8 +59,23 @@ def _schema(catalog_keys: list[str], column_names: list[str]) -> dict[str, Any]:
                 "type": ["string", "null"],
                 "description": "Datetime column for forecasting; null otherwise.",
             },
+            "alignment": {
+                "type": "object",
+                "properties": {
+                    "aligned": {
+                        "type": "boolean",
+                        "description": "True if the user's question can genuinely be answered with this dataset's columns.",
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "If not aligned: one or two plain sentences on why, and what this data CAN answer. Empty string when aligned.",
+                    },
+                },
+                "required": ["aligned", "note"],
+                "additionalProperties": False,
+            },
         },
-        "required": ["use_case", "reasoning", "ranked_models", "target", "time_column"],
+        "required": ["use_case", "reasoning", "ranked_models", "target", "time_column", "alignment"],
         "additionalProperties": False,
     }
 
@@ -98,6 +119,7 @@ def _heuristic(profile: dict[str, Any], question: str) -> dict[str, Any]:
         "ranked_models": ranked,
         "target": target,
         "time_column": time_column,
+        "alignment": {"aligned": True, "note": ""},  # heuristic mode can't judge
         "generated_by": "heuristic",
     }
 
@@ -137,6 +159,7 @@ def run_recommend_agent(
             ]
         if result.get("target") not in column_names:
             result["target"] = None if result.get("target") else result.get("target")
+        result.setdefault("alignment", {"aligned": True, "note": ""})
         result["generated_by"] = "claude"
         return result
     except Exception:

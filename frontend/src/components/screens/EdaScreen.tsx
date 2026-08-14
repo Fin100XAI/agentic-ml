@@ -632,9 +632,32 @@ export function EdaScreen({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
-              placeholder="What do you want to find out? Pick a problem on the left, or write your own here…"
+              placeholder="What do you want to find out? Pick a problem, or write your own here…"
               className="w-full resize-none rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
             />
+            {(eda.problem_statements?.length ?? 0) > 0 && (
+              <div className="mt-2">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+                  Recommended problems
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {eda.problem_statements!.slice(0, 3).map((p, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setComment(p.statement)}
+                      title={p.statement}
+                      className={`max-w-full truncate rounded-full border px-2.5 py-1 text-left text-[11px] transition-colors ${
+                        comment === p.statement
+                          ? "border-accent bg-accent-soft text-accent"
+                          : "border-edge text-ink-dim hover:border-accent hover:text-accent"
+                      }`}
+                    >
+                      {p.statement}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mt-3">
               {busy ? (
                 <Spinner label="Recommendation agent thinking…" />

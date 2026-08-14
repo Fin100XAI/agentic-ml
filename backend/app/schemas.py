@@ -26,6 +26,7 @@ class ApproveConfigRequest(BaseModel):
 class CompareRequest(BaseModel):
     target: str | None = None
     time_column: str | None = None
+    n_candidates: int | None = None  # autotune only; clamped 3-20 server-side
 
 
 class AskRequest(BaseModel):

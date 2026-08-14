@@ -1,10 +1,10 @@
-"""Dataset endpoints: upload CSV, list models."""
+"""Dataset endpoints: upload CSV/Excel, list models."""
 from __future__ import annotations
 
 import io
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from app.store import store
 from engine.catalog import all_models
@@ -12,23 +12,52 @@ from engine.catalog import all_models
 router = APIRouter()
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+EXCEL_EXT = (".xlsx", ".xls")
 
 
 @router.post("/datasets")
-async def upload_dataset(file: UploadFile) -> dict:
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(400, "Please upload a .csv file.")
+async def upload_dataset(file: UploadFile, sheet: str | None = Form(None)) -> dict:
+    name = (file.filename or "").lower()
+    if not name.endswith((".csv", *EXCEL_EXT)):
+        raise HTTPException(400, "Please upload a .csv or .xlsx file.")
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File exceeds the 50 MB POC limit.")
-    try:
-        df = pd.read_csv(io.BytesIO(raw))
-    except Exception as exc:
-        raise HTTPException(400, f"Could not parse CSV: {exc}") from exc
-    if df.empty or df.shape[1] == 0:
-        raise HTTPException(400, "The CSV appears to be empty.")
 
-    ds = store.add_dataset(df, file.filename)
+    if name.endswith(EXCEL_EXT):
+        try:
+            book = pd.read_excel(io.BytesIO(raw), sheet_name=None)
+        except Exception as exc:
+            raise HTTPException(400, f"Could not parse Excel file: {exc}") from exc
+        book = {k: v for k, v in book.items() if not v.empty and v.shape[1] > 0}
+        if not book:
+            raise HTTPException(400, "The workbook has no non-empty sheets.")
+        if sheet is None and len(book) > 1:
+            # Multiple sheets: ask the human which one to analyze.
+            return {
+                "needs_sheet_selection": True,
+                "filename": file.filename,
+                "sheets": [
+                    {"name": k, "n_rows": int(v.shape[0]), "n_cols": int(v.shape[1])}
+                    for k, v in book.items()
+                ],
+            }
+        chosen = sheet if sheet is not None else next(iter(book))
+        if chosen not in book:
+            raise HTTPException(400, f"Sheet '{chosen}' not found in the workbook.")
+        df = book[chosen]
+        display_name = f"{file.filename} [{chosen}]" if len(book) > 1 else (file.filename or chosen)
+    else:
+        try:
+            df = pd.read_csv(io.BytesIO(raw))
+        except Exception as exc:
+            raise HTTPException(400, f"Could not parse CSV: {exc}") from exc
+        display_name = file.filename or "upload.csv"
+
+    if df.empty or df.shape[1] == 0:
+        raise HTTPException(400, "The file appears to be empty.")
+
+    ds = store.add_dataset(df, display_name)
     return {
         "dataset_id": ds.id,
         "filename": ds.filename,

@@ -424,7 +424,10 @@ class Orchestrator:
         return interp_node
 
     # -- Auto-tune: try hyperparameter combinations for every model -------------
-    def run_autotune(self, run: Run, target: str | None, time_column: str | None) -> Run:
+    def run_autotune(
+        self, run: Run, target: str | None, time_column: str | None,
+        n_candidates: int | None = None,
+    ) -> Run:
         if not run.recommendation:
             raise ValueError("Approve the EDA first so a use case is chosen.")
         use_case = run.recommendation["use_case"]
@@ -436,6 +439,7 @@ class Orchestrator:
         result = run_autotune_sweep(
             run.df, use_case, target, time_column,
             run.recommendation.get("model_configs", {}),
+            n_candidates=n_candidates,
         )
         run.autotune = result
 

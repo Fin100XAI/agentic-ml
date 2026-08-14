@@ -68,7 +68,7 @@ export function UploadScreen({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pick = useCallback((f: File | undefined | null) => {
-    if (f && f.name.toLowerCase().endsWith(".csv")) setFile(f);
+    if (f && /\.(csv|xlsx|xls)$/i.test(f.name)) setFile(f);
   }, []);
 
   return (
@@ -98,7 +98,7 @@ export function UploadScreen({
                 <input
                   ref={inputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   className="hidden"
                   onChange={(e) => pick(e.target.files?.[0])}
                 />
@@ -113,7 +113,7 @@ export function UploadScreen({
                 ) : (
                   <>
                     <Upload className="mb-3 h-10 w-10 text-ink-dim" />
-                    <p className="text-sm font-medium">Drop a CSV here, or click to browse</p>
+                    <p className="text-sm font-medium">Drop a CSV or Excel file here, or click to browse</p>
                     <p className="mt-1 text-xs text-ink-dim">
                       Any industry, any tabular data - the agents will figure it out
                     </p>

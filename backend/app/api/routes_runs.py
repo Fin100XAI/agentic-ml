@@ -110,7 +110,7 @@ def autotune(run_id: str, req: CompareRequest) -> dict:
     if not run.recommendation:
         raise HTTPException(409, "Approve the EDA first so a use case is chosen.")
     try:
-        _orchestrator().run_autotune(run, req.target, req.time_column)
+        _orchestrator().run_autotune(run, req.target, req.time_column, req.n_candidates)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return run.to_dict()

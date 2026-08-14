@@ -13,8 +13,8 @@ import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ReportScreen } from "./components/screens/ReportScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
-import { Badge } from "./components/ui";
-import type { ModelInfo, Run, RunSummary } from "./types";
+import { Badge, Button, Card, CardBody } from "./components/ui";
+import type { ModelInfo, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report";
 
@@ -70,6 +70,8 @@ export default function App() {
   const [logOpen, setLogOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
   const [tuneRunning, setTuneRunning] = useState(false);
+  const [misalignNote, setMisalignNote] = useState<string | null>(null);
+  const [sheetChoice, setSheetChoice] = useState<{ file: File; question: string; sheets: SheetInfo[] } | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -111,12 +113,18 @@ export default function App() {
     }
   }
 
-  const handleUpload = (file: File, question: string) =>
+  const handleUpload = (file: File, question: string, sheet?: string) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
-      const ds = await api.uploadDataset(file);
+      const ds = await api.uploadDataset(file, sheet);
+      if (ds.needs_sheet_selection && ds.sheets) {
+        // Workbook has several sheets: ask the human which one to analyze.
+        setSheetChoice({ file, question, sheets: ds.sheets });
+        setUploadStage(null);
+        return;
+      }
       setUploadStage("profiling");
-      let r = await api.startRun(ds.dataset_id, question);
+      let r = await api.startRun(ds.dataset_id!, question);
       setRun(r);
       if (r.error) {
         setError(r.error);
@@ -136,8 +144,14 @@ export default function App() {
       if (!run) return;
       const r = await api.approveEda(run.id, comment);
       setRun(r);
-      if (r.error) setError(r.error);
-      else setScreen("configure");
+      if (r.error) {
+        setError(r.error);
+        return;
+      }
+      setScreen("configure");
+      // Agent flags questions the data cannot actually answer.
+      const align = r.recommendation?.alignment;
+      if (align && !align.aligned) setMisalignNote(align.note || "The question may not match this dataset.");
     });
 
   const handleRunModel = (config: {
@@ -168,13 +182,17 @@ export default function App() {
       },
     );
 
-  const handleAutotune = async (target: string | null, time_column: string | null) => {
+  const handleAutotune = async (
+    target: string | null,
+    time_column: string | null,
+    nCandidates?: number,
+  ) => {
     if (!run) return;
     setTuneOpen(true);
     setTuneRunning(true);
     setError(null);
     try {
-      const r = await api.autotune(run.id, target, time_column);
+      const r = await api.autotune(run.id, target, time_column, nCandidates);
       setRun(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -415,6 +433,77 @@ export default function App() {
         onClose={() => setTuneOpen(false)}
         onApply={() => setTuneOpen(false)}
       />
+
+      {/* Question/data misalignment warning */}
+      {misalignNote && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
+            <Card className="border-warn/50 bg-white/90">
+              <CardBody>
+                <h3 className="text-sm font-semibold">Your question may not match this data</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-dim">{misalignNote}</p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMisalignNote(null);
+                      setScreen("eda");
+                    }}
+                  >
+                    Revise the question
+                  </Button>
+                  <Button size="sm" onClick={() => setMisalignNote(null)}>
+                    Proceed anyway
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* Excel sheet picker */}
+      {sheetChoice && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
+            <Card className="bg-white/90">
+              <CardBody>
+                <h3 className="text-sm font-semibold">Which sheet should we analyze?</h3>
+                <p className="mt-1 text-xs text-ink-dim">
+                  {sheetChoice.file.name} has {sheetChoice.sheets.length} sheets. Pick one - you can
+                  analyze the others in separate runs.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {sheetChoice.sheets.map((s) => (
+                    <button
+                      key={s.name}
+                      onClick={() => {
+                        const { file, question } = sheetChoice;
+                        setSheetChoice(null);
+                        handleUpload(file, question, s.name);
+                      }}
+                      className="flex w-full items-center justify-between rounded-xl border border-edge bg-panel-2 px-4 py-2.5 text-left transition-colors hover:border-accent/50"
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium">{s.name}</span>
+                      <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">
+                        {s.n_rows.toLocaleString()} rows × {s.n_cols} cols
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm" onClick={() => setSheetChoice(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }

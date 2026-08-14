@@ -26,9 +26,10 @@ const json = (body: unknown): RequestInit => ({
 export const api = {
   health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
 
-  uploadDataset: (file: File) => {
+  uploadDataset: (file: File, sheet?: string) => {
     const form = new FormData();
     form.append("file", file);
+    if (sheet) form.append("sheet", sheet);
     return request<UploadResponse>("/datasets", { method: "POST", body: form });
   },
 
@@ -60,8 +61,8 @@ export const api = {
   compare: (id: string, target: string | null, time_column: string | null) =>
     request<Run>(`/runs/${id}/compare`, json({ target, time_column })),
 
-  autotune: (id: string, target: string | null, time_column: string | null) =>
-    request<Run>(`/runs/${id}/autotune`, json({ target, time_column })),
+  autotune: (id: string, target: string | null, time_column: string | null, n_candidates?: number) =>
+    request<Run>(`/runs/${id}/autotune`, json({ target, time_column, n_candidates })),
 
   ask: (id: string, question: string, history: { q: string; a: string }[]) =>
     request<{ answer: string; generated_by: string }>(

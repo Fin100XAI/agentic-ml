@@ -1,11 +1,19 @@
 // Shared types mirroring backend responses.
 
-export interface UploadResponse {
-  dataset_id: string;
-  filename: string;
+export interface SheetInfo {
+  name: string;
   n_rows: number;
   n_cols: number;
-  columns: string[];
+}
+
+export interface UploadResponse {
+  dataset_id?: string;
+  filename: string;
+  n_rows?: number;
+  n_cols?: number;
+  columns?: string[];
+  needs_sheet_selection?: boolean;
+  sheets?: SheetInfo[];
 }
 
 export interface ColumnProfile {
@@ -96,6 +104,7 @@ export interface Recommendation {
   ranked_models: RankedModel[];
   target: string | null;
   time_column: string | null;
+  alignment?: { aligned: boolean; note: string };
   generated_by: string;
   model_configs?: Record<string, ModelConfigSuggestion>;
 }
@@ -239,6 +248,8 @@ export interface Autotune {
   use_case: string;
   metric: string;
   higher_is_better: boolean;
+  n_candidates?: number;
+  recommended_candidates?: number;
   models: Record<string, AutotuneModelResult>;
 }
 

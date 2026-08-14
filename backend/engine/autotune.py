@@ -72,9 +72,12 @@ def autotune(
     target: str | None,
     time_column: str | None,
     model_configs: dict[str, Any],
+    n_candidates: int | None = None,
 ) -> dict[str, Any]:
     metric, higher_better = PRIMARY_METRIC[use_case]
-    n_candidates = CANDIDATES.get(use_case, 6)
+    recommended = CANDIDATES.get(use_case, 6)
+    # User-chosen count, clamped to sane bounds; default to the recommendation.
+    n_candidates = max(3, min(20, int(n_candidates))) if n_candidates else recommended
     rng = np.random.default_rng(42)
 
     results: dict[str, Any] = {}
@@ -131,4 +134,11 @@ def autotune(
                 "error": "No candidate produced a valid score (check target/data).",
             }
 
-    return {"use_case": use_case, "metric": metric, "higher_is_better": higher_better, "models": results}
+    return {
+        "use_case": use_case,
+        "metric": metric,
+        "higher_is_better": higher_better,
+        "n_candidates": n_candidates,
+        "recommended_candidates": recommended,
+        "models": results,
+    }

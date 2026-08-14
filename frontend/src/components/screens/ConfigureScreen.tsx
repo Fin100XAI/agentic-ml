@@ -144,11 +144,12 @@ export function ConfigureScreen({
     time_column: string | null;
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
-  onAutotune: (target: string | null, time_column: string | null) => void;
+  onAutotune: (target: string | null, time_column: string | null, nCandidates?: number) => void;
   onChangeDirection: () => void;
   busy: boolean;
   busyLabel: string;
 }) {
+  const recommendedCombos = recommendation.use_case === "forecasting" ? 4 : 8;
   const useCaseModels = useMemo(
     () => models.filter((m) => m.use_case === recommendation.use_case),
     [models, recommendation.use_case],
@@ -167,6 +168,7 @@ export function ConfigureScreen({
 
   const [selectedKey, setSelectedKey] = useState(initialModelKey ?? ordered[0]?.key ?? "");
   const [showReasoning, setShowReasoning] = useState(false);
+  const [combos, setCombos] = useState(recommendedCombos);
   const selected = ordered.find((m) => m.key === selectedKey) ?? ordered[0];
   const suggestion = recommendation.model_configs?.[selected?.key ?? ""];
 
@@ -257,19 +259,34 @@ export function ConfigureScreen({
               onRun({ model_key: selected.key, hyperparams: params, target, time_column: timeColumn })
             }
           />
-          <PathCard
-            icon={FlaskConical}
-            title="Auto-tune first"
-            steps={[
-              `Tries up to 8 setting combos for each of the ${ordered.length} models`,
-              "Scores every combo on held-back data",
-              "Best settings get pre-filled - you still choose what to run",
-            ]}
-            time={eta("autotune", profile.n_rows, true)}
-            actionLabel="Auto-tune"
-            disabled={disabled}
-            onAction={() => onAutotune(target, timeColumn)}
-          />
+          <div className="flex min-w-0 flex-col">
+            <PathCard
+              icon={FlaskConical}
+              title="Auto-tune first"
+              steps={[
+                `Tries ${combos} setting combos for each of the ${ordered.length} models`,
+                "Scores every combo on held-back data",
+                "Best settings get pre-filled - you still choose what to run",
+              ]}
+              time={eta("autotune", profile.n_rows, true)}
+              actionLabel="Auto-tune"
+              disabled={disabled}
+              onAction={() => onAutotune(target, timeColumn, combos)}
+            />
+            <label className="mt-2 flex items-center justify-center gap-2 text-[11px] text-ink-dim">
+              Combinations per model
+              <input
+                type="number"
+                min={3}
+                max={20}
+                value={combos}
+                onChange={(e) => setCombos(Math.max(3, Math.min(20, Number(e.target.value) || recommendedCombos)))}
+                className="w-14 rounded-lg border border-edge bg-panel-2 px-2 py-0.5 text-center text-xs tabular-nums outline-none focus:border-accent"
+              />
+              <span className="text-[10px]">(recommended: {recommendedCombos})</span>
+              <InfoTip text={`More combinations = better odds of finding stronger settings, but proportionally longer runtime. ${recommendedCombos} balances the two for this analysis type; go higher only if you have time to spare.`} />
+            </label>
+          </div>
           <PathCard
             icon={GitCompare}
             title="Compare everything"
