@@ -43,6 +43,7 @@ def start_run(req: StartRunRequest) -> dict:
     run = Run(dataset_id=ds.id, df=ds.df, filename=ds.filename)
     store.add_run(run)
     _orchestrator().start(run, req.question)
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -78,6 +79,7 @@ def run_eda(run_id: str) -> dict:
     if run.stage != "profiled":
         raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'profiled'.")
     _orchestrator().run_eda(run)
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -89,6 +91,7 @@ def approve_eda(run_id: str, req: ApproveEdaRequest) -> dict:
     if run.stage in ("upload", "profiled"):
         raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'eda' or later.")
     _orchestrator().approve_eda(run, req.comment)
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -101,6 +104,7 @@ def compare(run_id: str, req: CompareRequest) -> dict:
         _orchestrator().compare(run, req.target, req.time_column)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -113,6 +117,7 @@ def autotune(run_id: str, req: CompareRequest) -> dict:
         _orchestrator().run_autotune(run, req.target, req.time_column, req.n_candidates)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -135,6 +140,7 @@ def approve_config(run_id: str, req: ApproveConfigRequest) -> dict:
         )
     except KeyError as exc:
         raise HTTPException(400, str(exc)) from exc
+    store.save_run(run)
     return run.to_dict()
 
 
@@ -144,4 +150,5 @@ def execute(run_id: str) -> dict:
     if not run.config:
         raise HTTPException(409, "Approve a model configuration before executing.")
     _orchestrator().execute(run)
+    store.save_run(run)
     return run.to_dict()

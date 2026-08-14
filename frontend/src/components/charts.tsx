@@ -1,4 +1,5 @@
 ﻿// Chart components for run results (Recharts).
+import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -130,25 +131,97 @@ export function ClusterScatter({
   axes: string[];
 }) {
   const clusters = [...new Set(points.map((p) => p.cluster))].sort((a, b) => a - b);
+  // Interactive controls: point size + opacity sliders and per-group filters,
+  // so dense overlapping clouds can be thinned out and inspected.
+  const [size, setSize] = useState(18);
+  const [opacity, setOpacity] = useState(0.75);
+  const [hidden, setHidden] = useState<Set<number>>(new Set());
+
+  const toggle = (c: number) =>
+    setHidden((h) => {
+      const next = new Set(h);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+
+  const colorOf = (c: number, i: number) => (c === -1 ? "#94a3b8" : PALETTE[i % PALETTE.length]);
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-        <CartesianGrid stroke={GRID} />
-        <XAxis dataKey="x" name={axes[0]} tick={AXIS} stroke={GRID} type="number" />
-        <YAxis dataKey="y" name={axes[1]} tick={AXIS} stroke={GRID} type="number" />
-        <ZAxis range={[18, 18]} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
-        <Legend wrapperStyle={{ fontSize: 11 }} />
-        {clusters.map((c, i) => (
-          <Scatter
-            key={c}
-            name={c === -1 ? "noise" : `cluster ${c}`}
-            data={points.filter((p) => p.cluster === c)}
-            fill={c === -1 ? "#94a3b8" : PALETTE[i % PALETTE.length]}
+    <div>
+      {/* Filters: click a group to show/hide it */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {clusters.map((c, i) => {
+          const off = hidden.has(c);
+          return (
+            <button
+              key={c}
+              onClick={() => toggle(c)}
+              title={off ? "Click to show this group" : "Click to hide this group"}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                off ? "border-edge opacity-40" : "border-edge bg-white/50"
+              }`}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorOf(c, i) }} />
+              {c === -1 ? "noise" : `group ${c}`}
+              <span className="tabular-nums text-ink-dim">
+                {points.filter((p) => p.cluster === c).length}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <ResponsiveContainer width="100%" height={300}>
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey="x" name={axes[0]} tick={AXIS} stroke={GRID} type="number" />
+          <YAxis dataKey="y" name={axes[1]} tick={AXIS} stroke={GRID} type="number" />
+          <ZAxis range={[size, size]} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
+          {clusters
+            .filter((c) => !hidden.has(c))
+            .map((c) => (
+              <Scatter
+                key={c}
+                name={c === -1 ? "noise" : `group ${c}`}
+                data={points.filter((p) => p.cluster === c)}
+                fill={colorOf(c, clusters.indexOf(c))}
+                fillOpacity={opacity}
+              />
+            ))}
+        </ScatterChart>
+      </ResponsiveContainer>
+
+      {/* Sliders */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-edge/60 pt-2">
+        <label className="flex items-center gap-2 text-[11px] text-ink-dim">
+          Point size
+          <input
+            type="range"
+            min={4}
+            max={60}
+            value={size}
+            onChange={(e) => setSize(Number(e.target.value))}
+            className="w-28 accent-[#4f46e5]"
           />
-        ))}
-      </ScatterChart>
-    </ResponsiveContainer>
+        </label>
+        <label className="flex items-center gap-2 text-[11px] text-ink-dim">
+          Opacity
+          <input
+            type="range"
+            min={10}
+            max={100}
+            value={Math.round(opacity * 100)}
+            onChange={(e) => setOpacity(Number(e.target.value) / 100)}
+            className="w-28 accent-[#4f46e5]"
+          />
+        </label>
+        <span className="text-[10px] text-ink-dim">
+          Shrink points or lower opacity to see through dense overlaps; click a group above to isolate it.
+        </span>
+      </div>
+    </div>
   );
 }
 
