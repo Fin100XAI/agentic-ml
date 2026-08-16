@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Wrench } from "lucide-react";
 import type { RemediationProposal } from "../types";
 import { Badge, Button, Card, CardBody } from "./ui";
+import { genLabel } from "../lib/labels";
 
 export function RemediationModal({
   proposals,
@@ -41,7 +42,7 @@ export function RemediationModal({
                 <h3 className="text-sm font-semibold">Suggested data fixes</h3>
               </div>
               <Badge tone={generatedBy === "claude" ? "accent" : "neutral"}>
-                {generatedBy ?? "heuristic"}
+                {genLabel(generatedBy)}
               </Badge>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-ink-dim">

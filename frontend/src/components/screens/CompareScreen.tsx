@@ -4,6 +4,7 @@ import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { api } from "../../api/client";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
+import { genLabel } from "../../lib/labels";
 
 export function CompareScreen({
   run,
@@ -154,7 +155,7 @@ export function CompareScreen({
           }
           right={
             <Badge tone={comparison.interpretation.generated_by === "claude" ? "accent" : "neutral"}>
-              {comparison.interpretation.generated_by}
+              {genLabel(comparison.interpretation.generated_by)}
             </Badge>
           }
         />

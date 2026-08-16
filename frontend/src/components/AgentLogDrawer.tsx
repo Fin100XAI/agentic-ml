@@ -2,6 +2,7 @@
 import { Bot, Clock, X } from "lucide-react";
 import type { AgentLogEntry } from "../types";
 import { Badge } from "./ui";
+import { genLabel } from "../lib/labels";
 
 const AGENT_COLOR: Record<string, string> = {
   Profiler: "bg-slate-500",
@@ -56,7 +57,7 @@ export function AgentLogDrawer({
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-xs font-semibold">{e.agent}</span>
                     <Badge tone={e.generated_by === "claude" ? "accent" : "neutral"}>
-                      {e.generated_by}
+                      {genLabel(e.generated_by)}
                     </Badge>
                     <span className="inline-flex items-center gap-1 text-[10px] text-ink-dim">
                       <Clock className="h-3 w-3" />
@@ -81,7 +82,7 @@ export function AgentLogDrawer({
         </div>
 
         <div className="border-t border-edge px-5 py-3 text-[10px] leading-snug text-ink-dim">
-          "deterministic" = computed directly from your data (no AI). "claude" = reasoned by the
+          "deterministic" = computed directly from your data (no AI). "AI" = reasoned by the
           AI model. "heuristic" = rule-based fallback when no API key is set.
         </div>
       </aside>

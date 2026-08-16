@@ -39,6 +39,7 @@ import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
 import { ClassDistributionChart, ClusterScatter, ForecastChart, PredictedVsActualChart, ResultCharts } from "../charts";
 import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
+import { genLabel } from "../../lib/labels";
 
 function StabilityPanel({ v }: { v: Validation }) {
   if (v.skipped) {
@@ -456,7 +457,7 @@ export function InsightsScreen({
                       />
                     </span>
                   )}
-                  <Badge tone={brief.generated_by === "claude" ? "accent" : "neutral"}>{brief.generated_by}</Badge>
+                  <Badge tone={brief.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(brief.generated_by)}</Badge>
                 </span>
               }
             />
@@ -668,7 +669,7 @@ export function InsightsScreen({
             )}
           {interpretation && (
             <Card>
-              <CardHeader title="Model interpretation" right={<Badge tone={interpretation.generated_by === "claude" ? "accent" : "neutral"}>{interpretation.generated_by}</Badge>} />
+              <CardHeader title="Model interpretation" right={<Badge tone={interpretation.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(interpretation.generated_by)}</Badge>} />
               <CardBody>
                 <p className="text-sm leading-relaxed text-ink-dim">{interpretation.summary}</p>
               </CardBody>

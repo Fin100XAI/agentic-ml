@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -330,6 +330,61 @@ function App() {
     refreshRuns();
   };
 
+  // Screen history for the back/forward buttons. Recorded by an effect, so
+  // every existing navigation participates without touching its call site.
+  const [past, setPast] = useState<Screen[]>([]);
+  const [future, setFuture] = useState<Screen[]>([]);
+  const prevScreenRef = useRef<Screen>(screen);
+  const historyNavRef = useRef(false);
+  useEffect(() => {
+    const prev = prevScreenRef.current;
+    if (prev === screen) return;
+    if (historyNavRef.current) {
+      historyNavRef.current = false;
+    } else {
+      setPast((p) => [...p.slice(-19), prev]);
+      setFuture([]);
+    }
+    prevScreenRef.current = screen;
+  }, [screen]);
+
+  // A history entry is only usable if the state it needs still exists.
+  const canShow = (s: Screen): boolean => {
+    if (s === "eda" || s === "configure" || s === "results" || s === "compare" || s === "report") {
+      return run !== null;
+    }
+    if (s === "home") return project !== null;
+    return true;
+  };
+  const goBack = () => {
+    const stack = [...past];
+    let target: Screen | undefined;
+    while (stack.length) {
+      const cand = stack.pop()!;
+      if (canShow(cand)) { target = cand; break; }
+    }
+    if (target === undefined) return;
+    historyNavRef.current = true;
+    setPast(stack);
+    setFuture((f) => [screen, ...f]);
+    setScreen(target);
+    setError(null);
+  };
+  const goForward = () => {
+    const stack = [...future];
+    let target: Screen | undefined;
+    while (stack.length) {
+      const cand = stack.shift()!;
+      if (canShow(cand)) { target = cand; break; }
+    }
+    if (target === undefined) return;
+    historyNavRef.current = true;
+    setFuture(stack);
+    setPast((p) => [...p, screen]);
+    setScreen(target);
+    setError(null);
+  };
+
   const handleOpenRetrainRun = (
     runId: string,
     prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null },
@@ -386,6 +441,34 @@ function App() {
                 </p>
               </div>
             </button>
+            {/* Back / forward / home - always visible */}
+            <span className="ml-1 flex items-center gap-1">
+              <button
+                onClick={goBack}
+                disabled={!past.some(canShow)}
+                title="Back"
+                className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={goForward}
+                disabled={!future.some(canShow)}
+                title="Forward"
+                className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+              {project && screen !== "home" && screen !== "projects" && (
+                <button
+                  onClick={goHome}
+                  title="Project home"
+                  className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  <Home className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </span>
             {/* Project breadcrumb */}
             {project && screen !== "projects" && (
               <span className="hidden items-center gap-1 sm:flex">
@@ -404,12 +487,6 @@ function App() {
           {/* Stepper (hidden on home/projects) */}
           {screen !== "home" && screen !== "projects" && (
             <nav className="hidden items-center gap-1 md:flex">
-              <button
-                onClick={goHome}
-                className="mr-2 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-ink-dim transition-colors hover:text-ink"
-              >
-                <Home className="h-3 w-3" /> Home
-              </button>
               {STEPS.map((s, i) => (
                 <div key={s.key} className="flex items-center gap-1">
                   {i > 0 && <div className="h-px w-6 bg-edge" />}
@@ -459,7 +536,7 @@ function App() {
             {llmEnabled === null ? (
               <Badge tone="bad">backend offline?</Badge>
             ) : llmEnabled ? (
-              <Badge tone="accent">Claude connected</Badge>
+              <Badge tone="accent">AI connected</Badge>
             ) : (
               <Badge tone="warn">heuristic mode (no API key)</Badge>
             )}

@@ -23,6 +23,7 @@ import type { ColumnProfile, Eda, Health, Profile } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner, Stat } from "../ui";
+import { genLabel } from "../../lib/labels";
 
 const AXIS = { fill: "#64748b", fontSize: 10 };
 const GRID = "#dde3ee";
@@ -401,7 +402,7 @@ export function EdaScreen({
                 <Bot className="h-4 w-4 text-accent" /> What your data is about
               </span>
             }
-            right={<Badge tone={eda.generated_by === "claude" ? "accent" : "neutral"}>{eda.generated_by}</Badge>}
+            right={<Badge tone={eda.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(eda.generated_by)}</Badge>}
           />
           <CardBody>
             <p className="text-sm leading-relaxed">{eda.summary}</p>

@@ -5,6 +5,7 @@ import { Download, GitCompareArrows } from "lucide-react";
 import { api } from "../api/client";
 import type { RunDiffResult } from "../types";
 import { Badge, Button, Card, CardBody } from "./ui";
+import { genLabel } from "../lib/labels";
 
 export function RunDiffModal({
   runA,
@@ -93,7 +94,7 @@ export function RunDiffModal({
                       What changed and what it means
                     </span>
                     <Badge tone={result.generated_by === "claude" ? "accent" : "neutral"}>
-                      {result.generated_by}
+                      {genLabel(result.generated_by)}
                     </Badge>
                   </div>
                   <p className="text-sm leading-relaxed">{result.narrative}</p>

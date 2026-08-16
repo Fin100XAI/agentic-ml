@@ -5,6 +5,7 @@ import { Activity, ChevronDown, ChevronRight, RefreshCw, Upload } from "lucide-r
 import { api } from "../api/client";
 import type { DriftResult, RegistryEntry } from "../types";
 import { Badge, Button, Card, CardBody } from "./ui";
+import { genLabel } from "../lib/labels";
 
 const VERDICT = {
   stable: { tone: "good" as const, title: "Stable - familiar ground" },
@@ -93,7 +94,7 @@ export function DriftModal({
                     <Badge tone={VERDICT[result.verdict].tone}>{result.verdict}</Badge>
                     <span className="text-sm font-semibold">{VERDICT[result.verdict].title}</span>
                     <Badge tone={result.generated_by === "claude" ? "accent" : "neutral"}>
-                      {result.generated_by}
+                      {genLabel(result.generated_by)}
                     </Badge>
                   </div>
                   <p className="mt-1.5 text-xs leading-relaxed">{result.narrative}</p>

@@ -5,6 +5,7 @@ import { InfoTip } from "../InfoTip";
 import { api } from "../../api/client";
 import { ResultCharts } from "../charts";
 import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
+import { genLabel } from "../../lib/labels";
 
 const ASSESSMENT_TONE: Record<Interpretation["assessment"], "good" | "warn" | "bad" | "neutral"> = {
   strong: "good",
@@ -95,7 +96,7 @@ export function ResultsScreen({
             }
             right={
               <Badge tone={interpretation.generated_by === "claude" ? "accent" : "neutral"}>
-                {interpretation.generated_by}
+                {genLabel(interpretation.generated_by)}
               </Badge>
             }
           />

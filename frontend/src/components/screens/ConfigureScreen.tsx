@@ -5,6 +5,7 @@ import { eta } from "../../lib/eta";
 import { BusyStatus } from "../Elapsed";
 import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
+import { genLabel } from "../../lib/labels";
 
 function ParamField({
   spec,
@@ -264,7 +265,7 @@ export function ConfigureScreen({
               {" "}with <span className="font-semibold">{ordered[0]?.name}</span> as top pick
             </span>
             <Badge tone={recommendation.generated_by === "claude" ? "accent" : "neutral"}>
-              {recommendation.generated_by}
+              {genLabel(recommendation.generated_by)}
             </Badge>
             <button
               onClick={() => setShowReasoning((s) => !s)}
@@ -446,7 +447,7 @@ export function ConfigureScreen({
             subtitle="Optional extra signals computed from your columns. Ticked ones are added when you run the model - the original data is never changed."
             right={
               <Badge tone={featureSuggestions[0]?.generated_by === "claude" ? "accent" : "neutral"}>
-                {featureSuggestions[0]?.generated_by ?? "heuristic"}
+                {genLabel(featureSuggestions[0]?.generated_by)}
               </Badge>
             }
           />

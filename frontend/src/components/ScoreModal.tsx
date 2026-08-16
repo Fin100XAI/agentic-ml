@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import type { RegistryEntry, ScoreResult } from "../types";
 import { ClassDistributionChart, ResidualHistChart } from "./charts";
 import { Badge, Button, Card, CardBody } from "./ui";
+import { genLabel } from "../lib/labels";
 
 export function ScoreModal({
   entry,
@@ -92,7 +93,7 @@ export function ScoreModal({
                     <Badge tone="neutral">{result.reconciliation.extra.length} extra ignored</Badge>
                   )}
                   <Badge tone={result.generated_by === "claude" ? "accent" : "neutral"}>
-                    {result.generated_by}
+                    {genLabel(result.generated_by)}
                   </Badge>
                 </div>
 

@@ -4,6 +4,7 @@ import { MessageCircleQuestion, Send, User } from "lucide-react";
 import { api } from "../api/client";
 import { eta } from "../lib/eta";
 import { Badge, Card, CardBody, CardHeader, Spinner } from "./ui";
+import { genLabel } from "../lib/labels";
 
 interface QA {
   q: string;
@@ -82,7 +83,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
                   <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{qa.a}</p>
                   <div className="mt-1.5">
                     <Badge tone={qa.by === "claude" ? "accent" : qa.by === "error" ? "bad" : "neutral"}>
-                      {qa.by}
+                      {genLabel(qa.by)}
                     </Badge>
                   </div>
                 </div>
