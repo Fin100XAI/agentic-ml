@@ -38,7 +38,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
    combinations), or compare every model on a leaderboard.
 10. **Results** land as a decision brief: executive summary, key findings, drivers,
     segment profiles, outlook, recommended actions, and a trust panel. A technical
-    appendix holds metrics, the stability check, interpretation, and all charts.
+    appendix holds metrics, the stability check, error slices, the
+    decision-threshold tuner and probability check (binary classification),
+    what-if scenarios (registered models), interpretation, and all charts.
     A **critic agent** reviews the brief before you see it (claims vs computed
     numbers, causal caveats), and a **trust tier** derived from the stability
     verdict reframes weak-evidence runs as "hypotheses to verify" everywhere -
@@ -108,6 +110,33 @@ with which reasoning, in how many ms) and on the run's decision trail.
   tooltips and in every agent prompt.
 - **Run comparison** - pick two analyses and get what changed: data drift
   (PSI), settings, metrics, drivers - with a narrative and markdown export.
+- **Drift monitor** - drop a fresh file on any model version: schema changes,
+  distribution shift (PSI / chi-square) per column, and - when the outcome
+  came along - actual performance decay. Verdict is stable / drifting /
+  degraded, and "degraded" is only said when accuracy really fell.
+- **Error slices** - the held-out predictions are re-checked per group
+  (category levels, numeric bands); groups the model serves clearly worse go
+  red, become brief caveats, and tiny groups are honestly marked too-small.
+- **Scenario what-if** - move up to three drivers from their observed
+  baseline and see the predicted response, with extrapolation warnings and
+  response curves; every answer carries a correlation-not-causation caveat.
+- **Multi-series forecasting** - a store/region/product column fans out to
+  parallel per-group forecasts, each backtested; a rollup chart, per-group
+  table with honest skips, and one summary narrative.
+- **Known drivers in forecasts** - promotion/price-style columns enter ARIMA
+  and the XGBoost forecaster as regressors; Exponential Smoothing says
+  plainly that it cannot use them.
+- **Imbalance handling** - lopsided outcomes get balanced class weights
+  proposed automatically, PR-AUC reported, and a decision-threshold slider
+  with live precision/recall trade-off; the approved threshold is what
+  scoring uses, not a blanket 0.5.
+- **Calibration check** - out-of-fold reliability curve + Brier score decide
+  whether the model's probabilities can be read literally; a miscalibrated
+  verdict makes the brief talk in rankings, not percentages.
+- **Automated intake** - standing rules recognize recurring files (new
+  monthly extract, fresh applicant list) and queue score / drift-check /
+  retrain proposals in an inbox. Approve executes, decline discards, and a
+  cadence flags overdue arrivals - nothing ever auto-runs.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback
   used when no API key is set or a call fails; the UI badges each output as
   `claude` or `heuristic`.
@@ -143,8 +172,10 @@ and llm-or-fallback mode.
   through structured outputs) behind a swappable `LLMProvider` interface
 - fpdf2 for PDF export; stdlib `sqlite3` + pickle for persistence
 - `engine/` is pure Python with no web imports: `profiler`, `health`, `insights`,
-  `suggest`, `autotune`, `validate`, `features`, `joins`, `catalog/` (model
-  plugins), `agents/`, `orchestrator` (approval-gated pipeline + decision log)
+  `suggest`, `autotune`, `validate`, `features`, `joins`, `librarian`,
+  `scoring`, `rundiff`, `drift`, `slices`, `scenario`, `multiforecast`,
+  `calibration`, `intake`, `catalog/` (model plugins), `agents/`,
+  `orchestrator` (approval-gated pipeline + decision log)
 - Adding a model = one class in `engine/catalog/` (subclass `ModelPlugin`,
   decorate with `@register`); its `param_schema()` auto-generates the UI form
 
@@ -184,8 +215,8 @@ Sample datasets live in `backend/sample_data/` (regenerate with
 
 - Windows-friendly on purpose: Prophet is excluded (needs a C++ toolchain);
   forecasting uses ARIMA/ExpSmoothing/XGBoost-lags instead.
-- Uploads are capped at 50 MB; stability checks skip above 50k rows with an
-  honest note.
-- Forecasting is single-series; other numeric columns appear as chart overlays,
-  not regressors.
+- Uploads are capped at 50 MB; stability and calibration checks skip very
+  large (or very small) data with an honest note.
+- Future driver values in forecasts carry the last known value forward -
+  stated in the result rather than hidden.
 - No auth or deployment hardening - this is a local proof of concept.
