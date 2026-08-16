@@ -42,6 +42,7 @@ PRIMARY_METRIC = {
     "classification": ("f1", True),
     "clustering": ("silhouette", True),
     "forecasting": ("mape_pct", False),
+    "regression": ("rmse", False),
 }
 
 

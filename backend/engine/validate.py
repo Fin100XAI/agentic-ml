@@ -41,6 +41,8 @@ def stability_check(
     started = time.time()
     if use_case == "classification":
         out = _kfold_classification(df, config)
+    elif use_case == "regression":
+        out = _kfold_regression(df, config)
     elif use_case == "forecasting":
         out = _rolling_origin(df, config, result_metrics)
     elif use_case == "clustering":
@@ -85,6 +87,40 @@ def _kfold_classification(df: pd.DataFrame, config: dict[str, Any]) -> dict[str,
         scores.append(float(f1_score(y[test_idx], pred, average=average, zero_division=0)))
     return _summarize(
         "stratified_kfold", f"{k}-fold cross-validation", "f1", scores, higher_is_better=True
+    )
+
+
+def _kfold_regression(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any] | None:
+    target = config.get("target")
+    if not target or target not in df.columns:
+        return None
+    plugin = get_model(config["model_key"])
+    if not hasattr(plugin, "build_estimator"):
+        return None
+    y_all = pd.to_numeric(df[target], errors="coerce")
+    data = df[y_all.notna()]
+    y = y_all[y_all.notna()].values.astype(float)
+    k = 5 if len(data) >= 150 else 3
+    if len(data) < 60:
+        return {
+            "skipped": True,
+            "label": "Cross-validation",
+            "note": "Skipped: too few rows to split into folds and still train meaningfully.",
+        }
+
+    from sklearn.metrics import mean_squared_error
+    from sklearn.model_selection import KFold
+
+    X = select_feature_frame(data, target=target, features=config.get("features"))
+    scores: list[float] = []
+    kf = KFold(n_splits=k, shuffle=True, random_state=RANDOM_SEED)
+    for train_idx, test_idx in kf.split(X):
+        est = plugin.build_estimator(config["hyperparams"])
+        est.fit(X.iloc[train_idx], y[train_idx])
+        pred = est.predict(X.iloc[test_idx])
+        scores.append(float(np.sqrt(mean_squared_error(y[test_idx], pred))))
+    return _summarize(
+        "kfold", f"{k}-fold cross-validation", "rmse", scores, higher_is_better=False
     )
 
 

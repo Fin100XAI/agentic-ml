@@ -86,6 +86,12 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
       "Average forecast error as a percentage. Under 10% is excellent, 10-25% is usable, above that is rough.",
     good: "lower",
   },
+  r2: {
+    label: "R²",
+    explain:
+      "Share of the outcome's variation the model explains. 1.0 = perfect, 0 = no better than guessing the average. Above 0.7 is usually strong.",
+    good: "higher",
+  },
   n_observations: { label: "Observations", explain: "Number of points in your time series.", good: "context" },
   holdout_size: {
     label: "Holdout size",
@@ -114,6 +120,12 @@ export const USE_CASE_INFO: Record<
     tagline: "Predict a category for each row",
     example: '"Will this customer churn?" · "Is this transaction fraud?"',
     icon: "🎯",
+  },
+  regression: {
+    title: "Regression",
+    tagline: "Predict a numeric amount for each row",
+    example: '"What will this house sell for?" · "Estimate next month\'s bill"',
+    icon: "📐",
   },
   clustering: {
     title: "Clustering",

@@ -444,6 +444,71 @@ export function ForecastChart({
   );
 }
 
+export function PredictedVsActualChart({
+  points,
+}: {
+  points: { actual: number; predicted: number }[];
+}) {
+  const vals = points.flatMap((p) => [p.actual, p.predicted]);
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  // The diagonal = perfect prediction; drawn as a two-point line series.
+  const diagonal = [
+    { actual: lo, predicted: lo },
+    { actual: hi, predicted: hi },
+  ];
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <ComposedChart data={diagonal} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+        <CartesianGrid stroke={GRID} />
+        <XAxis
+          dataKey="actual" type="number" name="actual" tick={AXIS} stroke={GRID}
+          domain={[lo, hi]} tickFormatter={(v) => compact(v)}
+        />
+        <YAxis
+          dataKey="predicted" type="number" name="predicted" tick={AXIS} stroke={GRID}
+          domain={[lo, hi]} tickFormatter={(v) => compact(v)}
+        />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
+        <Line dataKey="predicted" stroke="#94a3b8" strokeDasharray="5 4" dot={false} isAnimationActive={false} legendType="none" tooltipType="none" />
+        <Scatter
+          data={points} fill="#4f46e5" isAnimationActive={false}
+          shape={(props: { cx?: number; cy?: number }) => (
+            <circle cx={props.cx} cy={props.cy} r={2.5} fill="#4f46e5" fillOpacity={0.55} />
+          )}
+        />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function ResidualHistChart({ data }: { data: { mid: number; count: number }[] }) {
+  const named = data.map((d) => ({ ...d, name: compact(d.mid) }));
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={named}>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="name" tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} />
+        <YAxis tick={AXIS} stroke={GRID} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+          {named.map((d, i) => (
+            <Cell key={i} fill={d.mid < 0 ? "#d97706" : "#4f46e5"} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function compact(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (abs >= 10_000) return `${(v / 1_000).toFixed(0)}k`;
+  if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return `${Math.round(v * 100) / 100}`;
+}
+
 export function ClassDistributionChart({
   data,
 }: {
@@ -509,6 +574,22 @@ export function ResultCharts({ result }: { result: RunResult }) {
           caption="How many rows landed in each group. 'Noise' means rows that didn't fit any pattern."
         >
           <ClusterSizesChart data={a.cluster_sizes} />
+        </ChartPanel>
+      )}
+      {a.predicted_vs_actual && (
+        <ChartPanel
+          title="Predicted vs actual"
+          caption="Each dot is one held-out record. Dots on the dashed line = perfect predictions; dots above it were over-predicted, below it under-predicted."
+        >
+          <PredictedVsActualChart points={a.predicted_vs_actual.points} />
+        </ChartPanel>
+      )}
+      {a.residual_hist && (
+        <ChartPanel
+          title="Where the misses land"
+          caption="How far off each held-out prediction was. Centered on zero is healthy; a lopsided shape means the model leans high or low."
+        >
+          <ResidualHistChart data={a.residual_hist} />
         </ChartPanel>
       )}
       {a.series && a.forecast && (

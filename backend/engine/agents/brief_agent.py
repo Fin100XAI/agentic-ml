@@ -75,6 +75,14 @@ def _heuristic(insights: dict[str, Any], question: str) -> dict[str, Any]:
         if any(s["cluster"] == -1 for s in insights.get("segments", [])):
             actions.append("Review the outlier records individually - they don't fit any pattern.")
         actions.append("Validate the segment profiles with domain experts before acting on them.")
+    elif use_case == "regression":
+        for d in insights.get("drivers", [])[:2]:
+            actions.append(
+                f"Focus on '{d['feature']}' - average outcomes differ up to {d['lift']}× across its groups." if d.get("lift")
+                else f"Focus on the '{d['feature']}' groups with the highest average outcomes."
+            )
+        actions.append("Use the typical prediction miss as the planning margin around any single estimate.")
+        actions.append("Validate the strongest driver with a controlled change before committing budget to it.")
     elif use_case == "forecasting":
         o = insights.get("outlook", {})
         if o:

@@ -59,6 +59,44 @@ def _classification(df: pd.DataFrame, target: str | None) -> dict[str, dict[str,
     }
 
 
+def _regression(df: pd.DataFrame, target: str | None) -> dict[str, dict[str, Any]]:
+    n = len(df)
+    X = select_feature_frame(df, target=target)
+    f = X.shape[1]
+    test_size = 0.25 if n < 500 else 0.2
+    size_txt = f"{n:,} rows and {f} usable features"
+
+    # More features -> lean on regularization a bit harder.
+    alpha = 0.05 if f <= 5 else 0.1 if f <= 20 else 0.5
+
+    return {
+        "elastic_net": {
+            "hyperparams": {"alpha": alpha, "l1_ratio": 0.5, "test_size": test_size},
+            "rationale": f"Light regularization (alpha {alpha}) for {size_txt}; a 50/50 L1 mix "
+                         "shrinks noisy coefficients without discarding features outright.",
+        },
+        "rf_regressor": {
+            "hyperparams": {
+                "n_estimators": 100 if n < 1000 else 200 if n < 10000 else 300,
+                "max_depth": 10 if f <= 10 else 14,
+                "min_samples_leaf": 2 if n < 2000 else 5,
+                "test_size": test_size,
+            },
+            "rationale": f"Tree count and depth scaled to {size_txt} to balance fit and overfitting.",
+        },
+        "xgb_regressor": {
+            "hyperparams": {
+                "n_estimators": 200 if n < 1000 else 400,
+                "max_depth": 4 if n < 1000 else 6,
+                "learning_rate": 0.1 if n < 2000 else 0.05,
+                "subsample": 0.9,
+                "test_size": test_size,
+            },
+            "rationale": f"Learning rate and rounds tuned for {size_txt}: smaller datasets get a faster rate with fewer rounds.",
+        },
+    }
+
+
 def _best_k(Xs: np.ndarray) -> tuple[int, float]:
     """Cheap silhouette sweep on a sample to suggest k."""
     from sklearn.cluster import KMeans
@@ -194,6 +232,8 @@ def suggest_hyperparams(
     try:
         if use_case == "classification":
             return _classification(df, target)
+        if use_case == "regression":
+            return _regression(df, target)
         if use_case == "clustering":
             return _clustering(df)
         if use_case == "forecasting":

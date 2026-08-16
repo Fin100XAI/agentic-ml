@@ -202,7 +202,9 @@ export function ConfigureScreen({
   const needsTarget = recommendation.use_case !== "clustering";
   const targetOptions = profile.columns
     .filter((c) =>
-      recommendation.use_case === "forecasting" ? c.role === "numeric" : c.role !== "identifier",
+      recommendation.use_case === "forecasting" || recommendation.use_case === "regression"
+        ? c.role === "numeric"
+        : c.role !== "identifier",
     )
     .map((c) => c.name);
   const timeOptions = profile.columns
@@ -439,12 +441,18 @@ export function ConfigureScreen({
             {needsTarget && (
               <label className="block">
                 <span className="inline-flex items-center gap-1 text-xs font-medium">
-                  {recommendation.use_case === "forecasting" ? "Series to forecast" : "What to predict"}
+                  {recommendation.use_case === "forecasting"
+                    ? "Series to forecast"
+                    : recommendation.use_case === "regression"
+                      ? "Amount to predict"
+                      : "What to predict"}
                   <InfoTip
                     text={
                       recommendation.use_case === "forecasting"
                         ? "The numeric column whose future values you want."
-                        : "The column whose value the model should learn to predict."
+                        : recommendation.use_case === "regression"
+                          ? "The numeric column whose value the model should estimate for each row."
+                          : "The column whose value the model should learn to predict."
                     }
                   />
                 </span>

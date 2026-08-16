@@ -32,7 +32,7 @@ import { InfoTip } from "../InfoTip";
 import { LineageBreadcrumb } from "../LineageBreadcrumb";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
-import { ClassDistributionChart, ClusterScatter, ForecastChart, ResultCharts } from "../charts";
+import { ClassDistributionChart, ClusterScatter, ForecastChart, PredictedVsActualChart, ResultCharts } from "../charts";
 import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
 
 function StabilityPanel({ v }: { v: Validation }) {
@@ -104,7 +104,9 @@ function DriverChart({ driver }: { driver: Driver }) {
         {driver.lift && <Badge tone="accent">{driver.lift}× spread</Badge>}
       </div>
       <p className="mb-3 text-[11px] text-ink-dim">
-        Outcome rate per group - red is the highest-risk group, where action matters most.
+        {driver.unit === "avg"
+          ? "Average outcome per group - red marks the highest-value group."
+          : "Outcome rate per group - red is the highest-risk group, where action matters most."}
       </p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
@@ -210,6 +212,21 @@ function StatTiles({ run, insights, result }: { run: Run; insights: Insights; re
           <span className="text-base">{top.label ?? top.feature}</span>
         ),
         tip: top.lift ? `Groups differ up to ${top.lift}× on this factor.` : undefined,
+      });
+  } else if (insights.use_case === "regression") {
+    const mae = result.metrics.mae;
+    if (mae !== null && mae !== undefined)
+      tiles.push({
+        label: "Typical miss",
+        value: `±${Number(mae).toLocaleString()}`,
+        tip: "On held-back records, predictions were off by this much on average - the planning margin.",
+      });
+    const top = insights.drivers?.[0];
+    if (top)
+      tiles.push({
+        label: "Top driver",
+        value: <span className="text-base">{top.label ?? top.feature}</span>,
+        tip: top.lift ? `Average outcomes differ up to ${top.lift}× across this factor's groups.` : undefined,
       });
   } else if (insights.use_case === "clustering") {
     const n = result.metrics.n_clusters_found;
@@ -361,6 +378,13 @@ export function InsightsScreen({
                   <ClassDistributionChart data={a.class_distribution} />
                 </div>
               )}
+              {insights.use_case === "regression" && a.predicted_vs_actual && (
+                <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+                  <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">Predicted vs actual</h4>
+                  <p className="mb-2 text-[11px] text-ink-dim">Dots on the dashed line = perfect predictions. Tight cloud = trustworthy estimates.</p>
+                  <PredictedVsActualChart points={a.predicted_vs_actual.points} />
+                </div>
+              )}
               {insights.use_case === "clustering" && a.scatter && (
                 <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">The groups, mapped</h4>
@@ -380,9 +404,10 @@ export function InsightsScreen({
                   />
                 </div>
               )}
-              {insights.use_case === "classification" && insights.drivers && insights.drivers.length > 0 && (
-                <DriverChart driver={insights.drivers[0]} />
-              )}
+              {(insights.use_case === "classification" || insights.use_case === "regression") &&
+                insights.drivers && insights.drivers.length > 0 && (
+                  <DriverChart driver={insights.drivers[0]} />
+                )}
             </div>
           </div>
 

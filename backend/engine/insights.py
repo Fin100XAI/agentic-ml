@@ -127,6 +127,118 @@ def classification_insights(
 
 
 # --------------------------------------------------------------------------- #
+# Regression → drivers of the amount + residual honesty
+# --------------------------------------------------------------------------- #
+
+def _avg_groups(df: pd.DataFrame, col: str, target: str) -> list[dict[str, Any]]:
+    """Average target value per group of a driver column."""
+    work = df[[col, target]].dropna()
+    if work.empty:
+        return []
+    y = pd.to_numeric(work[target], errors="coerce")
+
+    if pd.api.types.is_numeric_dtype(work[col]) and work[col].nunique() > 8:
+        try:
+            bins = pd.qcut(work[col], 4, duplicates="drop")
+        except ValueError:
+            return []
+        grouped = y.groupby(bins, observed=True)
+        labels = [f"{iv.left:g}-{iv.right:g}" for iv in grouped.mean().index]
+    else:
+        grouped = y.groupby(work[col].astype(str))
+        labels = [str(i) for i in grouped.mean().index]
+
+    means = grouped.mean()
+    counts = grouped.size()
+    return [
+        {"label": labels[i], "rate_pct": round(float(means.iloc[i]), 2), "count": int(counts.iloc[i])}
+        for i in range(len(means))
+    ]
+
+
+def regression_insights(
+    df: pd.DataFrame, target: str, metrics: dict[str, Any], artifacts: dict[str, Any],
+    names: dict[str, str],
+) -> dict[str, Any]:
+    y = pd.to_numeric(df[target], errors="coerce").dropna()
+    data = df[pd.to_numeric(df[target], errors="coerce").notna()]
+    n = len(y)
+    target_lbl = names.get(target, target)
+    mean_v, lo_v, hi_v = float(y.mean()), float(y.min()), float(y.max())
+
+    findings: list[dict[str, str]] = [
+        {
+            "headline": f"Typical {target_lbl.lower()}: {mean_v:,.1f} (range {lo_v:,.1f} to {hi_v:,.1f})",
+            "detail": f"Across {n:,} records, {target_lbl.lower()} averages {mean_v:,.1f} - the baseline the drivers below move.",
+        }
+    ]
+
+    mae = metrics.get("mae")
+    r2 = metrics.get("r2")
+    if isinstance(mae, (int, float)):
+        rel = f" (about {abs(mae / mean_v) * 100:,.0f}% of the average)" if mean_v else ""
+        findings.append({
+            "headline": f"Typical prediction miss: ±{mae:,.1f}",
+            "detail": f"On held-back records the model's predictions were off by {mae:,.1f} on average{rel} - "
+                      "read any single prediction as a range, not a point.",
+        })
+
+    # Residual honesty: does the model lean high or low?
+    points = (artifacts.get("predicted_vs_actual") or {}).get("points", [])
+    if points:
+        over = sum(1 for p in points if p["predicted"] > p["actual"])
+        over_pct = _pct(over / len(points))
+        lean = "high" if over_pct > 60 else "low" if over_pct < 40 else None
+        if lean:
+            findings.append({
+                "headline": f"The model leans {lean}: {over_pct if lean == 'high' else round(100 - over_pct, 1)}% "
+                            f"of test predictions {'over' if lean == 'high' else 'under'}-shoot",
+                "detail": "Held-out predictions miss more often in one direction - budget or plan with that bias in mind.",
+            })
+
+    drivers: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for fi in artifacts.get("feature_importance", []):
+        col = _original_column(fi["feature"], [str(c) for c in df.columns])
+        if not col or col == target or col in seen:
+            continue
+        seen.add(col)
+        s = data[col]
+        if pd.api.types.is_datetime64_any_dtype(s):
+            continue
+        if s.dtype == object and s.nunique() > 30:
+            continue
+        groups = _avg_groups(data, col, target)
+        if len(groups) < 2:
+            continue
+        col_lbl = names.get(col, col)
+        vals = [g["rate_pct"] for g in groups]
+        hi, lo = max(vals), min(vals)
+        lift = round(hi / lo, 1) if lo > 0 else None
+        hi_group = groups[vals.index(hi)]
+        lo_group = groups[vals.index(lo)]
+        drivers.append({
+            "feature": col, "label": col_lbl, "groups": groups, "lift": lift, "unit": "avg",
+        })
+        findings.append({
+            "headline": f"{col_lbl} moves {target_lbl.lower()} {f'{lift}×' if lift else 'sharply'}",
+            "detail": (
+                f"Records with {col_lbl.lower()} in '{hi_group['label']}' average {hi:,.1f} vs {lo:,.1f} for "
+                f"'{lo_group['label']}'"
+                + (f" - {lift}× higher. " if lift else ". ")
+                + "A strong candidate lever if the relationship is causal."
+            ),
+        })
+        if len(drivers) >= TOP_DRIVERS:
+            break
+
+    summary = f"Average {target_lbl.lower()} {mean_v:,.1f} across {n:,} records"
+    if isinstance(r2, (int, float)):
+        summary += f"; model explains {_pct(max(0.0, min(1.0, r2)))}% of its variation"
+    return {"outcome_summary": summary, "findings": findings, "drivers": drivers}
+
+
+# --------------------------------------------------------------------------- #
 # Clustering → segment profiles
 # --------------------------------------------------------------------------- #
 
@@ -301,6 +413,15 @@ def evidence_strength(use_case: str, metrics: dict[str, Any], n_rows: int, pct_m
             level, reason = "moderate", f"The model finds real but imperfect patterns (score {score})."
         else:
             reason = f"The model separates outcomes only weakly (score {score}) - treat drivers as hypotheses."
+    elif use_case == "regression":
+        r2 = metrics.get("r2")
+        if isinstance(r2, (int, float)):
+            if r2 >= 0.7:
+                level, reason = "strong", f"The model explains {round(r2 * 100)}% of the variation in the outcome."
+            elif r2 >= 0.4:
+                level, reason = "moderate", f"The model explains {round(r2 * 100)}% of the variation - real signal, sizable noise."
+            else:
+                reason = f"The model explains only {round(max(r2, 0) * 100)}% of the variation - treat drivers as hypotheses."
     elif use_case == "clustering":
         sil = metrics.get("silhouette") or 0
         if sil >= 0.5:
@@ -346,6 +467,8 @@ def build_insights(
     names = display_labels or {}
     if use_case == "classification" and target:
         core = classification_insights(df, target, artifacts, names)
+    elif use_case == "regression" and target:
+        core = regression_insights(df, target, metrics, artifacts, names)
     elif use_case == "clustering" and cluster_labels:
         core = clustering_insights(df, cluster_labels, names)
     elif use_case == "forecasting":

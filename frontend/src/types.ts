@@ -218,6 +218,8 @@ export interface RunResult {
     series?: { t: string; actual: number; predicted?: number }[];
     forecast?: { t: string; forecast: number }[];
     context_series?: { name: string; label?: string; values: (number | null)[] }[];
+    predicted_vs_actual?: { points: { actual: number; predicted: number }[] };
+    residual_hist?: { mid: number; count: number }[];
   };
 }
 
@@ -239,6 +241,7 @@ export interface Driver {
   label?: string;
   groups: { label: string; rate_pct: number; count: number }[];
   lift: number | null;
+  unit?: string; // "avg" for regression drivers (bar values are averages, not %)
 }
 
 export interface Segment {

@@ -1,5 +1,5 @@
 """Model catalog: importing the modules registers all plugins."""
-from . import classification, clustering, forecasting  # noqa: F401
+from . import classification, clustering, forecasting, regression  # noqa: F401
 from .base import ModelPlugin, all_models, get_model, models_for_use_case
 
 __all__ = ["ModelPlugin", "all_models", "get_model", "models_for_use_case"]

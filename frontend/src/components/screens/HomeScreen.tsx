@@ -73,7 +73,7 @@ export function HomeScreen({
   onStart: () => void;
   onResume: (id: string) => void;
 }) {
-  const useCases = ["classification", "clustering", "forecasting"];
+  const useCases = ["classification", "regression", "clustering", "forecasting"];
 
   return (
     <div className="space-y-10">
@@ -111,7 +111,7 @@ export function HomeScreen({
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
           What you can analyze
         </h3>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {useCases.map((uc) => {
             const info = USE_CASE_INFO[uc];
             const ucModels = models.filter((m) => m.use_case === uc);

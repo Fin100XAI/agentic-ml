@@ -13,12 +13,16 @@ from typing import Any
 from engine.catalog import models_for_use_case
 from engine.llm.base import LLMProvider
 
-USE_CASES = ("classification", "clustering", "forecasting")
+USE_CASES = ("classification", "regression", "clustering", "forecasting")
 
 _SYSTEM = (
     "You are the model-selection agent in an ML workbench with a fixed model "
     "catalog. Based on the dataset profile and the user's goal, choose the most "
-    "appropriate use case and rank the available models for it. Only use model "
+    "appropriate use case and rank the available models for it. Use "
+    "classification when predicting a category, REGRESSION when predicting a "
+    "continuous numeric amount (price, yield, cost, score), clustering to find "
+    "groups, forecasting only when projecting a time-ordered series forward. "
+    "Only use model "
     "keys and column names that actually appear in the input. Explain your "
     "reasoning concretely, referencing the data's characteristics. The profile "
     "includes a 'health' section listing data-quality issues (imbalance, small "
@@ -80,6 +84,22 @@ def _schema(catalog_keys: list[str], column_names: list[str]) -> dict[str, Any]:
     }
 
 
+_AMOUNT_TOKENS = ("price", "cost", "amount", "revenue", "value", "yield", "total", "spend", "income", "salary")
+
+
+def _pick_numeric_target(numeric: list[str], q: str) -> str | None:
+    """Prefer the column the question names, then amount-like names, then the first."""
+    if not numeric:
+        return None
+    for col in numeric:
+        if col.lower().replace("_", " ") in q or col.lower() in q.replace(" ", "_"):
+            return col
+    for col in numeric:
+        if any(tok in col.lower() for tok in _AMOUNT_TOKENS):
+            return col
+    return numeric[0]
+
+
 def _heuristic(profile: dict[str, Any], question: str) -> dict[str, Any]:
     q = (question or "").lower()
     suggested = profile.get("suggested_use_cases", [])
@@ -90,6 +110,8 @@ def _heuristic(profile: dict[str, Any], question: str) -> dict[str, Any]:
         use_case = "forecasting"
     elif any(w in q for w in ("segment", "cluster", "group", "anomal", "outlier")):
         use_case = "clustering"
+    elif any(w in q for w in ("how much", "estimate", "price", "value", "amount", "yield", "cost", "revenue", "score")):
+        use_case = "regression"
     elif any(w in q for w in ("classify", "predict", "churn", "fraud", "default", "label")):
         use_case = "classification"
     else:
@@ -97,15 +119,25 @@ def _heuristic(profile: dict[str, Any], question: str) -> dict[str, Any]:
 
     target = None
     time_column = None
-    if use_case in ("classification", "forecasting"):
+    if use_case in ("classification", "regression", "forecasting"):
         candidates = profile.get("candidate_targets", [])
         if use_case == "forecasting":
             numeric = [c["name"] for c in candidates if c["role"] == "numeric"]
             target = numeric[0] if numeric else next((c["name"] for c in cols if c["role"] == "numeric"), None)
             time_column = next((c["name"] for c in cols if c["role"] == "datetime"), None)
+        elif use_case == "regression":
+            numeric = [c["name"] for c in candidates if c["role"] == "numeric"]
+            if not numeric:
+                numeric = [c["name"] for c in cols if c["role"] == "numeric"]
+            target = _pick_numeric_target(numeric, q)
         else:
             preferred = [c["name"] for c in candidates if c["role"] in ("boolean", "categorical")]
             target = preferred[0] if preferred else (candidates[0]["name"] if candidates else None)
+            # A "predict" question with only continuous targets is regression.
+            if target is None and "predict" in q:
+                numeric = [c["name"] for c in candidates if c["role"] == "numeric"]
+                if numeric:
+                    use_case, target = "regression", numeric[0]
 
     models = models_for_use_case(use_case)
     ranked = [{"key": m.key, "rationale": m.strengths} for m in models]

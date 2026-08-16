@@ -1,4 +1,4 @@
-"""Generate sample CSVs for exercising all three use cases."""
+"""Generate sample CSVs for exercising all four use cases."""
 from __future__ import annotations
 
 import numpy as np
@@ -51,8 +51,28 @@ def sales(n: int = 156) -> pd.DataFrame:
     return pd.DataFrame({"week": dates.strftime("%Y-%m-%d"), "sales": value.round(2)})
 
 
+def house_prices(n: int = 700) -> pd.DataFrame:
+    """Regression: house sale price driven by size, age, location tier."""
+    sqft = rng.uniform(450, 3200, n)
+    age = rng.integers(0, 60, n)
+    bedrooms = np.clip((sqft / 700 + rng.normal(0, 0.7, n)).round(), 1, 6)
+    tier = rng.choice(["suburb", "midtown", "prime"], n, p=[0.5, 0.35, 0.15])
+    tier_bump = np.select([tier == "prime", tier == "midtown"], [1.45, 1.15], 1.0)
+    price = (60_000 + 145 * sqft - 900 * age + 12_000 * bedrooms) * tier_bump \
+        + rng.normal(0, 18_000, n)
+    return pd.DataFrame({
+        "listing_id": [f"H{i:05d}" for i in range(n)],
+        "sqft": sqft.round(0),
+        "age_years": age,
+        "bedrooms": bedrooms.astype(int),
+        "location_tier": tier,
+        "sale_price": price.round(0),
+    })
+
+
 if __name__ == "__main__":
     churn().to_csv("customer_churn.csv", index=False)
     segments().to_csv("customer_segments.csv", index=False)
     sales().to_csv("weekly_sales.csv", index=False)
-    print("Wrote customer_churn.csv, customer_segments.csv, weekly_sales.csv")
+    house_prices().to_csv("house_prices.csv", index=False)
+    print("Wrote customer_churn.csv, customer_segments.csv, weekly_sales.csv, house_prices.csv")

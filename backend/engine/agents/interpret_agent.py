@@ -40,6 +40,9 @@ def _fallback(model_name: str, use_case: str, metrics: dict[str, Any]) -> dict[s
     if use_case == "classification" and isinstance(metrics.get("accuracy"), (int, float)):
         acc = metrics["accuracy"]
         assessment = "strong" if acc >= 0.85 else "moderate" if acc >= 0.7 else "weak"
+    elif use_case == "regression" and isinstance(metrics.get("r2"), (int, float)):
+        r2 = metrics["r2"]
+        assessment = "strong" if r2 >= 0.7 else "moderate" if r2 >= 0.4 else "weak"
     elif use_case == "clustering" and isinstance(metrics.get("silhouette"), (int, float)):
         sil = metrics["silhouette"]
         assessment = "strong" if sil >= 0.5 else "moderate" if sil >= 0.25 else "weak"
