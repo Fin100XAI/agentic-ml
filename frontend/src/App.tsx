@@ -15,10 +15,11 @@ import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
+import { AssemblyModal } from "./components/AssemblyModal";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
-import type { JoinSuggestion, ModelInfo, PiiFinding, Project, Run, RunSummary, SheetInfo } from "./types";
+import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
 
@@ -91,6 +92,12 @@ export default function App() {
     findings: PiiFinding[];
   } | null>(null);
   const [remediationRunId, setRemediationRunId] = useState<string | null>(null);
+  const [assemblyChoice, setAssemblyChoice] = useState<{
+    file: File;
+    question: string;
+    filename: string;
+    proposals: AssemblyProposal[];
+  } | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns(project?.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -174,13 +181,24 @@ export default function App() {
       await continueToEda(r.id);
     });
 
-  const handleUpload = (file: File, question: string, sheet?: string, join?: JoinSuggestion) =>
+  const handleUpload = (
+    file: File, question: string, sheet?: string, join?: JoinSuggestion,
+    assembly?: object | "standalone",
+  ) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
-      const ds = await api.uploadDataset(file, sheet, join, project?.id);
+      const ds = await api.uploadDataset(file, sheet, join, project?.id, assembly);
       if (ds.needs_sheet_selection && ds.sheets) {
         // Workbook has several sheets: ask the human which one to analyze.
         setSheetChoice({ file, question, sheets: ds.sheets, join: ds.join_suggestion ?? null });
+        setUploadStage(null);
+        return;
+      }
+      if (ds.needs_assembly_decision && ds.assembly_proposals) {
+        // Librarian: the file relates to existing project data - human decides.
+        setAssemblyChoice({
+          file, question, filename: ds.filename, proposals: ds.assembly_proposals,
+        });
         setUploadStage(null);
         return;
       }
@@ -572,6 +590,30 @@ export default function App() {
             </Card>
           </div>
         </>
+      )}
+
+      {/* Librarian: the new file relates to existing project data */}
+      {assemblyChoice && (
+        <AssemblyModal
+          filename={assemblyChoice.filename}
+          proposals={assemblyChoice.proposals}
+          busy={busy}
+          onChoose={(p) => {
+            const { file, question } = assemblyChoice;
+            setAssemblyChoice(null);
+            handleUpload(file, question, undefined, undefined, {
+              kind: p.kind,
+              target_dataset_id: p.target_dataset_id,
+              on_left: p.on_left,
+              on_right: p.on_right,
+            });
+          }}
+          onStandalone={() => {
+            const { file, question } = assemblyChoice;
+            setAssemblyChoice(null);
+            handleUpload(file, question, undefined, undefined, "standalone");
+          }}
+        />
       )}
 
       {/* Data-fix review: repairable health issues found after profiling */}

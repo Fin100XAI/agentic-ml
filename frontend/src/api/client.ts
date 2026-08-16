@@ -31,12 +31,16 @@ export const api = {
   createProject: (name: string, description = "") =>
     request<Project>("/projects", json({ name, description })),
 
-  uploadDataset: (file: File, sheet?: string, join?: object, projectId?: string) => {
+  uploadDataset: (
+    file: File, sheet?: string, join?: object, projectId?: string,
+    assembly?: object | "standalone",
+  ) => {
     const form = new FormData();
     form.append("file", file);
     if (sheet) form.append("sheet", sheet);
     if (join) form.append("join", JSON.stringify(join));
     if (projectId) form.append("project_id", projectId);
+    if (assembly) form.append("assembly", assembly === "standalone" ? "standalone" : JSON.stringify(assembly));
     return request<UploadResponse>("/datasets", { method: "POST", body: form });
   },
 

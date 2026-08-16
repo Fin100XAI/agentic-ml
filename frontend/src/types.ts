@@ -94,6 +94,21 @@ export interface PiiFinding {
   note: string;
 }
 
+export interface AssemblyProposal {
+  kind: "stack" | "join" | "score_route";
+  target_dataset_id?: string;
+  target_filename?: string;
+  new_rows?: number;
+  existing_rows?: number;
+  combined_rows?: number;
+  on_left?: string;
+  on_right?: string;
+  match_pct?: number;
+  model_id?: string;
+  version?: number;
+  note: string;
+}
+
 export interface UploadResponse {
   dataset_id?: string;
   filename: string;
@@ -105,6 +120,8 @@ export interface UploadResponse {
   join_suggestion?: JoinSuggestion | null;
   pii_status?: "pending" | "reviewed" | "clean";
   pii_findings?: PiiFinding[];
+  needs_assembly_decision?: boolean;
+  assembly_proposals?: AssemblyProposal[];
 }
 
 export interface ColumnProfile {

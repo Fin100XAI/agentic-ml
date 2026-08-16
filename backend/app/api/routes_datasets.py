@@ -12,6 +12,7 @@ from app.schemas import PiiReviewRequest
 from app.store import store
 from engine.catalog import all_models
 from engine.joins import perform_join, propose_join
+from engine.librarian import classify_file, perform_stack
 from engine.pii import apply_pii_actions, detect_pii
 
 router = APIRouter()
@@ -26,6 +27,7 @@ async def upload_dataset(
     sheet: str | None = Form(None),
     join: str | None = Form(None),
     project_id: str | None = Form(None),
+    assembly: str | None = Form(None),  # librarian decision: JSON or "standalone"
 ) -> dict:
     if project_id is not None and project_id not in store.projects:
         raise HTTPException(404, f"Unknown project: {project_id}")
@@ -94,12 +96,76 @@ async def upload_dataset(
     if df.empty or df.shape[1] == 0:
         raise HTTPException(400, "The file appears to be empty.")
 
+    pid = project_id or store.default_project_id()
+
+    # Librarian: when the project already holds data, ask how this file fits -
+    # unless the human already decided (assembly param present).
+    project_datasets = [
+        {"id": d.id, "filename": d.filename, "df": d.df}
+        for d in store.datasets.values() if d.project_id == pid
+    ]
+    if assembly is None and project_datasets:
+        try:
+            proposals = classify_file(df, display_name, project_datasets)
+        except Exception:
+            proposals = []
+        if proposals:
+            store.log_event(
+                "Librarian", "agent_call", project_id=pid, mode="fallback",
+                payload={"action": "Classified an incoming file",
+                         "proposals": [{k: v for k, v in p.items() if k != "df"} for p in proposals]},
+            )
+            return {
+                "needs_assembly_decision": True,
+                "filename": display_name,
+                "n_rows": int(df.shape[0]),
+                "n_cols": int(df.shape[1]),
+                "assembly_proposals": proposals,
+            }
+
+    assembly_note: dict | None = None
+    if assembly and assembly != "standalone":
+        try:
+            spec = json.loads(assembly)
+            target = store.get_dataset(spec["target_dataset_id"])
+        except (KeyError, json.JSONDecodeError) as exc:
+            raise HTTPException(400, f"Invalid assembly decision: {exc}") from exc
+        try:
+            if spec["kind"] == "stack":
+                df = perform_stack(df, target.df, display_name, target.filename)
+                display_name = f"{target.filename} + {display_name}"
+            elif spec["kind"] == "join":
+                df = perform_join(
+                    {"new": df, "existing": target.df}, "new", "existing",
+                    spec["on_left"], spec["on_right"],
+                )
+                display_name = f"{display_name} [+{target.filename}]"
+            else:
+                raise HTTPException(400, f"Unknown assembly kind: {spec.get('kind')}")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        assembly_note = {"kind": spec["kind"], "target": target.id,
+                         "params": {k: v for k, v in spec.items() if k != "kind"}}
+
+    if assembly == "standalone" and project_datasets:
+        store.log_event("user", "decline", project_id=pid,
+                        payload={"gate": "librarian", "note": "treated the file as standalone"})
+    elif assembly_note:
+        store.log_event("user", "approval", project_id=pid,
+                        payload={"gate": "librarian", **assembly_note})
+
     # Immutable ledger: the raw file is stored read-only; the analyzed table
     # is a derived artifact pointing back at it. The original never changes.
-    pid = project_id or store.default_project_id()
     ext = Path(name).suffix or ".bin"
     original = store.add_original_artifact(raw, ext, project_id=pid)
-    table = store.add_derived_artifact(df, [original.id], transform_type, table_params, project_id=pid)
+    parents = [original.id]
+    if assembly_note:
+        t = store.datasets.get(assembly_note["target"])
+        if t and t.artifact_id:
+            parents.append(t.artifact_id)
+        transform_type = assembly_note["kind"]
+        table_params = assembly_note["params"]
+    table = store.add_derived_artifact(df, parents, transform_type, table_params, project_id=pid)
 
     # PII screening runs HERE, before any run (and thus any LLM) can see rows.
     findings = detect_pii(df)
