@@ -8,9 +8,11 @@ from pathlib import Path
 import pandas as pd
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
+from app.schemas import PiiReviewRequest
 from app.store import store
 from engine.catalog import all_models
 from engine.joins import perform_join, propose_join
+from engine.pii import apply_pii_actions, detect_pii
 
 router = APIRouter()
 
@@ -94,7 +96,11 @@ async def upload_dataset(
     ext = Path(name).suffix or ".bin"
     original = store.add_original_artifact(raw, ext)
     table = store.add_derived_artifact(df, [original.id], transform_type, table_params)
-    ds = store.add_dataset(df, display_name, artifact_id=table.id)
+
+    # PII screening runs HERE, before any run (and thus any LLM) can see rows.
+    findings = detect_pii(df)
+    pii = {"status": "pending" if findings else "clean", "findings": findings, "actions": {}}
+    ds = store.add_dataset(df, display_name, artifact_id=table.id, pii=pii)
     store.log_event(
         "user", "file_upload", dataset_id=ds.id, artifact_id=original.id,
         payload={
@@ -104,12 +110,66 @@ async def upload_dataset(
             **({"join": json.loads(join)} if join else {}),
         },
     )
+    if findings:
+        store.log_event(
+            "PII screen", "pii_review", dataset_id=ds.id,
+            payload={"status": "pending", "findings": findings},
+        )
     return {
         "dataset_id": ds.id,
         "filename": ds.filename,
         "n_rows": int(df.shape[0]),
         "n_cols": int(df.shape[1]),
         "columns": [str(c) for c in df.columns],
+        "pii_status": pii["status"],
+        "pii_findings": findings,
+    }
+
+
+@router.post("/datasets/{dataset_id}/pii-review")
+def review_pii(dataset_id: str, req: PiiReviewRequest) -> dict:
+    try:
+        ds = store.get_dataset(dataset_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if not ds.pii or ds.pii.get("status") != "pending":
+        raise HTTPException(409, "This dataset has no pending PII review.")
+
+    findings = ds.pii["findings"]
+    valid_cols = {f["column"] for f in findings}
+    actions = {c: a for c, a in req.actions.items() if c in valid_cols and a in ("mask", "drop", "keep")}
+    for f in findings:  # anything the request omits falls back to the proposal
+        actions.setdefault(f["column"], f["proposed_action"])
+
+    effective = {c: a for c, a in actions.items() if a != "keep"}
+    if effective:
+        masked = apply_pii_actions(ds.df, findings, effective)
+        art = store.add_derived_artifact(
+            masked, [ds.artifact_id] if ds.artifact_id else [], "pii_mask", effective
+        )
+        ds.df = masked
+        ds.artifact_id = art.id
+
+    ds.pii = {"status": "reviewed", "findings": findings, "actions": actions}
+    store.update_dataset(ds)
+
+    declined = [c for c, a in actions.items() if a == "keep"]
+    store.log_event(
+        "user", "pii_review", dataset_id=ds.id, artifact_id=ds.artifact_id,
+        payload={"status": "approved", "actions": actions},
+    )
+    for col in declined:
+        store.log_event(
+            "user", "decline", dataset_id=ds.id,
+            payload={"gate": "pii_mask", "column": col, "note": "kept as-is by explicit choice"},
+        )
+    return {
+        "dataset_id": ds.id,
+        "pii_status": "reviewed",
+        "masked": bool(effective),
+        "n_rows": int(ds.df.shape[0]),
+        "n_cols": int(ds.df.shape[1]),
+        "columns": [str(c) for c in ds.df.columns],
     }
 
 

@@ -33,3 +33,7 @@ class CompareRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
     history: list[dict[str, str]] = Field(default_factory=list)
+
+
+class PiiReviewRequest(BaseModel):
+    actions: dict[str, str] = Field(default_factory=dict)  # column -> mask|drop|keep

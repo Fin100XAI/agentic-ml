@@ -43,6 +43,9 @@ def start_run(req: StartRunRequest) -> dict:
         ds = store.get_dataset(req.dataset_id)
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    # Hard gate: no analysis (and therefore no LLM call) before PII review.
+    if ds.pii and ds.pii.get("status") == "pending":
+        raise HTTPException(409, "PII review pending: approve the privacy screen for this dataset first.")
     run = Run(dataset_id=ds.id, df=ds.df, filename=ds.filename)
     run.artifact_id = ds.artifact_id  # lineage starts at the dataset's table artifact
     store.add_run(run)

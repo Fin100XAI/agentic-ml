@@ -56,6 +56,7 @@ class Dataset:
     filename: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     artifact_id: str | None = None  # table artifact this frame came from
+    pii: dict | None = None  # {"status": "pending|reviewed|clean", "findings": [...], "actions": {...}}
 
 
 class Store:
@@ -87,10 +88,14 @@ class Store:
             "transform_type TEXT NOT NULL, transform_params TEXT, "
             "sha256 TEXT NOT NULL, created_at TEXT NOT NULL, file_path TEXT NOT NULL)"
         )
-        try:  # older DBs predate the datasets.artifact_id column
-            self._db.execute("ALTER TABLE datasets ADD COLUMN artifact_id TEXT")
-        except sqlite3.OperationalError:
-            pass
+        for ddl in (
+            "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
+            "ALTER TABLE datasets ADD COLUMN pii TEXT",
+        ):  # older DBs predate these columns
+            try:
+                self._db.execute(ddl)
+            except sqlite3.OperationalError:
+                pass
         self._db.commit()
         ARTIFACT_DIR.mkdir(exist_ok=True)
         self._load()
@@ -99,12 +104,15 @@ class Store:
 
     # -- startup ---------------------------------------------------------------
     def _load(self) -> None:
-        for ds_id, filename, blob, art_id in self._db.execute(
-            "SELECT id, filename, frame, artifact_id FROM datasets"
+        for ds_id, filename, blob, art_id, pii_json in self._db.execute(
+            "SELECT id, filename, frame, artifact_id, pii FROM datasets"
         ):
             try:
                 df = pickle.loads(blob)
-                self.datasets[ds_id] = Dataset(df=df, filename=filename, id=ds_id, artifact_id=art_id)
+                self.datasets[ds_id] = Dataset(
+                    df=df, filename=filename, id=ds_id, artifact_id=art_id,
+                    pii=json.loads(pii_json) if pii_json else None,
+                )
             except Exception:
                 continue  # skip unreadable rows rather than failing startup
         for run_id, ds_id, _created, blob in self._db.execute(
@@ -123,16 +131,30 @@ class Store:
                 continue
 
     # -- datasets --------------------------------------------------------------
-    def add_dataset(self, df: pd.DataFrame, filename: str, artifact_id: str | None = None) -> Dataset:
-        ds = Dataset(df=df, filename=filename, artifact_id=artifact_id)
+    def add_dataset(
+        self, df: pd.DataFrame, filename: str, artifact_id: str | None = None,
+        pii: dict | None = None,
+    ) -> Dataset:
+        ds = Dataset(df=df, filename=filename, artifact_id=artifact_id, pii=pii)
         self.datasets[ds.id] = ds
+        self._persist_dataset(ds)
+        return ds
+
+    def update_dataset(self, ds: Dataset) -> None:
+        """Persist in-place changes (masked frame, artifact pointer, PII state)."""
+        self._persist_dataset(ds)
+
+    def _persist_dataset(self, ds: Dataset) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id) VALUES (?, ?, ?, ?)",
-                (ds.id, ds.filename, pickle.dumps(df), artifact_id),
+                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    ds.id, ds.filename, pickle.dumps(ds.df), ds.artifact_id,
+                    json.dumps(ds.pii, default=str) if ds.pii else None,
+                ),
             )
             self._db.commit()
-        return ds
 
     def get_dataset(self, dataset_id: str) -> Dataset:
         if dataset_id not in self.datasets:

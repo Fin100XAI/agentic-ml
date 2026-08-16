@@ -15,7 +15,8 @@ import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
-import type { JoinSuggestion, ModelInfo, Run, RunSummary, SheetInfo } from "./types";
+import { PiiReviewModal } from "./components/PiiReviewModal";
+import type { JoinSuggestion, ModelInfo, PiiFinding, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
 
@@ -79,6 +80,12 @@ export default function App() {
     sheets: SheetInfo[];
     join: JoinSuggestion | null;
   } | null>(null);
+  const [piiReview, setPiiReview] = useState<{
+    datasetId: string;
+    filename: string;
+    question: string;
+    findings: PiiFinding[];
+  } | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -120,6 +127,24 @@ export default function App() {
     }
   }
 
+  // Post-upload continuation shared by the normal path and the PII review path.
+  const runAnalysis = async (datasetId: string, question: string) => {
+    setUploadStage("profiling");
+    let r = await api.startRun(datasetId, question);
+    setRun(r);
+    if (r.error) {
+      setError(r.error);
+      setUploadStage(null);
+      return;
+    }
+    setUploadStage("analyzing");
+    r = await api.runEda(r.id);
+    setRun(r);
+    setUploadStage(null);
+    if (r.error) setError(r.error);
+    else setScreen("eda");
+  };
+
   const handleUpload = (file: File, question: string, sheet?: string, join?: JoinSuggestion) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
@@ -130,20 +155,27 @@ export default function App() {
         setUploadStage(null);
         return;
       }
-      setUploadStage("profiling");
-      let r = await api.startRun(ds.dataset_id!, question);
-      setRun(r);
-      if (r.error) {
-        setError(r.error);
+      if (ds.pii_status === "pending" && ds.pii_findings?.length) {
+        // Personal data found: the human decides before ANY analysis or AI call.
+        setPiiReview({
+          datasetId: ds.dataset_id!,
+          filename: ds.filename,
+          question,
+          findings: ds.pii_findings,
+        });
         setUploadStage(null);
         return;
       }
-      setUploadStage("analyzing");
-      r = await api.runEda(r.id);
-      setRun(r);
-      setUploadStage(null);
-      if (r.error) setError(r.error);
-      else setScreen("eda");
+      await runAnalysis(ds.dataset_id!, question);
+    });
+
+  const handlePiiApprove = (actions: Record<string, string>) =>
+    guard("Applying privacy screen…", async () => {
+      if (!piiReview) return;
+      const { datasetId, question } = piiReview;
+      await api.piiReview(datasetId, actions);
+      setPiiReview(null);
+      await runAnalysis(datasetId, question);
     });
 
   const handleApproveEda = (comment: string) =>
@@ -483,6 +515,16 @@ export default function App() {
             </Card>
           </div>
         </>
+      )}
+
+      {/* Privacy screen: personal data found at upload */}
+      {piiReview && (
+        <PiiReviewModal
+          filename={piiReview.filename}
+          findings={piiReview.findings}
+          busy={busy}
+          onApprove={handlePiiApprove}
+        />
       )}
 
       {/* Excel sheet picker */}

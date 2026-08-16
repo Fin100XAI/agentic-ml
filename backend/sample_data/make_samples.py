@@ -70,9 +70,35 @@ def house_prices(n: int = 700) -> pd.DataFrame:
     })
 
 
+def loan_applicants(n: int = 300) -> pd.DataFrame:
+    """PII screening demo: fake Indian personal data + a real signal column."""
+    first = ["Aarav", "Vivaan", "Diya", "Ananya", "Rohan", "Priya", "Kabir", "Isha", "Arjun", "Meera"]
+    last = ["Sharma", "Patel", "Reddy", "Gupta", "Iyer", "Khan", "Das", "Nair", "Singh", "Joshi"]
+    names = [f"{rng.choice(first)} {rng.choice(last)}" for _ in range(n)]
+    emails = [f"{nm.split()[0].lower()}.{nm.split()[1].lower()}{i}@example.com" for i, nm in enumerate(names)]
+    phones = [f"+91 {rng.integers(6, 10)}{rng.integers(100000000, 999999999)}" for _ in range(n)]
+    aadhaar = [f"{rng.integers(1000, 9999)} {rng.integers(1000, 9999)} {rng.integers(1000, 9999)}" for _ in range(n)]
+    pan = ["".join(rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), 5)) + str(rng.integers(1000, 9999)) + rng.choice(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")) for _ in range(n)]
+    income = rng.uniform(2.5, 30, n).round(1)  # lakh per year
+    amount = (income * rng.uniform(2, 6, n)).round(1)
+    approved = (rng.random(n) < 1 / (1 + np.exp(-(0.25 * income - 0.08 * amount)))).astype(int)
+    return pd.DataFrame({
+        "applicant_name": names,
+        "email": emails,
+        "phone": phones,
+        "aadhaar_no": aadhaar,
+        "pan_code": pan,
+        "annual_income_lakh": income,
+        "loan_amount_lakh": amount,
+        "approved": approved,
+    })
+
+
 if __name__ == "__main__":
     churn().to_csv("customer_churn.csv", index=False)
     segments().to_csv("customer_segments.csv", index=False)
     sales().to_csv("weekly_sales.csv", index=False)
     house_prices().to_csv("house_prices.csv", index=False)
-    print("Wrote customer_churn.csv, customer_segments.csv, weekly_sales.csv, house_prices.csv")
+    loan_applicants().to_csv("loan_applicants_pii.csv", index=False)
+    print("Wrote customer_churn.csv, customer_segments.csv, weekly_sales.csv, "
+          "house_prices.csv, loan_applicants_pii.csv")

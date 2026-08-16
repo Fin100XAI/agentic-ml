@@ -74,6 +74,12 @@ export const api = {
 
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
 
+  piiReview: (datasetId: string, actions: Record<string, string>) =>
+    request<{ dataset_id: string; pii_status: string; masked: boolean }>(
+      `/datasets/${datasetId}/pii-review`,
+      json({ actions }),
+    ),
+
   getLineage: (artifactId: string) =>
     request<{ lineage: ArtifactInfo[] }>(`/artifacts/${artifactId}/lineage`),
 

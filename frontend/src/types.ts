@@ -46,6 +46,16 @@ export interface JoinSuggestion {
   note: string;
 }
 
+export interface PiiFinding {
+  column: string;
+  kind: string;
+  confidence: number;
+  match_pct: number;
+  proposed_action: "mask" | "drop" | "keep";
+  example_masked: string;
+  note: string;
+}
+
 export interface UploadResponse {
   dataset_id?: string;
   filename: string;
@@ -55,6 +65,8 @@ export interface UploadResponse {
   needs_sheet_selection?: boolean;
   sheets?: SheetInfo[];
   join_suggestion?: JoinSuggestion | null;
+  pii_status?: "pending" | "reviewed" | "clean";
+  pii_findings?: PiiFinding[];
 }
 
 export interface ColumnProfile {
