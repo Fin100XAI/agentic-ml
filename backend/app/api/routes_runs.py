@@ -52,8 +52,24 @@ def start_run(req: StartRunRequest) -> dict:
     store.add_run(run)
     set_run_context(run)
     _orchestrator().start(run, req.question)
+    _attach_glossary(run, ds.project_id)
     store.save_run(run)
     return run.to_dict()
+
+
+def _attach_glossary(run: Run, project_id: str | None) -> None:
+    """The project's own data dictionary overrides guessed column meanings and
+    rides into every agent prompt built from the profile."""
+    if not run.profile:
+        return
+    matched = store.glossary_for_columns(project_id, [c["name"] for c in run.profile["columns"]])
+    if not matched:
+        return
+    run.profile["glossary"] = matched
+    for col in run.profile["columns"]:
+        if col["name"] in matched:
+            col["meaning"] = matched[col["name"]]
+            col["glossary"] = True
 
 
 @router.get("/runs")

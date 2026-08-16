@@ -16,7 +16,12 @@ _SYSTEM = (
     "structured statistical profile of a dataset the user just uploaded. "
     "Explain what the dataset appears to contain in plain language for a mixed "
     "technical/non-technical audience. Be concrete, cite column names and "
-    "numbers from the profile, and never invent facts not present in it. Style rule: use plain hyphens (-) only; never use em dashes or en dashes in your output."
+    "numbers from the profile, and never invent facts not present in it. "
+    "If the profile contains a 'glossary' section, those are the user's OWN "
+    "definitions from their data dictionary - always prefer them over your own "
+    "guess about what a column means, and use their wording in labels and "
+    "findings. Style rule: use plain hyphens (-) only; never use em dashes or "
+    "en dashes in your output."
 )
 
 _SCHEMA: dict[str, Any] = {

@@ -83,7 +83,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
         <span className="truncate text-xs font-semibold" title={col.name}>
           {col.display_name}
         </span>
-        <InfoTip text={col.meaning} />
+        <InfoTip text={col.glossary ? `${col.meaning} (from your data dictionary)` : col.meaning} />
       </div>
       <ResponsiveContainer width="100%" height={90}>
         <BarChart data={data} margin={{ top: 2, left: 0, right: 0, bottom: 0 }}>
@@ -120,7 +120,7 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
         <span className="truncate text-xs font-semibold" title={col.name}>
           {col.display_name}
         </span>
-        <InfoTip text={col.meaning} />
+        <InfoTip text={col.glossary ? `${col.meaning} (from your data dictionary)` : col.meaning} />
       </div>
       <ResponsiveContainer width="100%" height={Math.max(90, data.length * 22)}>
         <BarChart data={data} layout="vertical" margin={{ top: 2, left: 0, right: 24, bottom: 0 }}>
@@ -539,7 +539,10 @@ export function EdaScreen({
                     <td className="px-3 py-2">
                       <Badge tone={ROLE_TONE[c.role] ?? "neutral"}>{ROLE_LABEL[c.role] ?? c.role}</Badge>
                     </td>
-                    <td className="max-w-72 break-words px-3 py-2 text-ink-dim">{c.meaning}</td>
+                    <td className="max-w-72 break-words px-3 py-2 text-ink-dim">
+                      {c.meaning}
+                      {c.glossary && <span className="text-accent"> (from your data dictionary)</span>}
+                    </td>
                     <td className="px-3 py-2 tabular-nums text-ink-dim">
                       {c.missing_pct ? `${c.missing_pct}%` : "-"}
                     </td>

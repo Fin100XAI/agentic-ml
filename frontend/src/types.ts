@@ -176,6 +176,7 @@ export interface ColumnProfile {
   name: string;
   display_name: string;
   meaning: string;
+  glossary?: boolean; // true when meaning comes from the project's data dictionary
   role: string;
   dtype: string;
   missing_count: number;

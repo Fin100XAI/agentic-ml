@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { ModelInfo, RegistryEntry, RunSummary } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
+import { GlossaryManager } from "../GlossaryManager";
 import { ModelsPanel } from "../ModelsPanel";
 import { Badge, Button, Card, CardBody } from "../ui";
 
@@ -188,6 +189,9 @@ export function HomeScreen({
           ))}
         </div>
       </section>
+
+      {/* Project data dictionary */}
+      {projectId && <GlossaryManager projectId={projectId} />}
 
       {/* Trained model versions in this project */}
       {projectId && <ModelsPanel projectId={projectId} onRetrain={onRetrain} />}

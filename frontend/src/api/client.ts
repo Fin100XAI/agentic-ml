@@ -28,6 +28,30 @@ export const api = {
 
   listProjects: () => request<{ projects: Project[] }>("/projects"),
 
+  getGlossary: (projectId: string) =>
+    request<{ entries: { term: string; definition: string }[] }>(`/projects/${projectId}/glossary`),
+
+  addGlossary: (projectId: string, entries: { term: string; definition: string }[]) =>
+    request<{ added: number; entries: { term: string; definition: string }[] }>(
+      `/projects/${projectId}/glossary`,
+      json({ entries }),
+    ),
+
+  uploadGlossary: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ added: number; entries: { term: string; definition: string }[] }>(
+      `/projects/${projectId}/glossary/upload`,
+      { method: "POST", body: form },
+    );
+  },
+
+  deleteGlossary: (projectId: string, term: string) =>
+    request<{ entries: { term: string; definition: string }[] }>(
+      `/projects/${projectId}/glossary/${encodeURIComponent(term)}`,
+      { method: "DELETE" },
+    ),
+
   getProjectModels: (projectId: string) =>
     request<{ models: RegistryEntry[] }>(`/projects/${projectId}/models`),
 

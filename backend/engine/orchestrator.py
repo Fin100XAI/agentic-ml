@@ -636,6 +636,9 @@ class Orchestrator:
                     f"{min(val['folds'])} to {max(val['folds'])} across resamples - "
                     "results depend somewhat on which rows were used."
                 )
+            # The project's data dictionary rides into the brief/critic prompts.
+            if (run.profile or {}).get("glossary"):
+                insights["glossary"] = run.profile["glossary"]
             # Trust tier: evidence strength downgraded by a shaky stability verdict.
             insights["trust_tier"] = trust_tier(
                 insights["evidence"]["level"], (run.result or {}).get("validation")

@@ -107,6 +107,12 @@ class Store:
             "id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, "
             "created_at TEXT NOT NULL)"
         )
+        # Project glossary: the human's own definitions beat any AI guess.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS glossary ("
+            "project_id TEXT NOT NULL, term TEXT NOT NULL, definition TEXT NOT NULL, "
+            "PRIMARY KEY (project_id, term))"
+        )
         # Model registry: every completed training run, versioned, never overwritten.
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS model_registry ("
@@ -438,6 +444,49 @@ class Store:
                     "UPDATE datasets SET artifact_id = ? WHERE id = ?", (art.id, ds.id)
                 )
                 self._db.commit()
+
+    # -- glossary --------------------------------------------------------------
+    def add_glossary_entries(self, project_id: str, entries: list[dict]) -> int:
+        added = 0
+        with self._lock:
+            for e in entries:
+                term = str(e.get("term", "")).strip()
+                definition = str(e.get("definition", "")).strip()
+                if not term or not definition:
+                    continue
+                self._db.execute(
+                    "INSERT OR REPLACE INTO glossary (project_id, term, definition) VALUES (?, ?, ?)",
+                    (project_id, term, definition),
+                )
+                added += 1
+            self._db.commit()
+        return added
+
+    def list_glossary(self, project_id: str) -> list[dict]:
+        rows = self._db.execute(
+            "SELECT term, definition FROM glossary WHERE project_id = ? ORDER BY term",
+            (project_id,),
+        ).fetchall()
+        return [{"term": t, "definition": d} for t, d in rows]
+
+    def delete_glossary_entry(self, project_id: str, term: str) -> None:
+        with self._lock:
+            self._db.execute(
+                "DELETE FROM glossary WHERE project_id = ? AND term = ?", (project_id, term)
+            )
+            self._db.commit()
+
+    def glossary_for_columns(self, project_id: str | None, columns: list[str]) -> dict[str, str]:
+        """Column name -> human definition, matched by keyword normalization."""
+        if not project_id:
+            return {}
+        from engine.librarian import _normalize
+
+        by_norm = {_normalize(e["term"]): e["definition"] for e in self.list_glossary(project_id)}
+        return {
+            str(c): by_norm[_normalize(str(c))]
+            for c in columns if _normalize(str(c)) in by_norm
+        }
 
     # -- model registry --------------------------------------------------------
     _REGISTRY_COLS = (
