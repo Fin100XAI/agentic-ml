@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, ModelInfo, Run, RunSummary, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, Run, RunSummary, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -26,11 +26,17 @@ const json = (body: unknown): RequestInit => ({
 export const api = {
   health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
 
-  uploadDataset: (file: File, sheet?: string, join?: object) => {
+  listProjects: () => request<{ projects: Project[] }>("/projects"),
+
+  createProject: (name: string, description = "") =>
+    request<Project>("/projects", json({ name, description })),
+
+  uploadDataset: (file: File, sheet?: string, join?: object, projectId?: string) => {
     const form = new FormData();
     form.append("file", file);
     if (sheet) form.append("sheet", sheet);
     if (join) form.append("join", JSON.stringify(join));
+    if (projectId) form.append("project_id", projectId);
     return request<UploadResponse>("/datasets", { method: "POST", body: form });
   },
 
@@ -73,7 +79,8 @@ export const api = {
       json({ question, history }),
     ),
 
-  listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
+  listRuns: (projectId?: string) =>
+    request<{ runs: RunSummary[] }>(`/runs${projectId ? `?project_id=${projectId}` : ""}`),
 
   remediate: (runId: string, accepted_ids: string[], skip = false) =>
     request<Run>(`/runs/${runId}/remediate`, json({ accepted_ids, skip })),
@@ -87,14 +94,14 @@ export const api = {
   getLineage: (artifactId: string) =>
     request<{ lineage: ArtifactInfo[] }>(`/artifacts/${artifactId}/lineage`),
 
-  getActivity: (params: { run_id?: string; event_type?: string; limit?: number }) => {
+  getActivity: (params: { run_id?: string; event_type?: string; limit?: number; project_id?: string }) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
     );
     return request<{ events: ActivityEvent[] }>(`/activity?${qs}`);
   },
 
-  activityCsvUrl: (params: { run_id?: string; event_type?: string }) => {
+  activityCsvUrl: (params: { run_id?: string; event_type?: string; project_id?: string }) => {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
     );

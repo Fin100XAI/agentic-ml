@@ -46,6 +46,16 @@ export interface JoinSuggestion {
   note: string;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  n_datasets?: number;
+  n_runs?: number;
+  last_run_at?: string | null;
+}
+
 export interface RemediationProposal {
   id: string;
   kind: string;

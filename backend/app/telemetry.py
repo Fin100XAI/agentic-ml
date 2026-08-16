@@ -53,12 +53,11 @@ def instrumented_provider():
 
 def _on_artifact(run: Run, df, transform_type: str, params: dict[str, Any]) -> str:
     """Materialize a derived artifact for a run-time transformation."""
-    parent = run.artifact_id
-    if parent is None:
-        ds = store.datasets.get(run.dataset_id)
-        parent = ds.artifact_id if ds else None
+    ds = store.datasets.get(run.dataset_id)
+    parent = run.artifact_id or (ds.artifact_id if ds else None)
     art = store.add_derived_artifact(
-        df, [parent] if parent else [], transform_type, params
+        df, [parent] if parent else [], transform_type, params,
+        project_id=ds.project_id if ds else None,
     )
     return art.id
 

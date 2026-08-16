@@ -65,11 +65,13 @@ const FEATURES = [
 export function HomeScreen({
   models,
   recentRuns,
+  projectName,
   onStart,
   onResume,
 }: {
   models: ModelInfo[];
   recentRuns: RunSummary[];
+  projectName?: string;
   onStart: () => void;
   onResume: (id: string) => void;
 }) {
@@ -79,6 +81,11 @@ export function HomeScreen({
     <div className="space-y-10">
       {/* Hero */}
       <div className="rounded-2xl border border-edge bg-gradient-to-br from-panel via-panel to-accent-soft/30 px-8 py-10 text-center">
+        {projectName && (
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-accent">
+            {projectName}
+          </p>
+        )}
         <h2 className="mx-auto max-w-2xl text-2xl font-bold leading-snug">
           Turn raw data into decisions.
           <span className="text-accent"> No data-science degree required.</span>

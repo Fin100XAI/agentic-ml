@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_activity import router as activity_router
 from app.api.routes_datasets import router as datasets_router
+from app.api.routes_projects import router as projects_router
 from app.api.routes_runs import router as runs_router
 from app.config import settings
 
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(projects_router, prefix="/api")
 app.include_router(datasets_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 app.include_router(activity_router, prefix="/api")

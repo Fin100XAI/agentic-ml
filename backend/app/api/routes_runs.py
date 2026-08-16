@@ -57,7 +57,8 @@ def start_run(req: StartRunRequest) -> dict:
 
 
 @router.get("/runs")
-def list_runs() -> dict:
+def list_runs(project_id: str | None = None) -> dict:
+    runs = store.runs_for_project(project_id) if project_id else list(store.runs.values())
     return {
         "runs": [
             {
@@ -67,7 +68,7 @@ def list_runs() -> dict:
                 "stage": r.stage,
                 "created_at": r.created_at,
             }
-            for r in sorted(store.runs.values(), key=lambda r: r.created_at, reverse=True)
+            for r in sorted(runs, key=lambda r: r.created_at, reverse=True)
         ]
     }
 

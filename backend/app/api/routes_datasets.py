@@ -25,7 +25,10 @@ async def upload_dataset(
     file: UploadFile,
     sheet: str | None = Form(None),
     join: str | None = Form(None),
+    project_id: str | None = Form(None),
 ) -> dict:
+    if project_id is not None and project_id not in store.projects:
+        raise HTTPException(404, f"Unknown project: {project_id}")
     name = (file.filename or "").lower()
     if not name.endswith((".csv", *EXCEL_EXT)):
         raise HTTPException(400, "Please upload a .csv or .xlsx file.")
@@ -93,14 +96,15 @@ async def upload_dataset(
 
     # Immutable ledger: the raw file is stored read-only; the analyzed table
     # is a derived artifact pointing back at it. The original never changes.
+    pid = project_id or store.default_project_id()
     ext = Path(name).suffix or ".bin"
-    original = store.add_original_artifact(raw, ext)
-    table = store.add_derived_artifact(df, [original.id], transform_type, table_params)
+    original = store.add_original_artifact(raw, ext, project_id=pid)
+    table = store.add_derived_artifact(df, [original.id], transform_type, table_params, project_id=pid)
 
     # PII screening runs HERE, before any run (and thus any LLM) can see rows.
     findings = detect_pii(df)
     pii = {"status": "pending" if findings else "clean", "findings": findings, "actions": {}}
-    ds = store.add_dataset(df, display_name, artifact_id=table.id, pii=pii)
+    ds = store.add_dataset(df, display_name, artifact_id=table.id, pii=pii, project_id=pid)
     store.log_event(
         "user", "file_upload", dataset_id=ds.id, artifact_id=original.id,
         payload={
@@ -145,7 +149,8 @@ def review_pii(dataset_id: str, req: PiiReviewRequest) -> dict:
     if effective:
         masked = apply_pii_actions(ds.df, findings, effective)
         art = store.add_derived_artifact(
-            masked, [ds.artifact_id] if ds.artifact_id else [], "pii_mask", effective
+            masked, [ds.artifact_id] if ds.artifact_id else [], "pii_mask", effective,
+            project_id=ds.project_id,
         )
         ds.df = masked
         ds.artifact_id = art.id

@@ -21,11 +21,12 @@ def list_activity(
     since: str | None = None,
     until: str | None = None,
     limit: int = 500,
+    project_id: str | None = None,
 ) -> dict:
     return {
         "events": store.list_activity(
             run_id=run_id, dataset_id=dataset_id, event_type=event_type,
-            since=since, until=until, limit=limit,
+            since=since, until=until, limit=limit, project_id=project_id,
         )
     }
 
@@ -38,10 +39,11 @@ def export_activity_csv(
     since: str | None = None,
     until: str | None = None,
     limit: int = 5000,
+    project_id: str | None = None,
 ) -> Response:
     events = store.list_activity(
         run_id=run_id, dataset_id=dataset_id, event_type=event_type,
-        since=since, until=until, limit=limit,
+        since=since, until=until, limit=limit, project_id=project_id,
     )
     buf = io.StringIO()
     cols = list(store._ACTIVITY_COLS)

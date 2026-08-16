@@ -16,10 +16,11 @@ import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
 import { PiiReviewModal } from "./components/PiiReviewModal";
+import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
-import type { JoinSuggestion, ModelInfo, PiiFinding, Run, RunSummary, SheetInfo } from "./types";
+import type { JoinSuggestion, ModelInfo, PiiFinding, Project, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
+type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -29,6 +30,7 @@ const STEPS: { key: Screen; label: string }[] = [
 ];
 
 const GUIDE: Record<Screen, string> = {
+  projects: "",
   home: "",
   upload: "Step 1 - Pick any CSV file. The agents will figure out what's inside.",
   eda: "Step 2 - Review what the EDA agent found, tell it what you want to learn, then approve.",
@@ -61,7 +63,8 @@ function screenForStage(stage: string): Screen {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>("projects");
+  const [project, setProject] = useState<Project | null>(null);
   const [run, setRun] = useState<Run | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
@@ -90,8 +93,8 @@ export default function App() {
   const [remediationRunId, setRemediationRunId] = useState<string | null>(null);
 
   const refreshRuns = useCallback(() => {
-    api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
-  }, []);
+    api.listRuns(project?.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
+  }, [project?.id]);
 
   useEffect(() => {
     const checkHealth = () =>
@@ -174,7 +177,7 @@ export default function App() {
   const handleUpload = (file: File, question: string, sheet?: string, join?: JoinSuggestion) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
-      const ds = await api.uploadDataset(file, sheet, join);
+      const ds = await api.uploadDataset(file, sheet, join, project?.id);
       if (ds.needs_sheet_selection && ds.sheets) {
         // Workbook has several sheets: ask the human which one to analyze.
         setSheetChoice({ file, question, sheets: ds.sheets, join: ds.join_suggestion ?? null });
@@ -278,9 +281,17 @@ export default function App() {
     });
 
   const goHome = () => {
-    setScreen("home");
+    setScreen(project ? "home" : "projects");
     setError(null);
     refreshRuns();
+  };
+
+  const openProject = (p: Project) => {
+    setProject(p);
+    setRun(null);
+    setError(null);
+    setScreen("home");
+    api.listRuns(p.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
   };
 
   const startOver = () => {
@@ -299,18 +310,33 @@ export default function App() {
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-edge bg-white/55 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <button className="flex items-center gap-2.5 text-left" onClick={goHome}>
-            <BrainCircuit className="h-6 w-6 text-accent" />
-            <div>
-              <h1 className="text-sm font-semibold leading-tight">Agentic ML Workbench</h1>
-              <p className="text-[11px] leading-tight text-ink-dim">
-                agents propose · you approve · models run
-              </p>
-            </div>
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button className="flex items-center gap-2.5 text-left" onClick={goHome}>
+              <BrainCircuit className="h-6 w-6 text-accent" />
+              <div>
+                <h1 className="text-sm font-semibold leading-tight">Agentic ML Workbench</h1>
+                <p className="text-[11px] leading-tight text-ink-dim">
+                  agents propose · you approve · models run
+                </p>
+              </div>
+            </button>
+            {/* Project breadcrumb */}
+            {project && screen !== "projects" && (
+              <span className="hidden items-center gap-1 sm:flex">
+                <span className="text-ink-dim">/</span>
+                <button
+                  onClick={goHome}
+                  className="max-w-40 truncate rounded-full border border-edge bg-panel-2 px-2.5 py-0.5 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                  title="Back to this project's dashboard"
+                >
+                  {project.name}
+                </button>
+              </span>
+            )}
+          </div>
 
-          {/* Stepper (hidden on home) */}
-          {screen !== "home" && (
+          {/* Stepper (hidden on home/projects) */}
+          {screen !== "home" && screen !== "projects" && (
             <nav className="hidden items-center gap-1 md:flex">
               <button
                 onClick={goHome}
@@ -406,10 +432,13 @@ export default function App() {
           </div>
         )}
 
+        {screen === "projects" && <ProjectsScreen onOpen={openProject} />}
+
         {screen === "home" && (
           <HomeScreen
             models={models}
             recentRuns={recentRuns}
+            projectName={project?.name}
             onStart={startOver}
             onResume={handleResume}
           />
@@ -450,7 +479,7 @@ export default function App() {
           <ReportScreen run={run} onBack={() => setScreen(run.insights ? "results" : "home")} />
         )}
 
-        {screen === "activity" && <ActivityScreen currentRunId={run?.id} />}
+        {screen === "activity" && <ActivityScreen currentRunId={run?.id} projectId={project?.id} />}
 
         {screen === "results" &&
           run?.result &&

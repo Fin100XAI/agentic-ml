@@ -21,7 +21,13 @@ const EVENT_TONE: Record<string, "neutral" | "accent" | "good" | "warn" | "bad">
   pii_review: "warn",
 };
 
-export function ActivityScreen({ currentRunId }: { currentRunId?: string }) {
+export function ActivityScreen({
+  currentRunId,
+  projectId,
+}: {
+  currentRunId?: string;
+  projectId?: string;
+}) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [eventType, setEventType] = useState<string>("all");
   const [runScope, setRunScope] = useState<"all" | "current">(currentRunId ? "current" : "all");
@@ -30,6 +36,7 @@ export function ActivityScreen({ currentRunId }: { currentRunId?: string }) {
   const filters = {
     event_type: eventType === "all" ? undefined : eventType,
     run_id: runScope === "current" ? currentRunId : undefined,
+    project_id: runScope === "current" ? undefined : projectId,
   };
 
   const refresh = useCallback(() => {

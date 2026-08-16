@@ -51,12 +51,25 @@ class Artifact:
 
 
 @dataclass
+class Project:
+    id: str
+    name: str
+    description: str
+    created_at: str
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "name": self.name, "description": self.description,
+                "created_at": self.created_at}
+
+
+@dataclass
 class Dataset:
     df: pd.DataFrame
     filename: str
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     artifact_id: str | None = None  # table artifact this frame came from
     pii: dict | None = None  # {"status": "pending|reviewed|clean", "findings": [...], "actions": {...}}
+    project_id: str | None = None
 
 
 class Store:
@@ -88,9 +101,19 @@ class Store:
             "transform_type TEXT NOT NULL, transform_params TEXT, "
             "sha256 TEXT NOT NULL, created_at TEXT NOT NULL, file_path TEXT NOT NULL)"
         )
+        # Projects: the top-level container everything else scopes to.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS projects ("
+            "id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, "
+            "created_at TEXT NOT NULL)"
+        )
         for ddl in (
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
+            "ALTER TABLE datasets ADD COLUMN project_id TEXT",
+            "ALTER TABLE runs ADD COLUMN project_id TEXT",
+            "ALTER TABLE artifacts ADD COLUMN project_id TEXT",
+            "ALTER TABLE activity_log ADD COLUMN project_id TEXT",
         ):  # older DBs predate these columns
             try:
                 self._db.execute(ddl)
@@ -98,20 +121,30 @@ class Store:
                 pass
         self._db.commit()
         ARTIFACT_DIR.mkdir(exist_ok=True)
+        self.projects: dict[str, Project] = {}
+        self._load_projects()
         self._load()
         self._migrate_decision_trail()
         self._migrate_dataset_artifacts()
+        self._migrate_default_project()
 
     # -- startup ---------------------------------------------------------------
+    def _load_projects(self) -> None:
+        for pid, name, desc, created in self._db.execute(
+            "SELECT id, name, description, created_at FROM projects"
+        ):
+            self.projects[pid] = Project(id=pid, name=name, description=desc or "", created_at=created)
+
     def _load(self) -> None:
-        for ds_id, filename, blob, art_id, pii_json in self._db.execute(
-            "SELECT id, filename, frame, artifact_id, pii FROM datasets"
+        for ds_id, filename, blob, art_id, pii_json, proj_id in self._db.execute(
+            "SELECT id, filename, frame, artifact_id, pii, project_id FROM datasets"
         ):
             try:
                 df = pickle.loads(blob)
                 self.datasets[ds_id] = Dataset(
                     df=df, filename=filename, id=ds_id, artifact_id=art_id,
                     pii=json.loads(pii_json) if pii_json else None,
+                    project_id=proj_id,
                 )
             except Exception:
                 continue  # skip unreadable rows rather than failing startup
@@ -143,9 +176,10 @@ class Store:
     # -- datasets --------------------------------------------------------------
     def add_dataset(
         self, df: pd.DataFrame, filename: str, artifact_id: str | None = None,
-        pii: dict | None = None,
+        pii: dict | None = None, project_id: str | None = None,
     ) -> Dataset:
-        ds = Dataset(df=df, filename=filename, artifact_id=artifact_id, pii=pii)
+        ds = Dataset(df=df, filename=filename, artifact_id=artifact_id, pii=pii,
+                     project_id=project_id or self.default_project_id())
         self.datasets[ds.id] = ds
         self._persist_dataset(ds)
         return ds
@@ -157,11 +191,12 @@ class Store:
     def _persist_dataset(self, ds: Dataset) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii, project_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     ds.id, ds.filename, pickle.dumps(ds.df), ds.artifact_id,
                     json.dumps(ds.pii, default=str) if ds.pii else None,
+                    ds.project_id,
                 ),
             )
             self._db.commit()
@@ -180,11 +215,97 @@ class Store:
     def save_run(self, run: Run) -> None:
         """Persist a run's current state (call after every mutating stage)."""
         state = {k: v for k, v in run.__dict__.items() if k != "df"}
+        ds = self.datasets.get(run.dataset_id)
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO runs (id, dataset_id, created_at, state) VALUES (?, ?, ?, ?)",
-                (run.id, run.dataset_id, run.created_at, pickle.dumps(state)),
+                "INSERT OR REPLACE INTO runs (id, dataset_id, created_at, state, project_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (run.id, run.dataset_id, run.created_at, pickle.dumps(state),
+                 ds.project_id if ds else None),
             )
+            self._db.commit()
+
+    # -- projects --------------------------------------------------------------
+    DEFAULT_PROJECT_NAME = "Default Project"
+
+    def add_project(self, name: str, description: str = "") -> Project:
+        proj = Project(id=uuid.uuid4().hex[:12], name=name.strip(),
+                       description=description.strip(), created_at=_now())
+        self.projects[proj.id] = proj
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO projects (id, name, description, created_at) VALUES (?, ?, ?, ?)",
+                (proj.id, proj.name, proj.description, proj.created_at),
+            )
+            self._db.commit()
+        return proj
+
+    def get_project(self, project_id: str) -> Project:
+        if project_id not in self.projects:
+            raise KeyError(f"Unknown project: {project_id}")
+        return self.projects[project_id]
+
+    def update_project(self, project_id: str, name: str | None, description: str | None) -> Project:
+        proj = self.get_project(project_id)
+        if name is not None and name.strip():
+            proj.name = name.strip()
+        if description is not None:
+            proj.description = description.strip()
+        with self._lock:
+            self._db.execute(
+                "UPDATE projects SET name = ?, description = ? WHERE id = ?",
+                (proj.name, proj.description, proj.id),
+            )
+            self._db.commit()
+        return proj
+
+    def delete_project(self, project_id: str) -> None:
+        proj = self.get_project(project_id)
+        if any(ds.project_id == project_id for ds in self.datasets.values()):
+            raise ValueError("This project still holds datasets - move or delete them first.")
+        del self.projects[project_id]
+        with self._lock:
+            self._db.execute("DELETE FROM projects WHERE id = ?", (proj.id,))
+            self._db.commit()
+
+    def default_project_id(self) -> str:
+        for proj in self.projects.values():
+            if proj.name == self.DEFAULT_PROJECT_NAME:
+                return proj.id
+        if self.projects:
+            return next(iter(self.projects))
+        return self.add_project(self.DEFAULT_PROJECT_NAME, "Everything from before projects existed, plus quick one-off analyses.").id
+
+    def runs_for_project(self, project_id: str) -> list[Run]:
+        out = []
+        for r in self.runs.values():
+            ds = self.datasets.get(r.dataset_id)
+            if ds is not None and ds.project_id == project_id:
+                out.append(r)
+        return out
+
+    def project_summary(self, project_id: str) -> dict:
+        n_datasets = sum(1 for d in self.datasets.values() if d.project_id == project_id)
+        run_rows = self.runs_for_project(project_id)
+        last = max((r.created_at for r in run_rows), default=None)
+        return {"n_datasets": n_datasets, "n_runs": len(run_rows), "last_run_at": last}
+
+    def _migrate_default_project(self) -> None:
+        """One-time: attach pre-project rows to a Default Project."""
+        orphan_ds = [d for d in self.datasets.values() if not d.project_id]
+        (orphan_logs,) = self._db.execute(
+            "SELECT COUNT(*) FROM activity_log WHERE project_id IS NULL"
+        ).fetchone()
+        if not orphan_ds and not orphan_logs:
+            return
+        pid = self.default_project_id()
+        for ds in orphan_ds:
+            ds.project_id = pid
+            self._persist_dataset(ds)
+        with self._lock:
+            self._db.execute("UPDATE runs SET project_id = ? WHERE project_id IS NULL", (pid,))
+            self._db.execute("UPDATE artifacts SET project_id = ? WHERE project_id IS NULL", (pid,))
+            self._db.execute("UPDATE activity_log SET project_id = ? WHERE project_id IS NULL", (pid,))
             self._db.commit()
 
     def get_run(self, run_id: str) -> Run:
@@ -193,7 +314,7 @@ class Store:
         return self.runs[run_id]
 
     # -- artifacts -------------------------------------------------------------
-    def add_original_artifact(self, raw: bytes, ext: str) -> Artifact:
+    def add_original_artifact(self, raw: bytes, ext: str, project_id: str | None = None) -> Artifact:
         """Store raw uploaded bytes read-only, content-addressed by hash."""
         sha = hashlib.sha256(raw).hexdigest()
         path = ARTIFACT_DIR / f"{sha}{ext}"
@@ -203,7 +324,7 @@ class Store:
                 os.chmod(path, stat.S_IREAD)  # read-only where the OS allows
             except OSError:
                 pass
-        return self._insert_artifact("original", [], "upload", {}, sha, str(path))
+        return self._insert_artifact("original", [], "upload", {}, sha, str(path), project_id)
 
     def add_derived_artifact(
         self,
@@ -211,6 +332,7 @@ class Store:
         parent_ids: list[str],
         transform_type: str,
         transform_params: dict,
+        project_id: str | None = None,
     ) -> Artifact:
         """Materialize a transformed frame as a new content-addressed artifact."""
         blob = pickle.dumps(df)
@@ -219,12 +341,13 @@ class Store:
         if not path.exists():
             path.write_bytes(blob)
         return self._insert_artifact(
-            "derived", parent_ids, transform_type, transform_params, sha, str(path)
+            "derived", parent_ids, transform_type, transform_params, sha, str(path), project_id
         )
 
     def _insert_artifact(
         self, kind: str, parent_ids: list[str], transform_type: str,
         transform_params: dict, sha256: str, file_path: str,
+        project_id: str | None = None,
     ) -> Artifact:
         art = Artifact(
             id=uuid.uuid4().hex[:12], kind=kind, parent_ids=parent_ids,
@@ -234,16 +357,17 @@ class Store:
         with self._lock:
             self._db.execute(
                 "INSERT INTO artifacts (id, kind, parent_ids, transform_type, "
-                "transform_params, sha256, created_at, file_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "transform_params, sha256, created_at, file_path, project_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     art.id, art.kind, json.dumps(art.parent_ids),
                     art.transform_type, json.dumps(art.transform_params, default=str),
-                    art.sha256, art.created_at, art.file_path,
+                    art.sha256, art.created_at, art.file_path, project_id,
                 ),
             )
             self._db.commit()
         self.log_event(
-            "system", "transform", artifact_id=art.id,
+            "system", "transform", artifact_id=art.id, project_id=project_id,
             payload={"kind": kind, "transform_type": transform_type,
                      "parents": parent_ids, "sha256": sha256},
         )
@@ -319,16 +443,21 @@ class Store:
         mode: str | None = None,
         payload: dict | None = None,
         ts: str | None = None,
+        project_id: str | None = None,
     ) -> None:
+        if project_id is None and dataset_id:
+            ds = self.datasets.get(dataset_id)
+            project_id = ds.project_id if ds else None
         with self._lock:
             self._db.execute(
                 "INSERT INTO activity_log (ts, actor, event_type, dataset_id, "
                 "artifact_id, run_id, provider, model, tokens_in, tokens_out, "
-                "latency_ms, mode, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "latency_ms, mode, payload, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     ts or _now(), actor, event_type, dataset_id, artifact_id,
                     run_id, provider, model, tokens_in, tokens_out, latency_ms,
                     mode, json.dumps(payload, default=str) if payload is not None else None,
+                    project_id,
                 ),
             )
             self._db.commit()
@@ -336,6 +465,7 @@ class Store:
     _ACTIVITY_COLS = (
         "id", "ts", "actor", "event_type", "dataset_id", "artifact_id", "run_id",
         "provider", "model", "tokens_in", "tokens_out", "latency_ms", "mode", "payload",
+        "project_id",
     )
 
     def list_activity(
@@ -346,10 +476,12 @@ class Store:
         since: str | None = None,
         until: str | None = None,
         limit: int = 500,
+        project_id: str | None = None,
     ) -> list[dict]:
         clauses, params = [], []
         for col, val in (
             ("run_id", run_id), ("dataset_id", dataset_id), ("event_type", event_type),
+            ("project_id", project_id),
         ):
             if val:
                 clauses.append(f"{col} = ?")
