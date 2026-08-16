@@ -7,7 +7,7 @@ import type { ActivityEvent } from "../../types";
 import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
 
 const EVENT_TYPES = [
-  "all", "file_upload", "agent_call", "approval", "decline",
+  "all", "file_upload", "pii_review", "agent_call", "approval", "decline",
   "transform", "train", "export", "error",
 ] as const;
 
@@ -18,6 +18,7 @@ const EVENT_TONE: Record<string, "neutral" | "accent" | "good" | "warn" | "bad">
   decline: "warn",
   export: "accent",
   transform: "accent",
+  pii_review: "warn",
 };
 
 export function ActivityScreen({ currentRunId }: { currentRunId?: string }) {
