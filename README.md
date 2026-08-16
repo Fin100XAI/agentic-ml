@@ -90,6 +90,24 @@ with which reasoning, in how many ms) and on the run's decision trail.
 - **Persistence** - datasets and runs survive backend restarts (SQLite).
 - **Progress honesty** - expected time on every wait, elapsed timers,
   cannot-stop-midway notices.
+- **Projects** - the top-level container: each project holds its own datasets,
+  analyses, trained models, data dictionary and audit trail.
+- **File librarian** - a new file in a non-empty project is classified
+  automatically: same schema offers row-stacking (with provenance), a shared
+  key offers a join, and a match with a trained model routes to scoring.
+- **Model registry** - every training is a versioned model with purpose, exact
+  data hash, settings, metrics and a loadable checkpoint. Retraining bumps the
+  version with a computed what-changed summary; nothing is ever overwritten.
+- **Score new data** - pick a model version, drop a fresh file: columns
+  auto-match by meaning, the training-time preparation replays exactly, and
+  you get predictions, a distribution chart and a CSV - or a plain-language
+  stop if required columns are missing.
+- **Shareable briefing** - a read-only link per analysis showing only the
+  decision brief, trust panel, headline chart and grounded Q&A; prints clean.
+- **Data dictionary** - your own column definitions beat AI guesses in
+  tooltips and in every agent prompt.
+- **Run comparison** - pick two analyses and get what changed: data drift
+  (PSI), settings, metrics, drivers - with a narrative and markdown export.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback
   used when no API key is set or a call fails; the UI badges each output as
   `claude` or `heuristic`.

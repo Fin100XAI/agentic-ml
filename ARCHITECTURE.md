@@ -58,6 +58,37 @@ provider `on_call`) attached in `app/telemetry.py`.
 Compare (all models ranked) and Auto-tune (randomized search around the
 suggestions, user-set combo count) branch from stage 4.
 
+## 3b. Projects, models and the file librarian (Phase 2)
+
+- **Projects** are the top-level container: datasets, runs, artifacts, models,
+  glossary and activity all scope to one. A one-time migration created
+  "Default Project" for pre-project data.
+- **Librarian** (`librarian.py`): a file uploaded into a non-empty project is
+  classified by normalized schema fingerprint - same schema proposes STACK
+  (union + `source_file` provenance), a shared high-overlap key proposes JOIN,
+  a match with a registered model's schema routes toward scoring. All
+  assemblies are approval-gated derived artifacts.
+- **Model registry** (`model_registry` table): every completed training is a
+  versioned entry - purpose, training-data sha256, raw + processed feature
+  lists, settings, metrics, stability verdict, content-addressed checkpoint.
+  Identity = project + use case + target + algorithm; retraining bumps the
+  version, supersedes the old ACTIVE row, and stores a computed change
+  summary (data/settings/metric deltas). Nothing is overwritten.
+- **Scoring** (`scoring.py`): a fresh file is schema-reconciled (renamed
+  columns auto-map, missing features hard-stop in plain language), pushed
+  through the SAME training-time lineage (PII mask, remediation fixes,
+  engineered features, exclusions), aligned to the trained feature list, and
+  predicted. Outputs are score artifacts with CSV download.
+- **Briefing view**: unlisted read-only `#/brief/{runId}` route - brief,
+  trust panel, headline chart, Ask-the-Data; zero analyst controls or
+  mutating calls; print-clean.
+- **Glossary** (`glossary` table): the user's own column definitions,
+  keyword-matched onto datasets; they override guessed meanings in tooltips
+  and are injected into agent prompts with prefer-the-human instruction.
+- **Run diff** (`rundiff.py`): two same-kind runs compared - rows/period/PSI
+  drift, settings and metric deltas, driver/segment/direction changes - with
+  a phrased narrative and markdown export.
+
 ## 4. Data layer
 
 - `artifacts` table: id, kind (original|derived), parent_ids, transform_type
