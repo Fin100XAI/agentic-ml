@@ -437,6 +437,17 @@ export interface RunResult {
       suggested: number;
       points: { threshold: number; precision: number; recall: number; f1: number; tp: number; fp: number; fn: number; tn: number }[];
     };
+    calibration?: {
+      skipped: boolean;
+      note: string;
+      verdict?: "well calibrated" | "overconfident" | "underconfident";
+      brier?: number;
+      ece?: number;
+      n?: number;
+      cv_folds?: number;
+      labels?: string[];
+      bins?: { midpoint: number; predicted: number; observed: number; count: number }[];
+    };
   };
 }
 

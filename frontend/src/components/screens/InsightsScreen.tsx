@@ -34,6 +34,7 @@ import { LineageBreadcrumb } from "../LineageBreadcrumb";
 import { MultiForecastPanel } from "../MultiForecastPanel";
 import { ScenarioPanel } from "../ScenarioPanel";
 import { ThresholdPanel } from "../ThresholdPanel";
+import { CalibrationPanel } from "../CalibrationPanel";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
 import { ClassDistributionChart, ClusterScatter, ForecastChart, PredictedVsActualChart, ResultCharts } from "../charts";
@@ -658,6 +659,7 @@ export function InsightsScreen({
               version={run.registry_ref?.version}
             />
           )}
+          {result.artifacts.calibration && <CalibrationPanel cal={result.artifacts.calibration} />}
           {result.slices && <SlicesPanel s={result.slices} />}
           {result.artifacts.multi && <MultiForecastPanel multi={result.artifacts.multi} />}
           {run.registry_ref &&

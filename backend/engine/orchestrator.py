@@ -572,6 +572,7 @@ class Orchestrator:
                 "deterministic", started,
             )
             self._run_stability_check(run)
+            self._run_calibration_check(run)
             run.stage = "execute"
             run.error = None
             self._emit(run, "train", "system", {
@@ -588,6 +589,28 @@ class Orchestrator:
         self._interpret(run)
         self._build_insights(run)
         return run
+
+    def _run_calibration_check(self, run: Run) -> None:
+        """Non-fatal probability-quality check for binary classification."""
+        from .calibration import calibration_check
+
+        try:
+            started = time.time()
+            df_run = apply_features(run.df, run.config.get("engineered") or [])
+            df_run = df_run.drop(columns=run.config.get("excluded") or [], errors="ignore")
+            cal = calibration_check(df_run, run.config)
+        except Exception:
+            return
+        if not cal:
+            return
+        run.result["artifacts"]["calibration"] = cal
+        if not cal.get("skipped"):
+            self._log(
+                run, "Calibration checker", "Measured probability quality",
+                f"Verdict: {cal['verdict']} (Brier {cal['brier']}, gap {cal['ece']}).",
+                f"Out-of-fold probabilities from {cal['cv_folds']}-fold CV on {cal['n']} rows.",
+                "deterministic", started,
+            )
 
     def _run_stability_check(self, run: Run) -> None:
         """Non-fatal resampling check attached to the result payload."""
@@ -684,6 +707,13 @@ class Orchestrator:
                     "The model performs materially worse for: "
                     + ", ".join(sl["red_groups"][:4])
                     + ". Recommendations affecting these groups need extra care."
+                )
+            # Miscalibrated probabilities must not be quoted literally.
+            cal = ((run.result or {}).get("artifacts") or {}).get("calibration") or {}
+            if cal.get("verdict") in ("overconfident", "underconfident"):
+                insights["evidence"]["caveats"].append(
+                    f"Probability check: the model is {cal['verdict']}. "
+                    "Quote its outputs as a ranking of likelihood, not as literal percentages."
                 )
             # A shaky stability check is a trust issue too.
             val = (run.result or {}).get("validation") or {}
