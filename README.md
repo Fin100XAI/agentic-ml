@@ -15,37 +15,52 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 1. **Upload** a CSV or Excel file. Multi-sheet workbooks get a sheet picker, and a
    join scout proposes combining sheets when it finds a linking key.
-2. **Profile + health check** - column types, human-friendly column names, missing
-   data, imbalance, duplicates, size warnings - each with a suggestion.
-3. **EDA agent** explains the dataset in plain language with charts (histograms,
-   top values, correlations, missingness) and proposes concrete problem statements.
-4. **Set direction** - pick a proposed problem or write your own. If the question
+2. **PII screen** - before ANY analysis or AI call, columns that look like personal
+   data (emails, Indian mobiles, Aadhaar-like numbers, PAN, names, addresses) are
+   flagged with a per-column mask/drop/keep choice. Masking produces a derived
+   copy; the original file is stored read-only with its hash.
+3. **Profile + health check** - column types, human-friendly names, missing data,
+   imbalance, duplicates, size warnings - each with a suggestion.
+4. **Remediation** - the engine proposes concrete fixes (impute, de-duplicate,
+   fix numbers-stored-as-text, drop mostly-empty columns, optional outlier caps);
+   you tick what to apply, or skip. Applied fixes become one derived artifact.
+5. **EDA agent** explains the dataset in plain language with charts and proposes
+   concrete problem statements.
+6. **Set direction** - pick a proposed problem or write your own. If the question
    does not match the data, the agent says so before you continue.
-5. **Recommendation agent** picks the use case, ranks the models, and computes
-   hyperparameter suggestions from your actual data (silhouette sweeps for k,
-   k-NN eps for DBSCAN, cadence/autocorrelation for seasonality).
-6. **Feature agent** proposes optional engineered features (log scale for skewed
-   columns, ratios and interactions of the strongest pair, text length) - you tick
-   the ones to include.
-7. **Choose a path**: run the chosen model, auto-tune it first (you set how many
+7. **Recommendation agent** picks the use case, ranks the models, and computes
+   hyperparameter suggestions from your actual data. The **leakage sentinel**
+   flags columns that contain the answer or would not exist at prediction time -
+   each is a keep/exclude question; exclusions apply at training only.
+8. **Feature agent** proposes optional engineered features (log scale, ratios,
+   interactions, text length) - you tick the ones to include.
+9. **Choose a path**: run the chosen model, auto-tune it first (you set how many
    combinations), or compare every model on a leaderboard.
-8. **Results** land as a decision brief: executive summary, key findings, drivers,
-   segment profiles, outlook, recommended actions, and a trust panel. A technical
-   appendix holds metrics, a stability check, model interpretation, and all charts.
-9. **Ask the data** - a grounded chat answers follow-up questions from the run's
-   own numbers.
-10. **Export** - in-app report page, markdown download, or a styled PDF.
+10. **Results** land as a decision brief: executive summary, key findings, drivers,
+    segment profiles, outlook, recommended actions, and a trust panel. A technical
+    appendix holds metrics, the stability check, interpretation, and all charts.
+    A **critic agent** reviews the brief before you see it (claims vs computed
+    numbers, causal caveats), and a **trust tier** derived from the stability
+    verdict reframes weak-evidence runs as "hypotheses to verify" everywhere -
+    UI, markdown and PDF.
+11. **Ask the data** - a grounded chat answers follow-up questions from the run's
+    own numbers.
+12. **Export** - in-app report page, markdown download, or a styled PDF. Every
+    action along the way (uploads, agent calls with tokens and latency, approvals,
+    declines, transforms, training, exports) is in the activity log, with a data
+    lineage breadcrumb (original -> PII mask -> fixes -> features) on the results.
 
 Everything the agents decide is logged in an agent activity drawer (who did what,
 with which reasoning, in how many ms) and on the run's decision trail.
 
 ## Functionality
 
-- **Three use cases, nine models**
+- **Four use cases, twelve models**
 
   | Use case | Models | Primary metric |
   |---|---|---|
   | Classification | Logistic Regression, Random Forest, XGBoost | F1 |
+  | Regression | ElasticNet linear, Random Forest, XGBoost | RMSE (+ MAE, R²) |
   | Clustering | K-Means, DBSCAN, Agglomerative | Silhouette |
   | Forecasting | ARIMA/SARIMA, Exponential Smoothing (Holt-Winters), XGBoost lag forecaster | MAPE |
 
@@ -86,16 +101,20 @@ with which reasoning, in how many ms) and on the run's decision trail.
 |---|---|---|
 | EDA agent | Plain-language dataset briefing, friendly column names, problem statements | profiling heuristics |
 | Recommendation agent | Use case + model ranking + question/data alignment check | rule-based ranking |
+| Remediation agent | Phrases and prioritizes data-fix proposals for the goal | deterministic proposals |
 | Feature agent | Curates engineered-feature candidates in plain language | deterministic picks |
 | Interpretation agent | Judges results, explains metrics, suggests next steps | metric thresholds |
-| Brief agent | Executive summary, recommended actions, watch-outs | template from insights |
+| Brief agent | Executive summary, recommended actions, watch-outs - written to the trust tier | template from insights |
+| Critic agent | Reviews the brief: claims vs computed numbers, overclaim hedging, causal caveats | template caveat |
 | Ask-the-data agent | Grounded Q&A over the run's own numbers | keyword lookup |
 | Compare summarizer | Plain-language read of the leaderboard | metric comparison |
 
 Deterministic engines do the numbers the agents talk about: profiler, health
-checks, insight extraction (drivers, segments, outlook), settings suggester,
-autotune, stability checker, join scout. Python computes every figure; the LLM
-only judges and phrases - so numbers cannot be hallucinated.
+checks, PII screen, remediation proposals, leakage sentinel, insight extraction,
+settings suggester, autotune, stability checker, join scout. Python computes
+every figure; the LLM only judges and phrases - so numbers cannot be
+hallucinated. Every agent call is logged with provider, model, tokens, latency
+and llm-or-fallback mode.
 
 ## Tech stack
 

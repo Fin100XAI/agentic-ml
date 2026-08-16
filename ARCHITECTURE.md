@@ -1,185 +1,119 @@
-# Architecture - Agentic ML Workbench (FIN_ML_POC)
+# Architecture - Agentic ML Workbench
 
-An industry-agnostic, LLM-agent-driven workbench. A user uploads a CSV; LLM agents
-profile it, run EDA, recommend an appropriate ML approach, and (with the human
-approving each step) train a model, then explain the results with charts and
-written commentary. Every meaningful decision is human-approved and visualized as a
-node in a **wire diagram** of the run.
+An industry-agnostic, LLM-agent-driven decision-support workbench. A user
+uploads a spreadsheet; agents screen it for personal data, profile it, propose
+fixes, explore it, recommend and train a model, and produce a policy-maker
+brief - with a human approving every consequential step and every action
+landing in one auditable trail.
 
-> Status: POC. Runs locally (two dev servers). Designed so the ML/agent core is
-> independent of the web layer and the LLM provider is swappable.
-
----
-
-## 1. Principles
-
-- **Human-in-the-loop.** Agents *propose*; nothing advances without explicit human approval.
-- **Provider-swappable.** Claude now, open-source models later - all LLM calls go through one `LLMProvider` interface.
-- **Pluggable model catalog.** Each ML model is one self-describing plugin; adding a model is a single file, and the UI hyperparameter form is generated from its schema.
-- **Industry-agnostic.** No domain assumptions - the profiler infers structure from the data itself.
-- **UI-independent core.** The `engine` package (profiler, catalog, agents, orchestrator) has no FastAPI/React imports and could run from a script or notebook.
+> Status: POC, local two-server dev setup. The engine is web-independent and
+> the LLM provider is swappable.
 
 ---
 
-## 2. High-level design
+## 1. Principles (see CLAUDE.md for the binding rules)
 
-Three tiers:
+- **Originals are immutable.** Every transformation produces a derived artifact
+  with lineage pointers; raw uploads are stored read-only with a SHA-256 hash.
+- **Everything is logged.** One append-only activity log records file events,
+  agent calls (provider/model/tokens/latency/mode), approvals, declines,
+  transforms, training and exports.
+- **LLMs judge and phrase; Python computes.** Every number is deterministic.
+  Every agent has a heuristic fallback; the UI badges outputs `claude` or
+  `heuristic`.
+- **Nothing runs without approval.** Agents propose; the orchestrator gates.
+- **Plain language first**; jargon behind info buttons; fixed seed 42.
 
-```
-Frontend (React + Vite + TS + Tailwind + shadcn/ui)
-  Upload · EDA review · Recommendation/approval · Hyperparameter form
-  · Results dashboard (Recharts) · Wire diagram (React Flow)
-        │  REST (JSON) + SSE for progress
-Backend (FastAPI)
-  Routes · Run/session store · Orchestrator (drives pipeline, enforces approval gates)
-        │
-Engine (pure Python, no web deps)
-  Profiler/EDA · Model catalog · Agents (Claude) · LLMProvider
-```
-
----
-
-## 3. The agent pipeline (approval-gated)
-
-Each stage produces a proposal the human must approve before the next stage runs.
-The orchestrator records every stage as a **decision node** for the wire diagram.
-
-| # | Stage | Agent | Output | Gate |
-|---|-------|-------|--------|------|
-| 1 | **Profile & EDA** | EDA agent | Inferred schema, stats, missingness, correlations, candidate targets/problem type, plain-language summary | Human reviews; may add a free-text question ("what do you want to understand?") |
-| 2 | **Recommend** | Recommendation agent | Chosen use case (classification/clustering/forecasting), ranked model(s) with rationale, **data-aware suggested hyperparameters** (`engine/suggest.py`: silhouette sweep for k, seasonality detection, size-scaled tree settings - each with a rationale) | Human approves / edits model & hyperparameters |
-| 3a | **Run** | - (execution) | Trained model, metrics, prediction artifacts | Human approves the run |
-| 3b | **Compare** (alternative) | - (execution × N) | Every model of the use case trained with suggested settings, ranked by the use case's primary metric (f1 / silhouette / MAPE), winner + summary | Human triggers; can then tune any model |
-| 4 | **Interpret** | Interpretation agent | Charts + written commentary, findings, next-step suggestions | Presented to human |
-
-A **compact decision timeline** renders every stage as a chip showing the
-decision made and its approval state. A **markdown report** of the full run
-(EDA, decisions, comparison, metrics, interpretation) is downloadable via
-`GET /api/runs/{id}/report`.
-
----
-
-## 4. Model catalog (2-3 per use case)
-
-The recommendation agent ranks and picks; the human can override.
-
-| Use case | Models | Key metrics |
-|----------|--------|-------------|
-| **Classification** | Logistic Regression · Random Forest · XGBoost | accuracy, precision/recall, F1, ROC-AUC, confusion matrix |
-| **Clustering** | K-Means · DBSCAN · Agglomerative | silhouette, Davies-Bouldin, cluster sizes |
-| **Forecasting** | ARIMA/SARIMA · Prophet · Exponential Smoothing | MAE, RMSE, MAPE, forecast vs. actual |
-
-**Model plugin interface** (each model implements):
+## 2. Tiers
 
 ```
-name, use_case, description
-param_schema()      -> JSON-schema-like spec that drives the UI hyperparameter form
-default_hyperparams()
-fit(X, y, hyperparams)
-predict(model, X)
-metrics(model, X, y) -> dict
-artifacts(...)      -> chart-ready data (confusion matrix, cluster coords, forecast series, ...)
+Frontend  React 18 + Vite + TS + Tailwind v4 + Recharts
+          screens in src/components/screens, types mirrored in src/types.ts
+   |  REST /api (Vite proxy)
+Backend   FastAPI (app/): routes, SQLite store, telemetry glue, exports
+   |
+Engine    pure Python (engine/): profiler, health, pii, remediation, leakage,
+          features, joins, insights, validate, suggest, autotune,
+          catalog/ (model plugins), agents/, orchestrator
 ```
 
----
+The engine has no web imports. App-layer concerns (activity log, artifact
+ledger) reach it only through injected hooks (`on_event`, `on_artifact`,
+provider `on_call`) attached in `app/telemetry.py`.
 
-## 5. LLM layer
+## 3. The pipeline (every gate is a human decision)
 
-```
-LLMProvider (interface): complete(messages, tools?) -> response
-  └── ClaudeProvider  (Anthropic SDK; model id from config)
-  └── (future) OpenSourceProvider / local
-```
+| # | Stage | Who | Gate |
+|---|-------|-----|------|
+| 0 | **PII screen** at upload | `engine/pii.py` (regex/heuristics, Indian formats first-class) | Per-column mask/drop/keep; runs are 409-blocked until reviewed. Masking = one `pii_mask` derived artifact. **No LLM sees rows before this.** |
+| 1 | **Profile + health** | profiler + `health.py` | - |
+| 2 | **Remediation** | `remediation.py` proposals, phrased by the remediation agent | Tick fixes / skip; applying = one `remediation` artifact, re-profiled |
+| 3 | **EDA** | EDA agent (friendly column names, findings, problem statements) | Human sets/approves the direction; alignment check warns on mismatched questions |
+| 4 | **Recommend** | Recommendation agent (use case + ranked models) + settings suggester + **leakage sentinel** (`leakage.py`) + **feature agent** (`features.py`) | Human picks model/settings, ticks engineered features, answers each sentinel flag (keep/exclude) |
+| 5 | **Execute** | Model plugin; engineered features become a `feature_eng` artifact; exclusions apply at train time only | - |
+| 6 | **Stability check** | `validate.py`: k-fold (classification/regression), rolling-origin (forecasting), subsample (clustering) | - |
+| 7 | **Interpret + insights** | Interpretation agent; insight engine (drivers, segments, outlook, residuals) | - |
+| 8 | **Trust tier + brief + critic** | tier = evidence downgraded by an unstable verdict; brief agent writes to the tier; **critic agent** verifies claims against computed numbers, hedges overclaims, adds causal caveats | Weak tier reframes actions as "Hypotheses to verify" across UI, markdown and PDF |
 
-Agents are thin: each builds a prompt from structured engine data, calls the
-provider, and returns a validated structured result. The provider is selected by
-config/env so swapping to an open-source model later touches one place. (Exact
-Claude model ids and SDK usage are pinned from the current Claude API reference at
-implementation time.)
+Compare (all models ranked) and Auto-tune (randomized search around the
+suggestions, user-set combo count) branch from stage 4.
 
----
+## 4. Data layer
 
-## 6. Backend layout
+- `artifacts` table: id, kind (original|derived), parent_ids, transform_type
+  (upload | pii_mask | remediation | join | stack | feature_eng),
+  transform_params, sha256, created_at, file_path.
+- Files live content-addressed in `backend/artifact_store/` (originals
+  read-only). `GET /api/artifacts/{id}/lineage` walks the chain; the UI shows
+  a breadcrumb (original -> PII mask -> fixes -> features) with hashes in
+  tooltips.
+- Runs record the artifact they trained on; remediated frames are reattached
+  from their artifact on restart.
+- Excel: multi-sheet picker plus a join scout (`joins.py`) that proposes safe
+  cross-sheet joins (refuses row-multiplying keys).
 
-```
-backend/
-  app/
-    main.py                 # FastAPI app, CORS, router mount
-    config.py               # settings/env (API key, model id, provider)
-    api/
-      routes_datasets.py    # upload, profile
-      routes_runs.py        # recommend, set-hyperparams, run, results, decisions
-    store.py                # in-memory run/session store (POC)
-    schemas.py              # pydantic request/response models
-  engine/
-    profiler.py             # EDA / data profiling
-    llm/
-      base.py               # LLMProvider interface
-      claude.py             # Claude implementation
-    agents/
-      eda_agent.py
-      recommend_agent.py
-      interpret_agent.py
-    catalog/
-      base.py               # model plugin interface + registry
-      classification.py
-      clustering.py
-      forecasting.py
-    orchestrator.py         # pipeline + approval gates + decision log
-  requirements.txt
-  .env.example
-```
+## 5. Activity log
 
-## 7. Frontend layout
+`activity_log` (Postgres-portable): ts, actor, event_type (file_upload |
+pii_review | agent_call | approval | decline | transform | train | export |
+error), dataset/artifact/run ids, provider, model, tokens in/out, latency,
+mode (llm | fallback), JSON payload. The Claude provider self-reports usage
+per call; orchestrator events map through `app/telemetry.py`. `GET
+/api/activity` filters; `/api/activity.csv` exports for Excel. The frontend
+Log screen is the full view; the per-run drawer stays for context.
 
-```
-frontend/
-  src/
-    api/client.ts           # typed fetch wrapper + SSE
-    pages/                   # Upload, EDA, Recommend, Hyperparams, Results
-    components/
-      WireDiagram.tsx        # React Flow decision graph
-      charts/                # Recharts wrappers
-      ui/                    # shadcn/ui primitives
-    lib/, hooks/, types.ts
-  index.html, vite.config.ts, tailwind.config.js
-```
+## 6. Model catalog
 
----
+One plugin class per model in `engine/catalog/` (`@register`,
+`param_schema()` auto-generates the UI form, `build_estimator()` powers CV).
 
-## 8. Core API (POC)
+| Use case | Models | Primary metric |
+|---|---|---|
+| Classification | logistic_regression, random_forest, xgboost | F1 |
+| Regression | elastic_net (alpha 0 = OLS), rf_regressor, xgb_regressor | RMSE (+ MAE, R2) |
+| Clustering | kmeans, dbscan, agglomerative | Silhouette |
+| Forecasting | arima, exp_smoothing, xgb_forecast | MAPE |
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/datasets` | Upload CSV → returns dataset id |
-| POST | `/api/datasets/{id}/profile` | Run EDA agent → EDA summary |
-| POST | `/api/runs` | Start a run (dataset id + user question) |
-| POST | `/api/runs/{id}/recommend` | Recommendation agent → ranked models + hyperparams |
-| POST | `/api/runs/{id}/hyperparams` | Approve/override model + hyperparameters |
-| POST | `/api/runs/{id}/execute` | Train/run model |
-| POST | `/api/runs/{id}/interpret` | Interpretation agent → commentary |
-| GET  | `/api/runs/{id}` | Full run state (decisions, results) for the wire diagram |
-| GET  | `/api/runs/{id}/events` | SSE progress stream |
+Preprocessing (`catalog/preprocess.py`): datetime expansion to model-usable
+parts, one-hot low-cardinality categoricals, median impute, ID drop.
 
----
+## 7. Agents (all with heuristic fallbacks)
 
-## 9. Out of scope for the POC (later)
+EDA, Recommendation (+alignment), Remediation, Feature, Interpretation,
+Brief, Critic, Ask-the-data - each a schema-validated JSON call through
+`LLMProvider` (Claude via `output_config` structured outputs). Deterministic
+engines around them: profiler, health, PII screen, leakage sentinel, insight
+extraction, settings suggester, autotune, stability checker, join scout.
 
-- Persistence (DB), auth/multi-user, background job queue.
-- Deployment/hosting, model versioning/registry.
-- Deep-learning models, automated feature engineering beyond basics.
-- Open-source LLM provider implementation (interface is ready; impl is later).
+## 8. Storage
 
----
+SQLite via stdlib `sqlite3` (`app/store.py`): datasets (frame + artifact
+pointer + PII state), runs (pickled state sans frame), artifacts,
+activity_log. Schema stays Postgres-portable. One-time migrations wrap
+pre-artifact datasets and backfill old decision trails into the log.
 
-## 10. Run (local)
+## 9. Exports
 
-```bash
-# backend
-cd backend && python -m venv .venv && .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-
-# frontend
-cd frontend && npm install && npm run dev   # http://localhost:5173
-```
+Brief-first markdown (`app/report.py`) and PDF (`app/pdf_report.py`, fpdf2,
+rendered from the same markdown so they cannot drift). Trust-tier framing
+carries into both; exports are logged.
