@@ -11,15 +11,28 @@ commentary. Every decision renders as a node in a wire diagram.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
-## Stack & layout
+## Project rules (apply to ALL tasks)
 
-- **backend/** - FastAPI + pandas/scikit-learn/XGBoost/statsmodels; Claude via the
-  `anthropic` SDK behind a swappable `LLMProvider` (`engine/llm/`).
-  - `engine/` is pure Python (no web imports): `profiler.py`, `catalog/` (model
-    plugins), `agents/`, `orchestrator.py` (approval-gated pipeline + decision log).
-  - `app/` is the FastAPI layer: `api/` routes, in-memory `store.py`.
-- **frontend/** - React + Vite + TS + Tailwind v4; React Flow (wire diagram),
-  Recharts (result charts). Screens live in `src/components/screens/`.
+1. NEVER mutate original uploaded data. All transformations produce new derived
+   artifacts with lineage pointers to parents. Originals are stored read-only
+   with a SHA-256 content hash.
+2. EVERY action is logged to the unified activity log: file events, agent calls
+   (provider, model, tokens, latency, fallback-or-llm), approvals/declines,
+   transformations, training jobs, scoring, exports.
+3. LLMs only judge and phrase. Every number is computed in Python. Every agent
+   has a deterministic fallback used when no API key is set or the call fails.
+   UI badges each output as `claude` or `heuristic`.
+4. Nothing runs without human approval. Agents propose; the orchestrator gates.
+5. Plain language first: every new user-facing surface gets friendly names,
+   jargon behind info buttons.
+6. Fixed random seed (42) wherever randomness exists.
+7. Backend: FastAPI + pandas/sklearn/XGBoost/statsmodels, engine/ is pure Python
+   with no web imports, models are plugins in engine/catalog/ (subclass
+   ModelPlugin, decorate @register, param_schema() auto-generates the UI form).
+   Frontend: React 18 + Vite + TS + Tailwind v4 + Recharts, screens in
+   src/components/screens/, types mirrored in src/types.ts.
+8. Keep SQLite schema portable to Postgres (no SQLite-only features).
+9. Windows-friendly: no packages needing a C++ toolchain.
 
 ## Commands
 
@@ -42,16 +55,18 @@ cd backend\sample_data; ..\..\backend\.venv\Scripts\python.exe make_samples.py
 - **Adding a model** = one class in `backend/engine/catalog/` (subclass
   `ModelPlugin`, decorate with `@register`). Its `param_schema()` auto-generates
   the UI hyperparameter form - no frontend change needed.
-- Agents must degrade gracefully: every agent has a deterministic heuristic
-  fallback used when `ANTHROPIC_API_KEY` is unset or a call fails.
-- Fixed random seed (42) everywhere randomness exists - runs are reproducible.
 - All engine outputs must be JSON-safe (no NaN/inf; see `profiler._clean`).
-- Frontend types in `src/types.ts` mirror backend response shapes - keep in sync.
+- Engineered/derived column names use the `__` convention (`col__log`,
+  `a__per__b`) so display labels resolve automatically in the orchestrator.
 - API key goes in `backend/.env` (`ANTHROPIC_API_KEY=...`); never commit it.
+- Use plain hyphens (-) in all generated text, code, and UI; never em dashes.
 
 ## Gotchas
 
 - Windows: Prophet is deliberately excluded (needs C++ toolchain); forecasting
   uses ARIMA/ExpSmoothing/XGBoost-lags instead.
-- statsmodels must be ≥0.14.6 to work with scipy ≥1.16.
-- The in-memory store loses datasets/runs on backend restart (POC scope).
+- statsmodels must be >=0.14.6 to work with scipy >=1.16.
+- The dev launch config (`.claude/launch.json`) starts uvicorn WITHOUT
+  --reload; restart the preview server after backend changes.
+- PowerShell 5.1: no `&&`; avoid Get-Content/Set-Content on UTF-8 files
+  (mojibake) - use Python or [IO.File]::WriteAllText instead.
