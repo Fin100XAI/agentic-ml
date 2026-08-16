@@ -33,6 +33,7 @@ import { InfoTip } from "../InfoTip";
 import { LineageBreadcrumb } from "../LineageBreadcrumb";
 import { MultiForecastPanel } from "../MultiForecastPanel";
 import { ScenarioPanel } from "../ScenarioPanel";
+import { ThresholdPanel } from "../ThresholdPanel";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
 import { ClassDistributionChart, ClusterScatter, ForecastChart, PredictedVsActualChart, ResultCharts } from "../charts";
@@ -650,6 +651,13 @@ export function InsightsScreen({
             </p>
           )}
           {result.validation && <StabilityPanel v={result.validation} />}
+          {result.artifacts.threshold_curve && (
+            <ThresholdPanel
+              curve={result.artifacts.threshold_curve}
+              modelId={run.registry_ref?.model_id}
+              version={run.registry_ref?.version}
+            />
+          )}
           {result.slices && <SlicesPanel s={result.slices} />}
           {result.artifacts.multi && <MultiForecastPanel multi={result.artifacts.multi} />}
           {run.registry_ref &&

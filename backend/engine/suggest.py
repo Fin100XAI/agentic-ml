@@ -24,17 +24,25 @@ def _classification(df: pd.DataFrame, target: str | None) -> dict[str, dict[str,
     f = X.shape[1]
 
     imbalance = ""
+    imbalanced = False
+    pos_ratio = 1.0
     if target and target in df.columns:
         vc = df[target].value_counts(normalize=True)
         if len(vc) >= 2 and vc.iloc[0] > 0.75:
-            imbalance = f" Classes are imbalanced ({vc.iloc[0]:.0%} majority), so tree ensembles are preferred."
+            imbalanced = True
+            pos_ratio = round(float(vc.iloc[0] / max(vc.iloc[-1], 1e-6)), 1)
+            imbalance = (f" Outcomes are lopsided ({vc.iloc[0]:.0%} majority), so the rare "
+                         "class is weighted up - and tune the decision threshold on the "
+                         "results screen rather than trusting 0.5.")
 
     test_size = 0.25 if n < 500 else 0.2
     size_txt = f"{n:,} rows and {f} usable features"
 
     return {
         "logistic_regression": {
-            "hyperparams": {"C": 1.0, "max_iter": 2000 if f > 50 else 1000, "test_size": test_size},
+            "hyperparams": {"C": 1.0, "max_iter": 2000 if f > 50 else 1000,
+                            "class_weight": "balanced" if imbalanced else "none",
+                            "test_size": test_size},
             "rationale": f"Standard regularization for {size_txt}; a solid baseline to beat.{imbalance}",
         },
         "random_forest": {
@@ -42,6 +50,7 @@ def _classification(df: pd.DataFrame, target: str | None) -> dict[str, dict[str,
                 "n_estimators": 100 if n < 1000 else 200 if n < 10000 else 300,
                 "max_depth": 8 if f <= 10 else 12,
                 "min_samples_leaf": 1 if n < 2000 else 5,
+                "class_weight": "balanced" if imbalanced else "none",
                 "test_size": test_size,
             },
             "rationale": f"Tree count and depth scaled to {size_txt} to balance accuracy and overfitting.{imbalance}",
@@ -52,6 +61,7 @@ def _classification(df: pd.DataFrame, target: str | None) -> dict[str, dict[str,
                 "max_depth": 4 if n < 1000 else 6,
                 "learning_rate": 0.1 if n < 2000 else 0.05,
                 "subsample": 0.9,
+                "scale_pos_weight": pos_ratio if imbalanced else 1.0,
                 "test_size": test_size,
             },
             "rationale": f"Learning rate and rounds tuned for {size_txt}: smaller datasets get a faster rate with fewer rounds.{imbalance}",

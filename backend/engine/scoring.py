@@ -93,17 +93,29 @@ def rebuild_and_score(
     out = new_df.copy()
     use_case = entry["use_case"]
     probability = None
+    threshold = entry.get("decision_threshold") or threshold or 0.5
+    used_threshold = False
     if use_case == "classification":
-        if class_names and len(class_names) > 0:
-            labels = [class_names[int(p)] if 0 <= int(p) < len(class_names) else str(p) for p in preds]
-        else:
-            labels = [str(p) for p in preds]
-        out["prediction"] = labels
+        proba = None
         if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X)
-            if proba.shape[1] == 2:
-                probability = np.round(proba[:, 1], 4)
-                out["probability"] = probability
+            proba_all = model.predict_proba(X)
+            if proba_all.shape[1] == 2:
+                proba = proba_all[:, 1]
+        if proba is not None and class_names and len(class_names) == 2:
+            # The approved operating point, not a blanket 0.5.
+            labels = [class_names[1] if p >= threshold else class_names[0] for p in proba]
+            probability = np.round(proba, 4)
+            out["prediction"] = labels
+            out["probability"] = probability
+            used_threshold = True
+        else:
+            if class_names and len(class_names) > 0:
+                labels = [class_names[int(p)] if 0 <= int(p) < len(class_names) else str(p) for p in preds]
+            else:
+                labels = [str(p) for p in preds]
+            out["prediction"] = labels
+            if proba is not None:
+                out["probability"] = np.round(proba, 4)
     else:
         out["prediction"] = np.round(np.asarray(preds, dtype=float), 4)
 
@@ -112,8 +124,9 @@ def rebuild_and_score(
         "reconciliation": recon,
         "distribution": _distribution(out, use_case),
         "threshold_note": (
-            f"Class labels use the standard 0.5 probability threshold."
-            if use_case == "classification" and probability is not None else None
+            f"Class labels use the approved decision threshold of {threshold}"
+            + (" (tuned on this model's results screen)." if entry.get("decision_threshold") else " (the default).")
+            if used_threshold else None
         ),
     }
 

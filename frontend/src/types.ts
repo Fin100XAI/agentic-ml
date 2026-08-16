@@ -432,6 +432,11 @@ export interface RunResult {
     };
     multi_summary_table?: Record<string, unknown>[];
     regressors?: { columns: string[]; future_handling: string; note: string };
+    threshold_curve?: {
+      labels: string[];
+      suggested: number;
+      points: { threshold: number; precision: number; recall: number; f1: number; tp: number; fp: number; fn: number; tn: number }[];
+    };
   };
 }
 

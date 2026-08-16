@@ -86,6 +86,12 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
       "Average forecast error as a percentage. Under 10% is excellent, 10-25% is usable, above that is rough.",
     good: "lower",
   },
+  pr_auc: {
+    label: "PR AUC",
+    explain:
+      "Precision-recall area: how well the model finds the rare class. More honest than ROC AUC when outcomes are lopsided. Compare it to the rare class's share - higher is better.",
+    good: "higher",
+  },
   r2: {
     label: "R²",
     explain:

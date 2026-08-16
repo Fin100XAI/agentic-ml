@@ -355,6 +355,22 @@ def download_artifact_csv(artifact_id: str) -> Response:
     )
 
 
+@router.post("/models/{model_id}/{version}/threshold")
+def set_threshold(model_id: str, version: int, req: dict) -> dict:
+    """Store the human-approved decision threshold; scoring uses it."""
+    thr = req.get("threshold")
+    if not isinstance(thr, (int, float)) or not (0.01 <= float(thr) <= 0.99):
+        raise HTTPException(400, "Threshold must be between 0.01 and 0.99.")
+    try:
+        store.set_decision_threshold(model_id, version, float(thr))
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    store.log_event("user", "approval",
+                    payload={"gate": "decision_threshold", "model_id": model_id,
+                             "version": version, "threshold": float(thr)})
+    return {"model_id": model_id, "version": version, "threshold": float(thr)}
+
+
 @router.post("/models/{model_id}/{version}/archive")
 def archive_model_version(model_id: str, version: int) -> dict:
     try:

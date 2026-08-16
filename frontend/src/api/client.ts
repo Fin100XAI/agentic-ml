@@ -63,6 +63,9 @@ export const api = {
       `/projects/${projectId}`,
     ),
 
+  setThreshold: (modelId: string, version: number, threshold: number) =>
+    request<{ threshold: number }>(`/models/${modelId}/${version}/threshold`, json({ threshold })),
+
   scenarioMeta: (modelId: string, version: number) =>
     request<ScenarioMeta>(`/models/${modelId}/${version}/scenario/meta`),
 

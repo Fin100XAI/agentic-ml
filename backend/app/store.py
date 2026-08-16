@@ -167,6 +167,7 @@ class Store:
             "ALTER TABLE model_registry ADD COLUMN change_summary TEXT",
             "ALTER TABLE model_registry ADD COLUMN feature_ranges TEXT",
             "ALTER TABLE model_registry ADD COLUMN baseline TEXT",
+            "ALTER TABLE model_registry ADD COLUMN decision_threshold REAL",
         ):  # older DBs predate these columns
             try:
                 self._db.execute(ddl)
@@ -529,7 +530,7 @@ class Store:
         "raw_columns", "feature_list", "hyperparams", "seed", "metrics",
         "stability_verdict", "checkpoint_path", "llm_provider", "llm_model",
         "approved_by", "approved_at", "status", "n_rows", "change_summary",
-        "feature_ranges", "baseline",
+        "feature_ranges", "baseline", "decision_threshold",
     )
     _REGISTRY_JSON_COLS = (
         "raw_columns", "feature_list", "hyperparams", "metrics", "change_summary",
@@ -619,6 +620,9 @@ class Store:
             "approved_by": "local user", "approved_at": _now(), "status": "active",
             "n_rows": int(len(run.df)), "change_summary": None,
             "feature_ranges": _feature_ranges(run), "baseline": _baseline(run),
+            "decision_threshold": (
+                (run.result.get("artifacts") or {}).get("threshold_curve") or {}
+            ).get("suggested"),
         }
         if version > 1:
             try:
@@ -684,6 +688,16 @@ class Store:
         if row is None:
             raise KeyError(f"Unknown model version: {model_id} v{version}")
         return self._registry_row_to_dict(row)
+
+    def set_decision_threshold(self, model_id: str, version: int, threshold: float) -> None:
+        self.get_registry_entry(model_id, version)  # raises on unknown
+        with self._lock:
+            self._db.execute(
+                "UPDATE model_registry SET decision_threshold = ? "
+                "WHERE model_id = ? AND version = ?",
+                (float(threshold), model_id, version),
+            )
+            self._db.commit()
 
     def archive_model(self, model_id: str, version: int) -> None:
         self.get_registry_entry(model_id, version)  # raises on unknown

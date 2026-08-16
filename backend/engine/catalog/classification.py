@@ -45,9 +45,36 @@ def _evaluate_classifier(
         "n_train": int(len(y_train)),
         "n_test": int(len(y_test)),
     }
+    threshold_curve = None
+    suggested_threshold = None
     if len(class_names) == 2 and hasattr(model, "predict_proba"):
         try:
-            metrics["roc_auc"] = round(float(roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])), 4)
+            proba = model.predict_proba(X_test)[:, 1]
+            metrics["roc_auc"] = round(float(roc_auc_score(y_test, proba)), 4)
+            from sklearn.metrics import average_precision_score
+
+            metrics["pr_auc"] = round(float(average_precision_score(y_test, proba)), 4)
+            # Precision/recall/F1 across decision thresholds - the human picks
+            # the operating point; F1-optimal is only the suggestion.
+            threshold_curve = []
+            best_f1, best_thr = -1.0, 0.5
+            for thr in np.arange(0.05, 0.96, 0.05):
+                yp = (proba >= thr).astype(int)
+                tp = int(((yp == 1) & (y_test == 1)).sum())
+                fp = int(((yp == 1) & (y_test == 0)).sum())
+                fn = int(((yp == 0) & (y_test == 1)).sum())
+                tn = int(((yp == 0) & (y_test == 0)).sum())
+                p = tp / (tp + fp) if tp + fp else 0.0
+                r = tp / (tp + fn) if tp + fn else 0.0
+                f = 2 * p * r / (p + r) if p + r else 0.0
+                threshold_curve.append({
+                    "threshold": round(float(thr), 2),
+                    "precision": round(p, 4), "recall": round(r, 4), "f1": round(f, 4),
+                    "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+                })
+                if f > best_f1:
+                    best_f1, best_thr = f, round(float(thr), 2)
+            suggested_threshold = best_thr
         except ValueError:
             pass
 
@@ -58,6 +85,12 @@ def _evaluate_classifier(
             {"label": class_names[i], "count": int(c)} for i, c in enumerate(np.bincount(y, minlength=len(class_names)))
         ],
     }
+    if threshold_curve:
+        artifacts["threshold_curve"] = {
+            "labels": class_names,
+            "suggested": suggested_threshold,
+            "points": threshold_curve,
+        }
 
     importances = None
     if hasattr(model, "feature_importances_"):
@@ -104,11 +137,17 @@ class LogisticRegressionModel(ModelPlugin):
             ParamSpec("C", "Regularization strength (C)", "float", 1.0,
                       "Inverse regularization; smaller = stronger regularization.", min=0.001, max=100, step=0.001),
             ParamSpec("max_iter", "Max iterations", "int", 1000, "Solver iteration limit.", min=100, max=10000, step=100),
+            ParamSpec("class_weight", "Class weighting", "select", "none",
+                      "'balanced' counters lopsided outcomes by weighting the rare class up.", options=["none", "balanced"]),
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
     def build_estimator(self, hyperparams):
-        return LogisticRegression(C=hyperparams["C"], max_iter=hyperparams["max_iter"], random_state=RANDOM_SEED)
+        return LogisticRegression(
+            C=hyperparams["C"], max_iter=hyperparams["max_iter"],
+            class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
+            random_state=RANDOM_SEED,
+        )
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         target = _require_target(target, df)
@@ -131,6 +170,8 @@ class RandomForestModel(ModelPlugin):
             ParamSpec("n_estimators", "Number of trees", "int", 200, "More trees = more stable, slower.", min=10, max=1000, step=10),
             ParamSpec("max_depth", "Max tree depth", "int", 10, "Limits overfitting; 0 = unlimited.", min=0, max=50, step=1),
             ParamSpec("min_samples_leaf", "Min samples per leaf", "int", 1, "Larger = smoother model.", min=1, max=50, step=1),
+            ParamSpec("class_weight", "Class weighting", "select", "none",
+                      "'balanced' counters lopsided outcomes by weighting the rare class up.", options=["none", "balanced"]),
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
@@ -139,6 +180,7 @@ class RandomForestModel(ModelPlugin):
             n_estimators=hyperparams["n_estimators"],
             max_depth=hyperparams["max_depth"] or None,
             min_samples_leaf=hyperparams["min_samples_leaf"],
+            class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
             random_state=RANDOM_SEED,
             n_jobs=-1,
         )
@@ -165,6 +207,8 @@ class XGBoostModel(ModelPlugin):
             ParamSpec("max_depth", "Max tree depth", "int", 6, "Deeper trees fit more complex patterns.", min=1, max=15, step=1),
             ParamSpec("learning_rate", "Learning rate", "float", 0.1, "Lower = more robust with more rounds.", min=0.01, max=1.0, step=0.01),
             ParamSpec("subsample", "Row subsample", "float", 1.0, "Fraction of rows per tree.", min=0.3, max=1.0, step=0.05),
+            ParamSpec("scale_pos_weight", "Rare-class weight", "float", 1.0,
+                      "Weights the rare class up; the majority/minority ratio is the usual value.", min=0.1, max=100, step=0.1),
             ParamSpec("test_size", "Test split fraction", "float", 0.2, "Held-out fraction for evaluation.", min=0.1, max=0.5, step=0.05),
         ]
 
@@ -176,6 +220,7 @@ class XGBoostModel(ModelPlugin):
             max_depth=hyperparams["max_depth"],
             learning_rate=hyperparams["learning_rate"],
             subsample=hyperparams["subsample"],
+            scale_pos_weight=hyperparams.get("scale_pos_weight", 1.0),
             random_state=RANDOM_SEED,
             eval_metric="logloss",
         )
