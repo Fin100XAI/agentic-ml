@@ -11,6 +11,7 @@ from app.schemas import (
     ApproveEdaRequest,
     AskRequest,
     CompareRequest,
+    RemediateRequest,
     StartRunRequest,
 )
 from app.store import store
@@ -98,11 +99,24 @@ def get_report_pdf(run_id: str) -> Response:
     )
 
 
+@router.post("/runs/{run_id}/remediate")
+def remediate(run_id: str, req: RemediateRequest) -> dict:
+    run = _get_run(run_id)
+    try:
+        _orchestrator().apply_remediation(run, req.accepted_ids, req.skip)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    store.save_run(run)
+    return run.to_dict()
+
+
 @router.post("/runs/{run_id}/eda")
 def run_eda(run_id: str) -> dict:
     run = _get_run(run_id)
     if run.stage != "profiled":
         raise HTTPException(409, f"Run is at stage '{run.stage}', expected 'profiled'.")
+    if (run.remediation or {}).get("status") == "pending":
+        raise HTTPException(409, "Resolve the data-fix proposals first (apply or skip).")
     _orchestrator().run_eda(run)
     store.save_run(run)
     return run.to_dict()

@@ -25,11 +25,13 @@ from engine.agents import (
     run_feature_agent,
     run_interpret_agent,
     run_recommend_agent,
+    run_remediation_agent,
 )
 from engine.autotune import autotune as run_autotune_sweep
 from engine.catalog import get_model, models_for_use_case
 from engine.features import apply_features, propose_features
 from engine.health import assess_health
+from engine.remediation import apply_fixes, propose_fixes
 from engine.insights import build_insights, _original_column
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
@@ -94,6 +96,7 @@ class Run:
     autotune: dict[str, Any] | None = None
     feature_suggestions: list[dict[str, Any]] | None = None
     artifact_id: str | None = None  # the data artifact this run trained on
+    remediation: dict[str, Any] | None = None  # {"status", "proposals", "applied_ids"}
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -135,6 +138,7 @@ class Run:
                 autotune=self.autotune,
                 feature_suggestions=self.feature_suggestions,
                 artifact_id=self.artifact_id,
+                remediation=self.remediation,
             )
         return d
 
@@ -210,10 +214,80 @@ class Orchestrator:
                 "deterministic", started,
             )
             run.stage = "profiled"
+
+            # Remediation proposals (optional gate before EDA; non-fatal).
+            try:
+                started = time.time()
+                proposals = propose_fixes(run.df)
+                if proposals:
+                    proposals, generated_by = run_remediation_agent(
+                        self.provider, proposals, run.question
+                    )
+                    run.remediation = {
+                        "status": "pending", "proposals": proposals,
+                        "generated_by": generated_by,
+                    }
+                    self._log(
+                        run, "Remediation agent", "Proposed data fixes",
+                        "; ".join(p["description"] for p in proposals[:4]),
+                        "Approve, adjust or skip - fixes produce a new derived copy; the original stays untouched.",
+                        generated_by, started,
+                    )
+                else:
+                    run.remediation = {"status": "none", "proposals": []}
+            except Exception:
+                run.remediation = {"status": "none", "proposals": []}
         except Exception as exc:  # surface profiling errors to the UI
             node.status = "error"
             node.detail = str(exc)
             run.error = str(exc)
+        return run
+
+    # -- Gate: human approves (or skips) the data fixes -----------------------
+    def apply_remediation(self, run: Run, accepted_ids: list[str], skip: bool = False) -> Run:
+        rem = run.remediation or {"proposals": [], "status": "none"}
+        if rem.get("status") != "pending":
+            raise ValueError("No pending remediation for this run.")
+        proposals = rem["proposals"]
+        node = DecisionNode(stage="remediation", title="Data remediation")
+        run.decisions.append(node)
+
+        if skip or not accepted_ids:
+            rem["status"] = "skipped"
+            rem["applied_ids"] = []
+            node.status = "approved"
+            node.human_input = {"skipped": True}
+            node.detail = "Fixes skipped - continuing on the data as uploaded."
+            self._emit(run, "decline", "user", {"gate": "remediation", "note": "skipped all fixes"})
+            return run
+
+        accepted = [p["id"] for p in proposals if p["id"] in set(accepted_ids)]
+        declined = [p["id"] for p in proposals if p["id"] not in set(accepted_ids)]
+        fixed = apply_fixes(run.df, proposals, accepted)
+        if self.on_artifact is not None:
+            try:
+                run.artifact_id = self.on_artifact(
+                    run, fixed, "remediation", {"fixes": accepted}
+                )
+            except Exception:
+                pass
+        before = len(run.df)
+        run.df = fixed
+        # Re-profile so EDA and everything after sees the fixed frame.
+        run.profile = profile_dataframe(run.df)
+        run.profile["health"] = assess_health(run.df, run.profile)
+
+        rem["status"] = "applied"
+        rem["applied_ids"] = accepted
+        node.status = "approved"
+        node.human_input = {"applied": accepted, "declined": declined}
+        node.detail = (
+            f"{len(accepted)} fix(es) applied - {before:,} rows in, {len(run.df):,} out; "
+            f"health now '{run.profile['health']['score']}'."
+        )
+        self._emit(run, "approval", "user", {"gate": "remediation", "applied": accepted})
+        for pid in declined:
+            self._emit(run, "decline", "user", {"gate": "remediation", "fix": pid})
         return run
 
     # -- Stage 1b: EDA agent (slower; separate call so the UI can show progress)

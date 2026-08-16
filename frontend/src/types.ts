@@ -46,6 +46,23 @@ export interface JoinSuggestion {
   note: string;
 }
 
+export interface RemediationProposal {
+  id: string;
+  kind: string;
+  column: string | null;
+  description: string;
+  reasoning: string;
+  affected_rows: number;
+  recommended: boolean;
+}
+
+export interface Remediation {
+  status: "pending" | "applied" | "skipped" | "none";
+  proposals: RemediationProposal[];
+  generated_by?: string;
+  applied_ids?: string[];
+}
+
 export interface PiiFinding {
   column: string;
   kind: string;
@@ -374,4 +391,5 @@ export interface Run {
   autotune: Autotune | null;
   feature_suggestions?: FeatureSuggestion[] | null;
   artifact_id?: string | null;
+  remediation?: Remediation | null;
 }

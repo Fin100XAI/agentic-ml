@@ -74,6 +74,9 @@ export const api = {
 
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
 
+  remediate: (runId: string, accepted_ids: string[], skip = false) =>
+    request<Run>(`/runs/${runId}/remediate`, json({ accepted_ids, skip })),
+
   piiReview: (datasetId: string, actions: Record<string, string>) =>
     request<{ dataset_id: string; pii_status: string; masked: boolean }>(
       `/datasets/${datasetId}/pii-review`,

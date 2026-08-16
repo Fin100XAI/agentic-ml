@@ -16,6 +16,7 @@ import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
 import { PiiReviewModal } from "./components/PiiReviewModal";
+import { RemediationModal } from "./components/RemediationModal";
 import type { JoinSuggestion, ModelInfo, PiiFinding, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
@@ -86,6 +87,7 @@ export default function App() {
     question: string;
     findings: PiiFinding[];
   } | null>(null);
+  const [remediationRunId, setRemediationRunId] = useState<string | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -127,23 +129,47 @@ export default function App() {
     }
   }
 
+  // EDA step shared by the normal path and the remediation path.
+  const continueToEda = async (runId: string) => {
+    setUploadStage("analyzing");
+    const r = await api.runEda(runId);
+    setRun(r);
+    setUploadStage(null);
+    if (r.error) setError(r.error);
+    else setScreen("eda");
+  };
+
   // Post-upload continuation shared by the normal path and the PII review path.
   const runAnalysis = async (datasetId: string, question: string) => {
     setUploadStage("profiling");
-    let r = await api.startRun(datasetId, question);
+    const r = await api.startRun(datasetId, question);
     setRun(r);
     if (r.error) {
       setError(r.error);
       setUploadStage(null);
       return;
     }
-    setUploadStage("analyzing");
-    r = await api.runEda(r.id);
-    setRun(r);
-    setUploadStage(null);
-    if (r.error) setError(r.error);
-    else setScreen("eda");
+    if (r.remediation?.status === "pending" && r.remediation.proposals.length > 0) {
+      // Health check found repairable issues: the human decides before EDA.
+      setRemediationRunId(r.id);
+      setUploadStage(null);
+      return;
+    }
+    await continueToEda(r.id);
   };
+
+  const handleRemediation = (acceptedIds: string[], skip: boolean) =>
+    guard(skip ? "Continuing…" : "Applying fixes…", async () => {
+      if (!remediationRunId) return;
+      const r = await api.remediate(remediationRunId, acceptedIds, skip);
+      setRun(r);
+      setRemediationRunId(null);
+      if (r.error) {
+        setError(r.error);
+        return;
+      }
+      await continueToEda(r.id);
+    });
 
   const handleUpload = (file: File, question: string, sheet?: string, join?: JoinSuggestion) =>
     guard("Analyzing…", async () => {
@@ -515,6 +541,17 @@ export default function App() {
             </Card>
           </div>
         </>
+      )}
+
+      {/* Data-fix review: repairable health issues found after profiling */}
+      {remediationRunId && run?.remediation?.status === "pending" && (
+        <RemediationModal
+          proposals={run.remediation.proposals}
+          generatedBy={run.remediation.generated_by}
+          busy={busy}
+          onApprove={(ids) => handleRemediation(ids, false)}
+          onSkip={() => handleRemediation([], true)}
+        />
       )}
 
       {/* Privacy screen: personal data found at upload */}

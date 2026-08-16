@@ -37,3 +37,8 @@ class AskRequest(BaseModel):
 
 class PiiReviewRequest(BaseModel):
     actions: dict[str, str] = Field(default_factory=dict)  # column -> mask|drop|keep
+
+
+class RemediateRequest(BaseModel):
+    accepted_ids: list[str] = Field(default_factory=list)
+    skip: bool = False

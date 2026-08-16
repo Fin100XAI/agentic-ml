@@ -126,6 +126,16 @@ class Store:
                 run = Run(dataset_id=ds_id, df=ds.df, filename=ds.filename)
                 run.__dict__.update(state)
                 run.df = ds.df  # never trust a pickled frame reference
+                # Remediated runs continue on their fixed frame, not the upload.
+                # (feature_eng artifacts are re-applied at execute time from
+                # config, so those stay on the dataset frame.)
+                if run.artifact_id and run.artifact_id != ds.artifact_id:
+                    try:
+                        art = self.get_artifact(run.artifact_id)
+                        if art.transform_type == "remediation" and art.file_path.endswith(".pkl"):
+                            run.df = pickle.loads(Path(art.file_path).read_bytes())
+                    except Exception:
+                        pass  # fall back to the dataset frame
                 self.runs[run_id] = run
             except Exception:
                 continue
