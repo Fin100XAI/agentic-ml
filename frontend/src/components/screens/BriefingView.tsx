@@ -7,6 +7,7 @@ import { AlertTriangle, BrainCircuit, ListChecks, Printer, ShieldCheck } from "l
 import { api } from "../../api/client";
 import type { Run } from "../../types";
 import { AskTheData } from "../AskTheData";
+import { ScenarioPanel } from "../ScenarioPanel";
 import {
   ClassDistributionChart,
   ClusterScatter,
@@ -162,7 +163,13 @@ export function BriefingView({ runId }: { runId: string }) {
         </CardBody>
       </Card>
 
-      {/* Grounded Q&A - the only interactive element */}
+      {/* What-if + grounded Q&A - read-only interactions */}
+      {run.registry_ref &&
+        (insights.use_case === "classification" || insights.use_case === "regression") && (
+          <div className="no-print">
+            <ScenarioPanel modelId={run.registry_ref.model_id} version={run.registry_ref.version} />
+          </div>
+        )}
       <div className="no-print">
         <AskTheData runId={run.id} rows={run.profile?.n_rows ?? 0} />
       </div>

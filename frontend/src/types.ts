@@ -116,6 +116,22 @@ export interface RunDiffResult {
   markdown: string;
 }
 
+export interface ScenarioMeta {
+  features: { column: string; label: string; min: number; max: number; baseline: number | null }[];
+  response: "probability" | "prediction";
+}
+
+export interface ScenarioResult {
+  response: string;
+  baseline: number;
+  perturbed: number;
+  change: number;
+  perturbations: Record<string, number>;
+  extrapolations: { column: string; value: number; observed: [number, number] }[];
+  caveat: string;
+  phrased?: string | null;
+}
+
 export interface DriftResult {
   verdict: "stable" | "drifting" | "degraded";
   schema: { missing: string[]; renamed: { from: string; to: string }[]; extra: string[] };

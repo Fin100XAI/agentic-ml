@@ -30,6 +30,38 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _feature_ranges(run: Run) -> dict:
+    """Observed min/max per numeric input column at training time - the
+    what-if sliders' honest bounds."""
+    target = (run.config or {}).get("target")
+    excluded = set((run.config or {}).get("excluded") or [])
+    out = {}
+    for col in run.df.columns:
+        if str(col) == target or str(col) in excluded:
+            continue
+        s = pd.to_numeric(run.df[col], errors="coerce").dropna()
+        if len(s) > 5 and s.nunique() > 2:
+            out[str(col)] = [round(float(s.min()), 4), round(float(s.max()), 4)]
+    return out
+
+
+def _baseline(run: Run) -> dict:
+    """A typical record: medians for numerics, most common value otherwise."""
+    target = (run.config or {}).get("target")
+    out = {}
+    for col in run.df.columns:
+        if str(col) == target:
+            continue
+        s = run.df[col]
+        if pd.api.types.is_numeric_dtype(s):
+            med = s.median()
+            out[str(col)] = round(float(med), 4) if pd.notna(med) else 0.0
+        else:
+            mode = s.mode()
+            out[str(col)] = str(mode.iloc[0]) if len(mode) else ""
+    return out
+
+
 @dataclass
 class Artifact:
     id: str
@@ -133,6 +165,8 @@ class Store:
             "ALTER TABLE activity_log ADD COLUMN project_id TEXT",
             "ALTER TABLE model_registry ADD COLUMN n_rows INTEGER",
             "ALTER TABLE model_registry ADD COLUMN change_summary TEXT",
+            "ALTER TABLE model_registry ADD COLUMN feature_ranges TEXT",
+            "ALTER TABLE model_registry ADD COLUMN baseline TEXT",
         ):  # older DBs predate these columns
             try:
                 self._db.execute(ddl)
@@ -495,8 +529,12 @@ class Store:
         "raw_columns", "feature_list", "hyperparams", "seed", "metrics",
         "stability_verdict", "checkpoint_path", "llm_provider", "llm_model",
         "approved_by", "approved_at", "status", "n_rows", "change_summary",
+        "feature_ranges", "baseline",
     )
-    _REGISTRY_JSON_COLS = ("raw_columns", "feature_list", "hyperparams", "metrics", "change_summary")
+    _REGISTRY_JSON_COLS = (
+        "raw_columns", "feature_list", "hyperparams", "metrics", "change_summary",
+        "feature_ranges", "baseline",
+    )
 
     _PRIMARY_METRIC = {"classification": "f1", "regression": "rmse",
                        "clustering": "silhouette", "forecasting": "mape_pct"}
@@ -580,6 +618,7 @@ class Store:
             "llm_provider": llm_provider, "llm_model": llm_model,
             "approved_by": "local user", "approved_at": _now(), "status": "active",
             "n_rows": int(len(run.df)), "change_summary": None,
+            "feature_ranges": _feature_ranges(run), "baseline": _baseline(run),
         }
         if version > 1:
             try:

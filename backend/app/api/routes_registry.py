@@ -250,6 +250,91 @@ async def check_drift(model_id: str, version: int, file: UploadFile) -> dict:
             "model_name": entry["model_name"], "version": version}
 
 
+def _load_scenario_context(model_id: str, version: int):
+    try:
+        entry = store.get_registry_entry(model_id, version)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if entry["use_case"] not in ("classification", "regression"):
+        raise HTTPException(409, "What-if works on classification and regression models only.")
+    if not entry.get("checkpoint_path") or not Path(entry["checkpoint_path"]).exists():
+        raise HTTPException(409, "This model version has no loadable checkpoint.")
+    train_run = store.runs.get(entry.get("run_id") or "")
+    if train_run is None or not train_run.config:
+        raise HTTPException(409, "The training run behind this version is no longer available.")
+    model = pickle.loads(Path(entry["checkpoint_path"]).read_bytes())
+    return entry, train_run, model
+
+
+@router.get("/models/{model_id}/{version}/scenario/meta")
+def scenario_meta(model_id: str, version: int) -> dict:
+    entry, train_run, _ = _load_scenario_context(model_id, version)
+    if not entry.get("baseline"):
+        raise HTTPException(409, "This model version predates scenario support - retrain it once to enable what-if.")
+    labels = train_run.labels()
+    features = [
+        {"column": col, "label": labels.get(col, col),
+         "min": rng[0], "max": rng[1],
+         "baseline": (entry.get("baseline") or {}).get(col)}
+        for col, rng in (entry.get("feature_ranges") or {}).items()
+    ]
+    return {"features": features, "response": "probability" if entry["use_case"] == "classification" else "prediction"}
+
+
+@router.post("/models/{model_id}/{version}/scenario")
+def what_if(model_id: str, version: int, req: dict) -> dict:
+    from engine.scenario import run_scenario
+
+    entry, train_run, model = _load_scenario_context(model_id, version)
+    perturbations = req.get("perturbations") or {}
+    if not perturbations or len(perturbations) > 3:
+        raise HTTPException(400, "Perturb between one and three features.")
+    try:
+        result = run_scenario(
+            entry, model, train_run.config, train_run.remediation,
+            (train_run.result or {}).get("class_names"), perturbations,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    phrased = None
+    provider = instrumented_provider()
+    if provider is not None:
+        try:
+            phrased = provider.complete_text(
+                "In 2-3 plain sentences, explain a what-if result on a prediction model "
+                "to a non-expert. Always keep the correlation-not-causation framing from "
+                "the caveat. Never invent numbers. Style rule: use plain hyphens (-) "
+                "only; never use em dashes or en dashes.",
+                f"Facts: {result}",
+                max_tokens=250,
+            )
+        except Exception:
+            pass
+    store.log_event(
+        "user", "score", project_id=entry.get("project_id"),
+        payload={"kind": "scenario", "model_id": model_id, "version": version,
+                 "perturbations": perturbations},
+    )
+    return {**result, "phrased": phrased}
+
+
+@router.post("/models/{model_id}/{version}/scenario/curve")
+def scenario_curve(model_id: str, version: int, req: dict) -> dict:
+    from engine.scenario import response_curve
+
+    entry, train_run, model = _load_scenario_context(model_id, version)
+    feature = str(req.get("feature") or "")
+    try:
+        return response_curve(
+            entry, model, train_run.config, train_run.remediation,
+            (train_run.result or {}).get("class_names"), feature,
+            others=req.get("others") or None,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @router.get("/artifacts/{artifact_id}/download")
 def download_artifact_csv(artifact_id: str) -> Response:
     """Any frame artifact as CSV - used for scored outputs."""

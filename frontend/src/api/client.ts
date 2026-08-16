@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -61,6 +61,18 @@ export const api = {
   getProjectDetail: (projectId: string) =>
     request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
       `/projects/${projectId}`,
+    ),
+
+  scenarioMeta: (modelId: string, version: number) =>
+    request<ScenarioMeta>(`/models/${modelId}/${version}/scenario/meta`),
+
+  runScenario: (modelId: string, version: number, perturbations: Record<string, number>) =>
+    request<ScenarioResult>(`/models/${modelId}/${version}/scenario`, json({ perturbations })),
+
+  scenarioCurve: (modelId: string, version: number, feature: string) =>
+    request<{ feature: string; response: string; points: { x: number; y: number }[]; observed: [number, number] }>(
+      `/models/${modelId}/${version}/scenario/curve`,
+      json({ feature }),
     ),
 
   driftCheck: (modelId: string, version: number, file: File) => {
