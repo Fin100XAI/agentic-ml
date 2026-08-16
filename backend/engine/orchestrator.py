@@ -100,6 +100,7 @@ class Run:
     artifact_id: str | None = None  # the data artifact this run trained on
     remediation: dict[str, Any] | None = None  # {"status", "proposals", "applied_ids"}
     leakage: dict[str, Any] | None = None  # {"target", "flags": [...]}
+    registry_ref: dict[str, Any] | None = None  # {"model_id", "version"}
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -143,6 +144,7 @@ class Run:
                 artifact_id=self.artifact_id,
                 remediation=self.remediation,
                 leakage=self.leakage,
+                registry_ref=self.registry_ref,
             )
         return d
 
@@ -158,6 +160,9 @@ class Orchestrator:
         # Optional app-layer hook (run, df, transform_type, params) -> artifact_id
         # materializing a derived data artifact. None = no artifact ledger.
         self.on_artifact: Any = None
+        # Optional app-layer hook (run, fitted_model) -> {"model_id", "version"}
+        # registering the trained model. None = no registry.
+        self.on_checkpoint: Any = None
 
     def _emit(self, run: Run, event_type: str, actor: str, payload: dict[str, Any],
               mode: str | None = None, latency_ms: int | None = None) -> None:
@@ -502,6 +507,14 @@ class Orchestrator:
                 time_column=run.config.get("time_column"),
             )
             self._add_display_labels(run)
+            # The fitted estimator never enters the JSON payload; the registry
+            # hook checkpoints it (classification/regression) when attached.
+            fitted = run.result.pop("fitted_model", None)
+            if self.on_checkpoint is not None:
+                try:
+                    run.registry_ref = self.on_checkpoint(run, fitted)
+                except Exception:
+                    run.registry_ref = None
             node.status = "done"
             node.agent_output = {"metrics": run.result["metrics"]}
             node.detail = "Model trained and evaluated."

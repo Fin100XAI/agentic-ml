@@ -527,9 +527,14 @@ export function InsightsScreen({
       ) : (
         /* ---------- Technical appendix tab ---------- */
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-sm text-ink-dim">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-ink-dim">
             <span className="font-semibold text-ink">{run.config?.model_name}</span>
             diagnostics - settings: {JSON.stringify(run.config?.hyperparams)}
+            {run.registry_ref && (
+              <Badge tone="accent">
+                registered v{run.registry_ref.version} · {run.registry_ref.model_id.slice(0, 8)}
+              </Badge>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {metrics.map(([k, v]) => {

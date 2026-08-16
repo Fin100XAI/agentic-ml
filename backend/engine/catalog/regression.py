@@ -77,7 +77,12 @@ def _evaluate_regressor(
             for i in order
         ]
 
-    return {"metrics": metrics, "artifacts": artifacts}
+    return {
+        "metrics": metrics,
+        "artifacts": artifacts,
+        "features_used": [str(c) for c in X.columns],
+        "fitted_model": model,  # popped by the orchestrator before serialization
+    }
 
 
 def _prepare(df: pd.DataFrame, target: str | None, features: list[str] | None):

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { ModelInfo, RunSummary } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
+import { ModelsPanel } from "../ModelsPanel";
 import { Badge, Button, Card, CardBody } from "../ui";
 
 const AGENTS = [
@@ -66,12 +67,14 @@ export function HomeScreen({
   models,
   recentRuns,
   projectName,
+  projectId,
   onStart,
   onResume,
 }: {
   models: ModelInfo[];
   recentRuns: RunSummary[];
   projectName?: string;
+  projectId?: string;
   onStart: () => void;
   onResume: (id: string) => void;
 }) {
@@ -183,6 +186,9 @@ export function HomeScreen({
           ))}
         </div>
       </section>
+
+      {/* Trained model versions in this project */}
+      {projectId && <ModelsPanel projectId={projectId} />}
 
       {/* Recent runs */}
       {recentRuns.length > 0 && (

@@ -56,6 +56,29 @@ export interface Project {
   last_run_at?: string | null;
 }
 
+export interface RegistryEntry {
+  model_id: string;
+  version: number;
+  project_id: string | null;
+  run_id: string | null;
+  purpose_statement: string | null;
+  artifact_id: string | null;
+  data_sha256: string | null;
+  use_case: string;
+  model_key: string;
+  model_name: string;
+  raw_columns: string[];
+  feature_list: string[];
+  hyperparams: Record<string, unknown>;
+  seed: number;
+  metrics: Record<string, number | null>;
+  stability_verdict: string | null;
+  checkpoint_path: string | null;
+  approved_by: string;
+  approved_at: string;
+  status: "active" | "superseded" | "archived";
+}
+
 export interface RemediationProposal {
   id: string;
   kind: string;
@@ -434,4 +457,5 @@ export interface Run {
   artifact_id?: string | null;
   remediation?: Remediation | null;
   leakage?: { target: string | null; flags: LeakageFlag[] } | null;
+  registry_ref?: { model_id: string; version: number } | null;
 }

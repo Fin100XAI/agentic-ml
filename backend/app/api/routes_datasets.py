@@ -106,7 +106,10 @@ async def upload_dataset(
     ]
     if assembly is None and project_datasets:
         try:
-            proposals = classify_file(df, display_name, project_datasets)
+            proposals = classify_file(
+                df, display_name, project_datasets,
+                registry_schemas=store.registry_schemas(pid),
+            )
         except Exception:
             proposals = []
         if proposals:

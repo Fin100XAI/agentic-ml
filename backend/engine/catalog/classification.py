@@ -70,7 +70,13 @@ def _evaluate_classifier(
             {"feature": str(X.columns[i]), "importance": round(float(importances[i]), 4)} for i in order
         ]
 
-    return {"metrics": metrics, "artifacts": artifacts}
+    return {
+        "metrics": metrics,
+        "artifacts": artifacts,
+        "features_used": [str(c) for c in X.columns],
+        "class_names": class_names,
+        "fitted_model": model,  # popped by the orchestrator before serialization
+    }
 
 
 def _require_target(target: str | None, df: pd.DataFrame) -> str:

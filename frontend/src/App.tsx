@@ -457,6 +457,7 @@ export default function App() {
             models={models}
             recentRuns={recentRuns}
             projectName={project?.name}
+            projectId={project?.id}
             onStart={startOver}
             onResume={handleResume}
           />

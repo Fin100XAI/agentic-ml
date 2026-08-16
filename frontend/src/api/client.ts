@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, Run, RunSummary, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunSummary, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -27,6 +27,9 @@ export const api = {
   health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
 
   listProjects: () => request<{ projects: Project[] }>("/projects"),
+
+  getProjectModels: (projectId: string) =>
+    request<{ models: RegistryEntry[] }>(`/projects/${projectId}/models`),
 
   createProject: (name: string, description = "") =>
     request<Project>("/projects", json({ name, description })),

@@ -62,8 +62,20 @@ def _on_artifact(run: Run, df, transform_type: str, params: dict[str, Any]) -> s
     return art.id
 
 
+def _on_checkpoint(run: Run, fitted_model: object | None) -> dict[str, Any] | None:
+    """Register the completed training run (with checkpoint when picklable)."""
+    from app.config import settings
+
+    return store.register_model(
+        run, fitted_model,
+        llm_provider="anthropic" if settings.llm_enabled else None,
+        llm_model=settings.anthropic_model if settings.llm_enabled else None,
+    )
+
+
 def instrumented_orchestrator() -> Orchestrator:
     orch = Orchestrator(instrumented_provider())
     orch.on_event = _on_orchestrator_event
     orch.on_artifact = _on_artifact
+    orch.on_checkpoint = _on_checkpoint
     return orch

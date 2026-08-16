@@ -107,6 +107,17 @@ class Store:
             "id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, "
             "created_at TEXT NOT NULL)"
         )
+        # Model registry: every completed training run, versioned, never overwritten.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS model_registry ("
+            "model_id TEXT NOT NULL, version INTEGER NOT NULL, project_id TEXT, "
+            "run_id TEXT, purpose_statement TEXT, artifact_id TEXT, data_sha256 TEXT, "
+            "use_case TEXT, model_key TEXT, model_name TEXT, raw_columns TEXT, "
+            "feature_list TEXT, hyperparams TEXT, seed INTEGER, metrics TEXT, "
+            "stability_verdict TEXT, checkpoint_path TEXT, llm_provider TEXT, "
+            "llm_model TEXT, approved_by TEXT, approved_at TEXT, "
+            "status TEXT NOT NULL, PRIMARY KEY (model_id, version))"
+        )
         for ddl in (
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
@@ -425,6 +436,149 @@ class Store:
                     "UPDATE datasets SET artifact_id = ? WHERE id = ?", (art.id, ds.id)
                 )
                 self._db.commit()
+
+    # -- model registry --------------------------------------------------------
+    _REGISTRY_COLS = (
+        "model_id", "version", "project_id", "run_id", "purpose_statement",
+        "artifact_id", "data_sha256", "use_case", "model_key", "model_name",
+        "raw_columns", "feature_list", "hyperparams", "seed", "metrics",
+        "stability_verdict", "checkpoint_path", "llm_provider", "llm_model",
+        "approved_by", "approved_at", "status",
+    )
+    _REGISTRY_JSON_COLS = ("raw_columns", "feature_list", "hyperparams", "metrics")
+
+    def register_model(self, run: Run, fitted_model: object | None,
+                       llm_provider: str | None, llm_model: str | None) -> dict | None:
+        """Write a versioned registry entry for a completed training run."""
+        if not run.config or not run.result:
+            return None
+        ds = self.datasets.get(run.dataset_id)
+        project_id = ds.project_id if ds else None
+        # Model identity: same project + problem + algorithm = same model_id.
+        ident = f"{project_id}|{run.config['use_case']}|{run.config.get('target')}|{run.config['model_key']}"
+        model_id = hashlib.sha256(ident.encode()).hexdigest()[:12]
+        (prev_max,) = self._db.execute(
+            "SELECT MAX(version) FROM model_registry WHERE model_id = ?", (model_id,)
+        ).fetchone()
+        version = (prev_max or 0) + 1
+
+        checkpoint_path = None
+        if fitted_model is not None:
+            try:
+                blob = pickle.dumps(fitted_model)
+                sha = hashlib.sha256(blob).hexdigest()
+                path = ARTIFACT_DIR / f"{sha}.model.pkl"
+                if not path.exists():
+                    path.write_bytes(blob)
+                checkpoint_path = str(path)
+            except Exception:
+                checkpoint_path = None  # unpicklable model: metadata still registers
+
+        data_sha = None
+        if run.artifact_id:
+            try:
+                data_sha = self.get_artifact(run.artifact_id).sha256
+            except KeyError:
+                pass
+        if data_sha is None:  # no artifact trail: hash the training frame itself
+            try:
+                data_sha = hashlib.sha256(pickle.dumps(run.df)).hexdigest()
+            except Exception:
+                pass
+
+        row = {
+            "model_id": model_id, "version": version, "project_id": project_id,
+            "run_id": run.id, "purpose_statement": run.question,
+            "artifact_id": run.artifact_id, "data_sha256": data_sha,
+            "use_case": run.config["use_case"], "model_key": run.config["model_key"],
+            "model_name": run.config["model_name"],
+            "raw_columns": [str(c) for c in run.df.columns],
+            "feature_list": run.result.get("features_used") or [],
+            "hyperparams": run.config.get("hyperparams") or {},
+            "seed": 42, "metrics": run.result.get("metrics") or {},
+            "stability_verdict": ((run.result.get("validation") or {}).get("verdict")),
+            "checkpoint_path": checkpoint_path,
+            "llm_provider": llm_provider, "llm_model": llm_model,
+            "approved_by": "local user", "approved_at": _now(), "status": "active",
+        }
+        values = [
+            json.dumps(row[c], default=str) if c in self._REGISTRY_JSON_COLS else row[c]
+            for c in self._REGISTRY_COLS
+        ]
+        with self._lock:
+            self._db.execute(
+                "UPDATE model_registry SET status = 'superseded' "
+                "WHERE model_id = ? AND status = 'active'", (model_id,),
+            )
+            self._db.execute(
+                f"INSERT INTO model_registry ({', '.join(self._REGISTRY_COLS)}) "
+                f"VALUES ({', '.join('?' * len(self._REGISTRY_COLS))})",
+                values,
+            )
+            self._db.commit()
+        self.log_event(
+            "system", "train", run_id=run.id, dataset_id=run.dataset_id,
+            project_id=project_id,
+            payload={"registry": {"model_id": model_id, "version": version,
+                                  "checkpoint": bool(checkpoint_path)}},
+        )
+        return {"model_id": model_id, "version": version}
+
+    def _registry_row_to_dict(self, row: tuple) -> dict:
+        d = dict(zip(self._REGISTRY_COLS, row))
+        for c in self._REGISTRY_JSON_COLS:
+            if d.get(c):
+                try:
+                    d[c] = json.loads(d[c])
+                except Exception:
+                    pass
+        return d
+
+    def list_registry(self, project_id: str | None = None,
+                      model_id: str | None = None) -> list[dict]:
+        clauses, params = [], []
+        if project_id:
+            clauses.append("project_id = ?")
+            params.append(project_id)
+        if model_id:
+            clauses.append("model_id = ?")
+            params.append(model_id)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = self._db.execute(
+            f"SELECT {', '.join(self._REGISTRY_COLS)} FROM model_registry {where} "
+            "ORDER BY approved_at DESC", params,
+        ).fetchall()
+        return [self._registry_row_to_dict(r) for r in rows]
+
+    def get_registry_entry(self, model_id: str, version: int) -> dict:
+        row = self._db.execute(
+            f"SELECT {', '.join(self._REGISTRY_COLS)} FROM model_registry "
+            "WHERE model_id = ? AND version = ?", (model_id, version),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"Unknown model version: {model_id} v{version}")
+        return self._registry_row_to_dict(row)
+
+    def archive_model(self, model_id: str, version: int) -> None:
+        self.get_registry_entry(model_id, version)  # raises on unknown
+        with self._lock:
+            self._db.execute(
+                "UPDATE model_registry SET status = 'archived' "
+                "WHERE model_id = ? AND version = ?", (model_id, version),
+            )
+            self._db.commit()
+
+    def registry_schemas(self, project_id: str) -> list[dict]:
+        """Raw input schemas of active models - feeds the librarian's score route."""
+        out = []
+        for e in self.list_registry(project_id=project_id):
+            if e["status"] == "active" and e.get("raw_columns"):
+                out.append({
+                    "model_id": e["model_id"], "version": e["version"],
+                    "purpose": e.get("purpose_statement") or e.get("model_name"),
+                    "columns": e["raw_columns"],
+                })
+        return out
 
     # -- activity log ----------------------------------------------------------
     def log_event(
