@@ -103,13 +103,16 @@ export function HomeScreen({
           </p>
         )}
         <h2 className="mx-auto max-w-2xl text-2xl font-bold leading-snug">
-          Turn raw data into decisions.
-          <span className="text-accent"> No data-science degree required.</span>
+          Agentic ML Workbench
+          <span className="text-accent"> - evidence for every decision.</span>
         </h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-ink-dim">
-          Upload a spreadsheet and get a decision brief: what's driving outcomes, what
-          groups exist, where things are heading - with recommended actions and an honest
-          read on how much to trust them. AI agents do the analysis; you approve every step.
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
+          A team of AI agents turns departmental data - scheme enrollments, revenue
+          collections, service requests, demand histories - into a decision brief:
+          what drives outcomes, which groups need attention, where things are heading.
+          Machine learning computes every number, agents explain it in plain language,
+          and you approve every step on a complete audit trail. No data-science degree
+          required.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>
           Start a new analysis <ArrowRight className="h-4 w-4" />

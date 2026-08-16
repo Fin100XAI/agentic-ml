@@ -56,6 +56,9 @@ export function AssemblyModal({
                       <meta.icon className="h-4 w-4 text-accent" />
                       <span className="text-sm font-semibold">{meta.label}</span>
                       {p.target_filename && <Badge tone="neutral">{p.target_filename}</Badge>}
+                      {i === 0 && p.kind !== "score_route" && (
+                        <Badge tone="good">librarian's pick</Badge>
+                      )}
                       {p.kind === "score_route" && (
                         <Badge tone="good">use Score / Drift check on the Models table</Badge>
                       )}
