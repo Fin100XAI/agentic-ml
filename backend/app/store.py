@@ -156,6 +156,22 @@ class Store:
             "llm_model TEXT, approved_by TEXT, approved_at TEXT, "
             "status TEXT NOT NULL, PRIMARY KEY (model_id, version))"
         )
+        # Standing intake rules + the inbox of arrivals awaiting approval.
+        # Nothing in the inbox executes until a human approves it.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS intake_rules ("
+            "id TEXT PRIMARY KEY, project_id TEXT NOT NULL, name TEXT NOT NULL, "
+            "model_id TEXT NOT NULL, version INTEGER NOT NULL, action TEXT NOT NULL, "
+            "cadence TEXT NOT NULL DEFAULT 'none', required_columns TEXT NOT NULL, "
+            "created_at TEXT NOT NULL, last_fired_at TEXT)"
+        )
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS intake_items ("
+            "id TEXT PRIMARY KEY, project_id TEXT NOT NULL, rule_id TEXT NOT NULL, "
+            "dataset_id TEXT NOT NULL, filename TEXT, coverage REAL, "
+            "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, "
+            "resolved_at TEXT, results TEXT)"
+        )
         for ddl in (
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
@@ -522,6 +538,116 @@ class Store:
             str(c): by_norm[_normalize(str(c))]
             for c in columns if _normalize(str(c)) in by_norm
         }
+
+    # -- intake rules + inbox --------------------------------------------------
+    def add_intake_rule(
+        self, project_id: str, name: str, model_id: str, version: int,
+        action: str, cadence: str, required_columns: list[str],
+    ) -> dict:
+        rule = {
+            "id": uuid.uuid4().hex[:12], "project_id": project_id, "name": name,
+            "model_id": model_id, "version": int(version), "action": action,
+            "cadence": cadence, "required_columns": required_columns,
+            "created_at": _now(), "last_fired_at": None,
+        }
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO intake_rules (id, project_id, name, model_id, version, "
+                "action, cadence, required_columns, created_at, last_fired_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (rule["id"], project_id, name, model_id, int(version), action,
+                 cadence, json.dumps(required_columns), rule["created_at"], None),
+            )
+            self._db.commit()
+        return rule
+
+    def list_intake_rules(self, project_id: str) -> list[dict]:
+        from engine.intake import cadence_overdue
+
+        rows = self._db.execute(
+            "SELECT id, project_id, name, model_id, version, action, cadence, "
+            "required_columns, created_at, last_fired_at FROM intake_rules "
+            "WHERE project_id = ? ORDER BY created_at", (project_id,)
+        ).fetchall()
+        out = []
+        for r in rows:
+            rule = {
+                "id": r[0], "project_id": r[1], "name": r[2], "model_id": r[3],
+                "version": r[4], "action": r[5], "cadence": r[6],
+                "required_columns": json.loads(r[7] or "[]"),
+                "created_at": r[8], "last_fired_at": r[9],
+            }
+            rule["overdue"] = cadence_overdue(rule["cadence"], rule["last_fired_at"] or rule["created_at"], _now())
+            out.append(rule)
+        return out
+
+    def get_intake_rule(self, rule_id: str) -> dict:
+        for pid in {r[0] for r in self._db.execute("SELECT project_id FROM intake_rules WHERE id = ?", (rule_id,)).fetchall()}:
+            for rule in self.list_intake_rules(pid):
+                if rule["id"] == rule_id:
+                    return rule
+        raise KeyError(f"Unknown intake rule: {rule_id}")
+
+    def delete_intake_rule(self, rule_id: str) -> None:
+        with self._lock:
+            self._db.execute("DELETE FROM intake_rules WHERE id = ?", (rule_id,))
+            self._db.commit()
+
+    def touch_intake_rule(self, rule_id: str) -> None:
+        with self._lock:
+            self._db.execute("UPDATE intake_rules SET last_fired_at = ? WHERE id = ?", (_now(), rule_id))
+            self._db.commit()
+
+    def add_intake_item(
+        self, project_id: str, rule_id: str, dataset_id: str,
+        filename: str, coverage: float,
+    ) -> dict:
+        item = {
+            "id": uuid.uuid4().hex[:12], "project_id": project_id, "rule_id": rule_id,
+            "dataset_id": dataset_id, "filename": filename, "coverage": coverage,
+            "status": "pending", "created_at": _now(), "resolved_at": None, "results": None,
+        }
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO intake_items (id, project_id, rule_id, dataset_id, filename, "
+                "coverage, status, created_at, resolved_at, results) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (item["id"], project_id, rule_id, dataset_id, filename, coverage,
+                 "pending", item["created_at"], None, None),
+            )
+            self._db.commit()
+        return item
+
+    def list_intake_items(self, project_id: str, limit: int = 30) -> list[dict]:
+        rows = self._db.execute(
+            "SELECT id, project_id, rule_id, dataset_id, filename, coverage, status, "
+            "created_at, resolved_at, results FROM intake_items WHERE project_id = ? "
+            "ORDER BY created_at DESC LIMIT ?", (project_id, limit)
+        ).fetchall()
+        return [
+            {"id": r[0], "project_id": r[1], "rule_id": r[2], "dataset_id": r[3],
+             "filename": r[4], "coverage": r[5], "status": r[6], "created_at": r[7],
+             "resolved_at": r[8], "results": json.loads(r[9]) if r[9] else None}
+            for r in rows
+        ]
+
+    def get_intake_item(self, item_id: str) -> dict:
+        r = self._db.execute(
+            "SELECT id, project_id, rule_id, dataset_id, filename, coverage, status, "
+            "created_at, resolved_at, results FROM intake_items WHERE id = ?", (item_id,)
+        ).fetchone()
+        if r is None:
+            raise KeyError(f"Unknown intake item: {item_id}")
+        return {"id": r[0], "project_id": r[1], "rule_id": r[2], "dataset_id": r[3],
+                "filename": r[4], "coverage": r[5], "status": r[6], "created_at": r[7],
+                "resolved_at": r[8], "results": json.loads(r[9]) if r[9] else None}
+
+    def resolve_intake_item(self, item_id: str, status: str, results: dict | None = None) -> None:
+        with self._lock:
+            self._db.execute(
+                "UPDATE intake_items SET status = ?, resolved_at = ?, results = ? WHERE id = ?",
+                (status, _now(), json.dumps(results) if results else None, item_id),
+            )
+            self._db.commit()
 
     # -- model registry --------------------------------------------------------
     _REGISTRY_COLS = (

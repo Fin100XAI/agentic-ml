@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -62,6 +62,20 @@ export const api = {
     request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
       `/projects/${projectId}`,
     ),
+
+  getIntake: (projectId: string) =>
+    request<{ rules: IntakeRule[]; items: IntakeItem[] }>(`/projects/${projectId}/intake`),
+
+  createIntakeRule: (
+    projectId: string,
+    body: { model_id: string; version: number; action: string; cadence: string; name?: string },
+  ) => request<IntakeRule>(`/projects/${projectId}/intake-rules`, json(body)),
+
+  deleteIntakeRule: (ruleId: string) =>
+    request<{ deleted: string }>(`/intake-rules/${ruleId}`, { method: "DELETE" }),
+
+  resolveIntake: (itemId: string, decision: "approve" | "decline") =>
+    request<{ item: IntakeItem }>(`/intake/${itemId}/resolve`, json({ decision })),
 
   setThreshold: (modelId: string, version: number, threshold: number) =>
     request<{ threshold: number }>(`/models/${modelId}/${version}/threshold`, json({ threshold })),

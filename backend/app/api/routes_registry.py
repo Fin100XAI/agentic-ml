@@ -57,6 +57,11 @@ def retrain(model_id: str, version: int, req: RetrainRequest) -> dict:
         ds = store.get_dataset(req.dataset_id)
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    return start_retrain(entry, ds)
+
+
+def start_retrain(entry: dict, ds) -> dict:
+    """Advance a retrain to the configure gate; shared with the intake inbox."""
     if ds.pii and ds.pii.get("status") == "pending":
         raise HTTPException(409, "PII review pending on that dataset - approve its privacy screen first.")
     orch = instrumented_orchestrator()
@@ -73,7 +78,8 @@ def retrain(model_id: str, version: int, req: RetrainRequest) -> dict:
     store.save_run(run)
     store.log_event(
         "user", "approval", run_id=run.id, dataset_id=ds.id, project_id=ds.project_id,
-        payload={"gate": "retrain_started", "model_id": model_id, "from_version": version},
+        payload={"gate": "retrain_started", "model_id": entry["model_id"],
+                 "from_version": entry["version"]},
     )
     return {
         "run": run.to_dict(),
@@ -116,24 +122,29 @@ async def score_new_data(model_id: str, version: int, file: UploadFile) -> dict:
             new_df = pd.read_csv(io.BytesIO(raw))
     except Exception as exc:
         raise HTTPException(400, f"Could not parse the file: {exc}") from exc
-
-    model = pickle.loads(Path(entry["checkpoint_path"]).read_bytes())
-    ds = store.datasets.get(train_run.dataset_id)
     try:
-        result = rebuild_and_score(
-            new_df, entry, model, train_run.config,
-            pii_actions=(ds.pii or {}).get("actions") if ds else None,
-            pii_findings=(ds.pii or {}).get("findings") if ds else None,
-            remediation=train_run.remediation,
-            class_names=(train_run.result or {}).get("class_names"),
-        )
+        return score_frame(entry, train_run, new_df, file.filename or "upload")
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+def score_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) -> dict:
+    """Score a frame through the training lineage; shared with the intake inbox."""
+    model_id, version = entry["model_id"], entry["version"]
+    model = pickle.loads(Path(entry["checkpoint_path"]).read_bytes())
+    ds = store.datasets.get(train_run.dataset_id)
+    result = rebuild_and_score(
+        new_df, entry, model, train_run.config,
+        pii_actions=(ds.pii or {}).get("actions") if ds else None,
+        pii_findings=(ds.pii or {}).get("findings") if ds else None,
+        remediation=train_run.remediation,
+        class_names=(train_run.result or {}).get("class_names"),
+    )
 
     scored = result["scored"]
     art = store.add_derived_artifact(
         scored, [entry["artifact_id"]] if entry.get("artifact_id") else [],
-        "score", {"model_id": model_id, "version": version, "source_file": file.filename},
+        "score", {"model_id": model_id, "version": version, "source_file": source_name},
         project_id=entry.get("project_id"),
     )
 
@@ -157,7 +168,7 @@ async def score_new_data(model_id: str, version: int, file: UploadFile) -> dict:
         "user", "score", dataset_id=train_run.dataset_id, artifact_id=art.id,
         project_id=entry.get("project_id"),
         payload={"model_id": model_id, "version": version,
-                 "file": file.filename, "rows": int(len(scored))},
+                 "file": source_name, "rows": int(len(scored))},
     )
     preview_cols = list(scored.columns)[:8] + [c for c in ("prediction", "probability") if c in scored.columns]
     preview_cols = list(dict.fromkeys(preview_cols))
@@ -194,7 +205,15 @@ async def check_drift(model_id: str, version: int, file: UploadFile) -> dict:
                   else pd.read_csv(io.BytesIO(raw)))
     except Exception as exc:
         raise HTTPException(400, f"Could not parse the file: {exc}") from exc
+    return drift_frame(entry, train_run, new_df, file.filename or "upload")
 
+
+def drift_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) -> dict:
+    """Drift-check a frame against a version; shared with the intake inbox."""
+    from engine.drift import drift_check
+    from engine.scoring import rebuild_and_score
+
+    model_id, version = entry["model_id"], entry["version"]
     target = train_run.config.get("target")
     # Score only when the outcome came along AND a checkpoint exists -
     # that unlocks the performance-decay check.
@@ -243,7 +262,7 @@ async def check_drift(model_id: str, version: int, file: UploadFile) -> dict:
 
     store.log_event(
         "user", "drift", dataset_id=train_run.dataset_id, project_id=entry.get("project_id"),
-        payload={"model_id": model_id, "version": version, "file": file.filename,
+        payload={"model_id": model_id, "version": version, "file": source_name,
                  "verdict": report["verdict"], "n_shifted": report["n_shifted"]},
     )
     return {**report, "narrative": narrative, "generated_by": generated_by,

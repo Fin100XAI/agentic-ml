@@ -8,7 +8,7 @@ import { Badge, Button, Card, CardBody, CardHeader } from "../ui";
 
 const EVENT_TYPES = [
   "all", "file_upload", "pii_review", "agent_call", "approval", "decline",
-  "transform", "train", "score", "drift", "export", "error",
+  "transform", "train", "score", "drift", "intake", "export", "error",
 ] as const;
 
 const EVENT_TONE: Record<string, "neutral" | "accent" | "good" | "warn" | "bad"> = {
@@ -19,6 +19,7 @@ const EVENT_TONE: Record<string, "neutral" | "accent" | "good" | "warn" | "bad">
   export: "accent",
   transform: "accent",
   pii_review: "warn",
+  intake: "accent",
 };
 
 export function ActivityScreen({

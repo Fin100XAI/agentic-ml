@@ -236,6 +236,48 @@ export interface UploadResponse {
   pii_findings?: PiiFinding[];
   needs_assembly_decision?: boolean;
   assembly_proposals?: AssemblyProposal[];
+  intake?: { item_id: string; rule_name: string; action: string; coverage: number } | null;
+}
+
+export interface IntakeRule {
+  id: string;
+  project_id: string;
+  name: string;
+  model_id: string;
+  version: number;
+  action: "score" | "drift" | "retrain";
+  cadence: "none" | "weekly" | "monthly";
+  required_columns: string[];
+  created_at: string;
+  last_fired_at: string | null;
+  overdue: boolean;
+}
+
+export interface IntakeItem {
+  id: string;
+  project_id: string;
+  rule_id: string;
+  rule_name?: string;
+  action?: "score" | "drift" | "retrain" | null;
+  dataset_id: string;
+  filename: string | null;
+  coverage: number | null;
+  status: "pending" | "approved" | "declined";
+  created_at: string;
+  resolved_at: string | null;
+  results: {
+    kind: "score" | "drift" | "retrain";
+    n?: number;
+    summary?: string;
+    distribution?: Record<string, unknown>;
+    artifact_id?: string;
+    threshold_note?: string | null;
+    verdict?: string;
+    n_shifted?: number;
+    narrative?: string;
+    run_id?: string;
+    prefill?: { model_key: string; hyperparams: Record<string, unknown>; target: string | null };
+  } | null;
 }
 
 export interface ColumnProfile {

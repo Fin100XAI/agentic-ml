@@ -16,6 +16,7 @@ import {
 import type { ModelInfo, RegistryEntry, RunSummary } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
 import { GlossaryManager } from "../GlossaryManager";
+import { IntakePanel } from "../IntakePanel";
 import { ModelsPanel } from "../ModelsPanel";
 import { RunDiffModal } from "../RunDiffModal";
 import { Badge, Button, Card, CardBody } from "../ui";
@@ -75,6 +76,7 @@ export function HomeScreen({
   onStart,
   onResume,
   onRetrain,
+  onOpenRetrainRun,
 }: {
   models: ModelInfo[];
   recentRuns: RunSummary[];
@@ -83,6 +85,7 @@ export function HomeScreen({
   onStart: () => void;
   onResume: (id: string) => void;
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
+  onOpenRetrainRun?: (runId: string, prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null }) => void;
 }) {
   const useCases = ["classification", "regression", "clustering", "forecasting"];
   const completedRuns = recentRuns.filter((r) => r.stage === "interpret" || r.stage === "compare");
@@ -202,6 +205,9 @@ export function HomeScreen({
 
       {/* Trained model versions in this project */}
       {projectId && <ModelsPanel projectId={projectId} onRetrain={onRetrain} />}
+
+      {/* Standing intake rules + approval inbox */}
+      {projectId && <IntakePanel projectId={projectId} onOpenRetrainRun={onOpenRetrainRun} />}
 
       {/* Recent runs */}
       {recentRuns.length > 0 && (

@@ -330,6 +330,18 @@ function App() {
     refreshRuns();
   };
 
+  const handleOpenRetrainRun = (
+    runId: string,
+    prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null },
+  ) =>
+    guard("Opening the retrain run…", async () => {
+      const r = await api.getRun(runId);
+      setRun(r);
+      setPreferredModel(prefill.model_key);
+      setRetrainPrefill({ hyperparams: prefill.hyperparams, target: prefill.target });
+      setScreen("configure");
+    });
+
   const handleRetrain = (entry: RegistryEntry, datasetId: string) =>
     guard("Preparing the retrain…", async () => {
       const r = await api.retrainModel(entry.model_id, entry.version, datasetId);
@@ -497,6 +509,7 @@ function App() {
             onStart={startOver}
             onResume={handleResume}
             onRetrain={handleRetrain}
+            onOpenRetrainRun={handleOpenRetrainRun}
           />
         )}
 

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, HTTPException, UploadFile
 from app.schemas import PiiReviewRequest
 from app.store import store
 from engine.catalog import all_models
+from engine.intake import route_upload
 from engine.joins import perform_join, propose_join
 from engine.librarian import classify_file, perform_stack
 from engine.pii import apply_pii_actions, detect_pii
@@ -188,6 +189,24 @@ async def upload_dataset(
             "PII screen", "pii_review", dataset_id=ds.id,
             payload={"status": "pending", "findings": findings},
         )
+
+    # Standing intake rules: a matching arrival is filed in the inbox for
+    # approval - routing is deterministic column matching, nothing executes.
+    intake = None
+    rules = store.list_intake_rules(pid)
+    if rules:
+        match = route_upload([str(c) for c in df.columns], rules)
+        if match:
+            rule = next(r for r in rules if r["id"] == match["rule_id"])
+            item = store.add_intake_item(pid, rule["id"], ds.id, display_name, match["coverage"])
+            store.log_event(
+                "Librarian", "intake", dataset_id=ds.id, project_id=pid,
+                payload={"rule": rule["name"], "action": rule["action"],
+                         "coverage": match["coverage"], "item_id": item["id"]},
+            )
+            intake = {"item_id": item["id"], "rule_name": rule["name"],
+                      "action": rule["action"], "coverage": match["coverage"]}
+
     return {
         "dataset_id": ds.id,
         "filename": ds.filename,
@@ -196,6 +215,7 @@ async def upload_dataset(
         "columns": [str(c) for c in df.columns],
         "pii_status": pii["status"],
         "pii_findings": findings,
+        "intake": intake,
     }
 
 
