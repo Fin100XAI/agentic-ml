@@ -10,6 +10,7 @@ import {
   ListChecks,
   Minus,
   RotateCcw,
+  Share2,
   ShieldCheck,
   SlidersHorizontal,
   TrendingDown,
@@ -288,6 +289,7 @@ export function InsightsScreen({
   onViewReport: () => void;
 }) {
   const [tab, setTab] = useState<"brief" | "appendix">("brief");
+  const [shareCopied, setShareCopied] = useState(false);
   const brief = insights.brief;
   const ev = insights.evidence;
   const metrics = Object.entries(result.metrics).filter(([, v]) => v !== null);
@@ -324,6 +326,20 @@ export function InsightsScreen({
           </Button>
           <Button variant="outline" size="sm" onClick={() => api.downloadReportPdf(run.id)}>
             <Download className="h-3.5 w-3.5" /> Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = `${window.location.origin}${window.location.pathname}#/brief/${run.id}`;
+              navigator.clipboard.writeText(url).then(
+                () => setShareCopied(true),
+                () => window.prompt("Copy this briefing link:", url),
+              );
+              setTimeout(() => setShareCopied(false), 2500);
+            }}
+          >
+            <Share2 className="h-3.5 w-3.5" /> {shareCopied ? "Link copied!" : "Share briefing"}
           </Button>
           <Button variant="outline" size="sm" onClick={onTuneAgain}>
             <SlidersHorizontal className="h-3.5 w-3.5" /> Adjust

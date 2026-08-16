@@ -16,6 +16,7 @@ import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
 import { AssemblyModal } from "./components/AssemblyModal";
+import { BriefingView } from "./components/screens/BriefingView";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
@@ -63,7 +64,21 @@ function screenForStage(stage: string): Screen {
   }
 }
 
-export default function App() {
+export default function Root() {
+  // Unlisted read-only briefing route: #/brief/{runId} renders without any
+  // analyst chrome. Everything else is the normal workbench.
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const briefMatch = hash.match(/^#\/brief\/([A-Za-z0-9]+)/);
+  if (briefMatch) return <BriefingView runId={briefMatch[1]} />;
+  return <App />;
+}
+
+function App() {
   const [screen, setScreen] = useState<Screen>("projects");
   const [project, setProject] = useState<Project | null>(null);
   const [run, setRun] = useState<Run | null>(null);
