@@ -173,6 +173,83 @@ async def score_new_data(model_id: str, version: int, file: UploadFile) -> dict:
     }
 
 
+@router.post("/models/{model_id}/{version}/drift")
+async def check_drift(model_id: str, version: int, file: UploadFile) -> dict:
+    """Compare a fresh file against a model version's training data."""
+    from engine.drift import drift_check
+    from engine.scoring import rebuild_and_score
+
+    try:
+        entry = store.get_registry_entry(model_id, version)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    train_run = store.runs.get(entry.get("run_id") or "")
+    if train_run is None or not train_run.config:
+        raise HTTPException(409, "The training run behind this version is no longer available.")
+
+    name = (file.filename or "").lower()
+    raw = await file.read()
+    try:
+        new_df = (pd.read_excel(io.BytesIO(raw)) if name.endswith((".xlsx", ".xls"))
+                  else pd.read_csv(io.BytesIO(raw)))
+    except Exception as exc:
+        raise HTTPException(400, f"Could not parse the file: {exc}") from exc
+
+    target = train_run.config.get("target")
+    # Score only when the outcome came along AND a checkpoint exists -
+    # that unlocks the performance-decay check.
+    scored = None
+    has_outcome = bool(target) and any(
+        str(c).strip().lower().replace(" ", "_") == str(target).strip().lower()
+        for c in new_df.columns
+    )
+    if has_outcome and entry.get("checkpoint_path") and Path(entry["checkpoint_path"]).exists():
+        try:
+            model = pickle.loads(Path(entry["checkpoint_path"]).read_bytes())
+            ds = store.datasets.get(train_run.dataset_id)
+            scored = rebuild_and_score(
+                new_df, entry, model, train_run.config,
+                pii_actions=(ds.pii or {}).get("actions") if ds else None,
+                pii_findings=(ds.pii or {}).get("findings") if ds else None,
+                remediation=train_run.remediation,
+                class_names=(train_run.result or {}).get("class_names"),
+            )["scored"]
+        except ValueError:
+            scored = None  # schema too broken to score; drift report still runs
+
+    try:
+        report = drift_check(entry, train_run.df, new_df, target, scored)
+    except Exception as exc:
+        raise HTTPException(400, f"Drift check failed: {exc}") from exc
+
+    narrative = report["note"]
+    generated_by = "heuristic"
+    provider = instrumented_provider()
+    if provider is not None:
+        try:
+            narrative = provider.complete_text(
+                "You explain a model drift report to a non-expert in 2-4 plain sentences: "
+                "is the incoming data still like the training data, which columns moved, "
+                "did accuracy hold, and what to do. Never invent numbers. Style rule: use "
+                "plain hyphens (-) only; never use em dashes or en dashes.",
+                f"Verdict: {report['verdict']}\nFacts: {report['note']}\n"
+                f"Shifted columns: {[c for c in report['columns'] if c['label'] != 'stable']}\n"
+                f"Decay: {report['decay']}",
+                max_tokens=300,
+            )
+            generated_by = "claude"
+        except Exception:
+            pass
+
+    store.log_event(
+        "user", "drift", dataset_id=train_run.dataset_id, project_id=entry.get("project_id"),
+        payload={"model_id": model_id, "version": version, "file": file.filename,
+                 "verdict": report["verdict"], "n_shifted": report["n_shifted"]},
+    )
+    return {**report, "narrative": narrative, "generated_by": generated_by,
+            "model_name": entry["model_name"], "version": version}
+
+
 @router.get("/artifacts/{artifact_id}/download")
 def download_artifact_csv(artifact_id: str) -> Response:
     """Any frame artifact as CSV - used for scored outputs."""

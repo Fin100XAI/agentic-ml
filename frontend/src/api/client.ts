@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -62,6 +62,15 @@ export const api = {
     request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
       `/projects/${projectId}`,
     ),
+
+  driftCheck: (modelId: string, version: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<DriftResult>(`/models/${modelId}/${version}/drift`, {
+      method: "POST",
+      body: form,
+    });
+  },
 
   scoreModel: (modelId: string, version: number, file: File) => {
     const form = new FormData();

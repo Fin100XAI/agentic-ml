@@ -116,6 +116,26 @@ export interface RunDiffResult {
   markdown: string;
 }
 
+export interface DriftResult {
+  verdict: "stable" | "drifting" | "degraded";
+  schema: { missing: string[]; renamed: { from: string; to: string }[]; extra: string[] };
+  columns: { column: string; kind: "numeric" | "categorical"; score: number; label: string }[];
+  n_shifted: number;
+  overall_shift: number;
+  decay: {
+    metric: string;
+    train: number;
+    new: number;
+    relative_change_pct: number;
+    degraded: boolean;
+  } | null;
+  note: string;
+  narrative: string;
+  generated_by: string;
+  model_name: string;
+  version: number;
+}
+
 export interface ScoreResult {
   n: number;
   reconciliation: {

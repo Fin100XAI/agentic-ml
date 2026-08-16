@@ -56,7 +56,9 @@ export function AssemblyModal({
                       <meta.icon className="h-4 w-4 text-accent" />
                       <span className="text-sm font-semibold">{meta.label}</span>
                       {p.target_filename && <Badge tone="neutral">{p.target_filename}</Badge>}
-                      {p.kind === "score_route" && <Badge tone="good">coming with the model registry</Badge>}
+                      {p.kind === "score_route" && (
+                        <Badge tone="good">use Score / Drift check on the Models table</Badge>
+                      )}
                     </span>
                     <span className="mt-1 block text-[11px] leading-snug text-ink-dim">{p.note}</span>
                   </button>

@@ -2,9 +2,10 @@
 // hash, metric summary, status, retrain action and what-changed history.
 // Nothing is ever overwritten.
 import { useEffect, useState } from "react";
-import { Boxes, History, RefreshCw, Target } from "lucide-react";
+import { Activity, Boxes, History, RefreshCw, Target } from "lucide-react";
 import { api } from "../api/client";
 import type { RegistryEntry } from "../types";
+import { DriftModal } from "./DriftModal";
 import { ScoreModal } from "./ScoreModal";
 import { Badge, Button, Card, CardBody, CardHeader } from "./ui";
 
@@ -32,6 +33,7 @@ export function ModelsPanel({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [retrainFor, setRetrainFor] = useState<RegistryEntry | null>(null);
   const [scoreFor, setScoreFor] = useState<RegistryEntry | null>(null);
+  const [driftFor, setDriftFor] = useState<RegistryEntry | null>(null);
   const [datasets, setDatasets] = useState<{ id: string; filename: string; n_rows: number }[]>([]);
 
   useEffect(() => {
@@ -125,13 +127,22 @@ export function ModelsPanel({
                               </button>
                             )}
                             {m.checkpoint_path && (m.use_case === "classification" || m.use_case === "regression") && (
-                              <button
-                                onClick={() => setScoreFor(m)}
-                                title="Score a new file with this version"
-                                className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
-                              >
-                                <Target className="h-3 w-3" />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setScoreFor(m)}
+                                  title="Score a new file with this version"
+                                  className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                >
+                                  <Target className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => setDriftFor(m)}
+                                  title="Drift check: is new data still like the training data?"
+                                  className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                >
+                                  <Activity className="h-3 w-3" />
+                                </button>
+                              </>
                             )}
                           </span>
                         </td>
@@ -193,6 +204,13 @@ export function ModelsPanel({
       </Card>
 
       {scoreFor && <ScoreModal entry={scoreFor} onClose={() => setScoreFor(null)} />}
+      {driftFor && (
+        <DriftModal
+          entry={driftFor}
+          onClose={() => setDriftFor(null)}
+          onRetrain={driftFor.status === "active" && onRetrain ? () => openRetrain(driftFor) : undefined}
+        />
+      )}
     </section>
   );
 }

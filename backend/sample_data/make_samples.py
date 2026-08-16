@@ -98,11 +98,38 @@ def loan_applicants(n: int = 300) -> pd.DataFrame:
     })
 
 
+def churn_drifted(n: int = 400) -> pd.DataFrame:
+    """Drift-monitor demo: same schema as customer_churn.csv, shifted world.
+
+    Tenure is much lower (a wave of new customers) and monthly charges are
+    higher (price rise) - and the churn mechanics changed, so a model trained
+    on the original file also loses accuracy (performance decay).
+    """
+    tenure = rng.integers(1, 24, n)                       # was 1-72
+    monthly = rng.uniform(60, 180, n).round(2)            # was 20-120
+    support_calls = rng.poisson(2, n)
+    contract = rng.choice(["month-to-month", "one-year", "two-year"], n, p=[0.7, 0.2, 0.1])
+    logit = -1.5 + 0.02 * monthly - 0.9 * (contract != "month-to-month") \
+        - 0.15 * support_calls                            # different mechanics
+    churn_flag = (rng.random(n) < 1 / (1 + np.exp(-logit))).astype(int)
+    account_status = np.where(churn_flag == 1, "closed", "active")
+    return pd.DataFrame({
+        "customer_id": [f"D{i:05d}" for i in range(n)],
+        "tenure_months": tenure,
+        "monthly_charge": monthly,
+        "support_calls": support_calls,
+        "contract_type": contract,
+        "account_status": account_status,
+        "churned": churn_flag,
+    })
+
+
 if __name__ == "__main__":
     churn().to_csv("customer_churn.csv", index=False)
+    churn_drifted().to_csv("customer_churn_drifted.csv", index=False)
     segments().to_csv("customer_segments.csv", index=False)
     sales().to_csv("weekly_sales.csv", index=False)
     house_prices().to_csv("house_prices.csv", index=False)
     loan_applicants().to_csv("loan_applicants_pii.csv", index=False)
-    print("Wrote customer_churn.csv, customer_segments.csv, weekly_sales.csv, "
-          "house_prices.csv, loan_applicants_pii.csv")
+    print("Wrote customer_churn.csv, customer_churn_drifted.csv, customer_segments.csv, "
+          "weekly_sales.csv, house_prices.csv, loan_applicants_pii.csv")
