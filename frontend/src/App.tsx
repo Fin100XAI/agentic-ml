@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Bot, BrainCircuit, Check, Home } from "lucide-react";
+import { Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -11,12 +11,13 @@ import { EdaScreen } from "./components/screens/EdaScreen";
 import { HomeScreen } from "./components/screens/HomeScreen";
 import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ReportScreen } from "./components/screens/ReportScreen";
+import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
 import type { JoinSuggestion, ModelInfo, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report";
+type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -36,6 +37,7 @@ const GUIDE: Record<Screen, string> = {
   compare:
     "Step 4 - Every method ranked on your data. Generate insights with the winner, or tune any of them.",
   report: "The full report - print it, save it as PDF, or download the markdown.",
+  activity: "Every action in order - uploads, agent calls, approvals, training and exports.",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -282,6 +284,16 @@ export default function App() {
           )}
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur transition-colors ${
+                screen === "activity"
+                  ? "border-accent/40 bg-accent-soft/40 text-accent"
+                  : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
+              }`}
+            >
+              <ScrollText className="h-3.5 w-3.5" /> Log
+            </button>
             {run && (run.agent_log?.length ?? 0) > 0 && (
               <button
                 onClick={() => setLogOpen(true)}
@@ -377,6 +389,8 @@ export default function App() {
         {screen === "report" && run && (
           <ReportScreen run={run} onBack={() => setScreen(run.insights ? "results" : "home")} />
         )}
+
+        {screen === "activity" && <ActivityScreen currentRunId={run?.id} />}
 
         {screen === "results" &&
           run?.result &&

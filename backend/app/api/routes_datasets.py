@@ -83,6 +83,14 @@ async def upload_dataset(
         raise HTTPException(400, "The file appears to be empty.")
 
     ds = store.add_dataset(df, display_name)
+    store.log_event(
+        "user", "file_upload", dataset_id=ds.id,
+        payload={
+            "filename": display_name, "rows": int(df.shape[0]), "cols": int(df.shape[1]),
+            **({"sheet": sheet} if sheet else {}),
+            **({"join": json.loads(join)} if join else {}),
+        },
+    )
     return {
         "dataset_id": ds.id,
         "filename": ds.filename,

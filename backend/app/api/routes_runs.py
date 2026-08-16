@@ -14,22 +14,24 @@ from app.schemas import (
     StartRunRequest,
 )
 from app.store import store
+from app.telemetry import instrumented_orchestrator, instrumented_provider, set_run_context
 from engine.agents import run_ask_agent
-from engine.llm import get_provider
 from engine.orchestrator import Orchestrator, Run
 
 router = APIRouter()
 
 
 def _orchestrator() -> Orchestrator:
-    return Orchestrator(get_provider())
+    return instrumented_orchestrator()
 
 
 def _get_run(run_id: str) -> Run:
     try:
-        return store.get_run(run_id)
+        run = store.get_run(run_id)
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
+    set_run_context(run)
+    return run
 
 
 # Sync endpoints on purpose: FastAPI runs them in a threadpool, so model
@@ -43,6 +45,7 @@ def start_run(req: StartRunRequest) -> dict:
         raise HTTPException(404, str(exc)) from exc
     run = Run(dataset_id=ds.id, df=ds.df, filename=ds.filename)
     store.add_run(run)
+    set_run_context(run)
     _orchestrator().start(run, req.question)
     store.save_run(run)
     return run.to_dict()
@@ -71,14 +74,21 @@ def get_run(run_id: str) -> dict:
 
 @router.get("/runs/{run_id}/report", response_class=PlainTextResponse)
 def get_report(run_id: str) -> str:
-    return build_report(_get_run(run_id))
+    run = _get_run(run_id)
+    report = build_report(run)
+    store.log_event("user", "export", run_id=run.id, dataset_id=run.dataset_id,
+                    payload={"format": "markdown", "bytes": len(report)})
+    return report
 
 
 @router.get("/runs/{run_id}/report.pdf")
 def get_report_pdf(run_id: str) -> Response:
     run = _get_run(run_id)
+    pdf = build_report_pdf(run)
+    store.log_event("user", "export", run_id=run.id, dataset_id=run.dataset_id,
+                    payload={"format": "pdf", "bytes": len(pdf)})
     return Response(
-        content=build_report_pdf(run),
+        content=pdf,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="decision_brief_{run.id}.pdf"'},
     )
@@ -137,7 +147,13 @@ def ask(run_id: str, req: AskRequest) -> dict:
     run = _get_run(run_id)
     if not req.question.strip():
         raise HTTPException(400, "Please enter a question.")
-    return run_ask_agent(get_provider(), run.to_dict(), req.question, req.history)
+    answer = run_ask_agent(instrumented_provider(), run.to_dict(), req.question, req.history)
+    store.log_event(
+        "Ask-the-data agent", "agent_call", run_id=run.id, dataset_id=run.dataset_id,
+        mode="llm" if answer.get("generated_by") == "claude" else "fallback",
+        payload={"question": req.question[:300]},
+    )
+    return answer
 
 
 @router.post("/runs/{run_id}/approve-config")

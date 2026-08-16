@@ -6,6 +6,23 @@ export interface SheetInfo {
   n_cols: number;
 }
 
+export interface ActivityEvent {
+  id: number;
+  ts: string;
+  actor: string;
+  event_type: string;
+  dataset_id?: string | null;
+  artifact_id?: string | null;
+  run_id?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  latency_ms?: number | null;
+  mode?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
 export interface JoinSuggestion {
   left: string;
   right: string;

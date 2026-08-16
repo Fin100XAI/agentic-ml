@@ -1,4 +1,4 @@
-import type { ModelInfo, Run, RunSummary, UploadResponse } from "../types";
+import type { ActivityEvent, ModelInfo, Run, RunSummary, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -73,6 +73,20 @@ export const api = {
     ),
 
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
+
+  getActivity: (params: { run_id?: string; event_type?: string; limit?: number }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
+    );
+    return request<{ events: ActivityEvent[] }>(`/activity?${qs}`);
+  },
+
+  activityCsvUrl: (params: { run_id?: string; event_type?: string }) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
+    );
+    return `${BASE}/activity.csv?${qs}`;
+  },
 
   downloadReport: (id: string, filename: string) =>
     downloadFile(`/runs/${id}/report`, filename),

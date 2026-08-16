@@ -141,21 +141,42 @@ class Orchestrator:
 
     def __init__(self, provider: LLMProvider | None) -> None:
         self.provider = provider
+        # Optional app-layer hook (run, event_dict) -> None feeding the unified
+        # activity log. The engine works identically without it.
+        self.on_event: Any = None
 
-    @staticmethod
+    def _emit(self, run: Run, event_type: str, actor: str, payload: dict[str, Any],
+              mode: str | None = None, latency_ms: int | None = None) -> None:
+        if self.on_event is None:
+            return
+        try:
+            self.on_event(run, {
+                "event_type": event_type, "actor": actor, "payload": payload,
+                "mode": mode, "latency_ms": latency_ms,
+            })
+        except Exception:
+            pass  # logging must never break the pipeline
+
     def _log(
-        run: Run, agent: str, action: str, decision: str, reasoning: str,
+        self, run: Run, agent: str, action: str, decision: str, reasoning: str,
         generated_by: str, started: float,
     ) -> None:
+        duration_ms = int((time.time() - started) * 1000)
         run.agent_log.append({
             "agent": agent,
             "action": action,
             "decision": decision,
             "reasoning": reasoning,
             "generated_by": generated_by,
-            "duration_ms": int((time.time() - started) * 1000),
+            "duration_ms": duration_ms,
             "timestamp": _now(),
         })
+        self._emit(
+            run, "agent_call", agent,
+            {"action": action, "decision": decision[:500]},
+            mode="llm" if generated_by == "claude" else "fallback",
+            latency_ms=duration_ms,
+        )
 
     # -- Stage 1a: profile (fast, deterministic) -------------------------------
     def start(self, run: Run, question: str) -> Run:
@@ -222,6 +243,7 @@ class Orchestrator:
             node.human_input = {"comment": comment}
         if comment:
             run.question = comment
+        self._emit(run, "approval", "user", {"gate": "direction", "comment": comment})
 
         rec_node = DecisionNode(stage="recommend", title="Model recommendation")
         run.decisions.append(rec_node)
@@ -333,6 +355,10 @@ class Orchestrator:
         )
         run.decisions.append(node)
         run.stage = "configure"
+        self._emit(run, "approval", "user", {
+            "gate": "config", "model": model_key,
+            "engineered_features": [s["label"] for s in chosen],
+        })
         return run
 
     # -- Stage: execute ---------------------------------------------------------
@@ -365,10 +391,14 @@ class Orchestrator:
             self._run_stability_check(run)
             run.stage = "execute"
             run.error = None
+            self._emit(run, "train", "system", {
+                "model": run.config["model_key"], "metrics": run.result["metrics"],
+            })
         except Exception as exc:
             node.status = "error"
             node.detail = str(exc)
             run.error = str(exc)
+            self._emit(run, "error", "system", {"stage": "execute", "error": str(exc)[:500]})
             return run
 
         # Interpretation + insight extraction run automatically after execution.
