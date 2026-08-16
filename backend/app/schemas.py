@@ -22,6 +22,7 @@ class ApproveConfigRequest(BaseModel):
     features: list[str] | None = None
     time_column: str | None = None
     feature_ids: list[str] | None = None  # approved engineered-feature ids
+    excluded_columns: list[str] | None = None  # leakage-sentinel exclusions
 
 
 class CompareRequest(BaseModel):

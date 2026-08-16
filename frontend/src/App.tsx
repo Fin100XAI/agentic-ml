@@ -225,6 +225,7 @@ export default function App() {
     target: string | null;
     time_column: string | null;
     feature_ids?: string[];
+    excluded_columns?: string[];
   }) =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
@@ -435,6 +436,7 @@ export default function App() {
             models={models}
             initialModelKey={preferredModel}
             featureSuggestions={run.feature_suggestions}
+            leakageFlags={run.leakage?.flags}
             onRun={handleRunModel}
             onCompare={handleCompare}
             onAutotune={handleAutotune}

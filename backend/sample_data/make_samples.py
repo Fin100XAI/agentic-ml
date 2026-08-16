@@ -16,12 +16,16 @@ def churn(n: int = 800) -> pd.DataFrame:
     logit = -2.5 + 0.03 * (72 - tenure) + 0.015 * monthly + 0.35 * support_calls \
         - 1.2 * (contract != "month-to-month")
     churn_flag = (rng.random(n) < 1 / (1 + np.exp(-logit))).astype(int)
+    # Deliberately leaky column for the leakage sentinel: it IS the outcome,
+    # written after the fact - exactly what a real export often contains.
+    account_status = np.where(churn_flag == 1, "closed", "active")
     return pd.DataFrame({
         "customer_id": [f"C{i:05d}" for i in range(n)],
         "tenure_months": tenure,
         "monthly_charge": monthly,
         "support_calls": support_calls,
         "contract_type": contract,
+        "account_status": account_status,
         "churned": churn_flag,
     })
 

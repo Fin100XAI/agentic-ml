@@ -31,6 +31,7 @@ from engine.autotune import autotune as run_autotune_sweep
 from engine.catalog import get_model, models_for_use_case
 from engine.features import apply_features, propose_features
 from engine.health import assess_health
+from engine.leakage import screen_leakage
 from engine.remediation import apply_fixes, propose_fixes
 from engine.insights import build_insights, _original_column
 from engine.llm.base import LLMProvider
@@ -97,6 +98,7 @@ class Run:
     feature_suggestions: list[dict[str, Any]] | None = None
     artifact_id: str | None = None  # the data artifact this run trained on
     remediation: dict[str, Any] | None = None  # {"status", "proposals", "applied_ids"}
+    leakage: dict[str, Any] | None = None  # {"target", "flags": [...]}
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -139,6 +141,7 @@ class Run:
                 feature_suggestions=self.feature_suggestions,
                 artifact_id=self.artifact_id,
                 remediation=self.remediation,
+                leakage=self.leakage,
             )
         return d
 
@@ -353,6 +356,22 @@ class Orchestrator:
                 " ".join(v["rationale"] for v in list(cfgs.values())[:2]),
                 "deterministic", started,
             )
+            # Leakage sentinel (non-fatal): flags columns the human must judge.
+            try:
+                started = time.time()
+                tgt = run.recommendation.get("target")
+                flags = screen_leakage(run.df, tgt, run.recommendation["use_case"]) if tgt else []
+                run.leakage = {"target": tgt, "flags": flags}
+                if flags:
+                    self._log(
+                        run, "Leakage sentinel", "Flagged possible answer-leak columns",
+                        "; ".join(f"{f['column']} ({f['severity']})" for f in flags),
+                        "Each flag asks: would you know this at prediction time? Excluded columns are dropped at training only.",
+                        "deterministic", started,
+                    )
+            except Exception:
+                run.leakage = {"target": None, "flags": []}
+
             # Agent-proposed feature engineering (non-fatal, human approves later).
             try:
                 started = time.time()
@@ -398,6 +417,7 @@ class Orchestrator:
         features: list[str] | None,
         time_column: str | None,
         feature_ids: list[str] | None = None,
+        excluded_columns: list[str] | None = None,
     ) -> Run:
         model = get_model(model_key)  # raises KeyError on bad key
         coerced = model.coerce_hyperparams(hyperparams)
@@ -405,6 +425,7 @@ class Orchestrator:
             s for s in (run.feature_suggestions or [])
             if s["id"] in set(feature_ids or [])
         ]
+        excluded = [c for c in (excluded_columns or []) if c in run.df.columns and c != target]
         run.config = {
             "model_key": model_key,
             "model_name": model.name,
@@ -414,7 +435,14 @@ class Orchestrator:
             "features": features,
             "time_column": time_column,
             "engineered": chosen,
+            "excluded": excluded,
         }
+        # Leakage decisions: excluded columns approved out; flagged-but-kept logged.
+        flagged = {f["column"] for f in (run.leakage or {}).get("flags", [])}
+        for col in flagged - set(excluded):
+            self._emit(run, "decline", "user", {
+                "gate": "leakage", "column": col, "note": "kept despite the sentinel flag",
+            })
         rec_node = run.node("recommend")
         if rec_node and rec_node.status == "proposed":
             rec_node.status = "approved"
@@ -438,6 +466,7 @@ class Orchestrator:
         self._emit(run, "approval", "user", {
             "gate": "config", "model": model_key,
             "engineered_features": [s["label"] for s in chosen],
+            "excluded_columns": excluded,
         })
         return run
 
@@ -452,6 +481,10 @@ class Orchestrator:
             model = get_model(run.config["model_key"])
             engineered = run.config.get("engineered") or []
             df_run = apply_features(run.df, engineered)
+            # Leakage exclusions apply at train time only - the artifact keeps them.
+            excluded = run.config.get("excluded") or []
+            if excluded:
+                df_run = df_run.drop(columns=excluded, errors="ignore")
             if engineered and self.on_artifact is not None:
                 try:
                     run.artifact_id = self.on_artifact(
@@ -502,6 +535,7 @@ class Orchestrator:
         try:
             started = time.time()
             df_run = apply_features(run.df, run.config.get("engineered") or [])
+            df_run = df_run.drop(columns=run.config.get("excluded") or [], errors="ignore")
             val = stability_check(df_run, run.config, run.result["metrics"])
         except Exception:
             return

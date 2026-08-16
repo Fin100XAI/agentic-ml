@@ -63,6 +63,17 @@ export interface Remediation {
   applied_ids?: string[];
 }
 
+export interface LeakageFlag {
+  column: string;
+  reasons: string[];
+  association: number | null;
+  severity: "warn" | "critical";
+  question: string;
+  detail: string;
+  single_feature_score?: number | null;
+  full_score?: number | null;
+}
+
 export interface PiiFinding {
   column: string;
   kind: string;
@@ -392,4 +403,5 @@ export interface Run {
   feature_suggestions?: FeatureSuggestion[] | null;
   artifact_id?: string | null;
   remediation?: Remediation | null;
+  leakage?: { target: string | null; flags: LeakageFlag[] } | null;
 }

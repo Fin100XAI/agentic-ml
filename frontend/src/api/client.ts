@@ -55,6 +55,7 @@ export const api = {
       features: string[] | null;
       time_column: string | null;
       feature_ids?: string[] | null;
+      excluded_columns?: string[] | null;
     },
   ) => request<Run>(`/runs/${id}/approve-config`, json(body)),
 

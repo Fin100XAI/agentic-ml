@@ -182,7 +182,7 @@ def approve_config(run_id: str, req: ApproveConfigRequest) -> dict:
     try:
         _orchestrator().approve_config(
             run, req.model_key, req.hyperparams, req.target, req.features,
-            req.time_column, req.feature_ids,
+            req.time_column, req.feature_ids, req.excluded_columns,
         )
     except KeyError as exc:
         raise HTTPException(400, str(exc)) from exc

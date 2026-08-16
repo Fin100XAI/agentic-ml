@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Clock3, FlaskConical, GitCompare, Play, Settings2, Sparkles, Undo2 } from "lucide-react";
-import type { FeatureSuggestion, ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
+import { Bot, Clock3, FlaskConical, GitCompare, Play, Settings2, ShieldAlert, Sparkles, Undo2 } from "lucide-react";
+import type { FeatureSuggestion, LeakageFlag, ModelInfo, ParamSpec, Profile, Recommendation } from "../../types";
 import { eta } from "../../lib/eta";
 import { BusyStatus } from "../Elapsed";
 import { InfoTip } from "../InfoTip";
@@ -127,6 +127,7 @@ export function ConfigureScreen({
   models,
   initialModelKey,
   featureSuggestions,
+  leakageFlags,
   onRun,
   onCompare,
   onAutotune,
@@ -139,12 +140,14 @@ export function ConfigureScreen({
   models: ModelInfo[];
   initialModelKey?: string;
   featureSuggestions?: FeatureSuggestion[] | null;
+  leakageFlags?: LeakageFlag[] | null;
   onRun: (config: {
     model_key: string;
     hyperparams: Record<string, unknown>;
     target: string | null;
     time_column: string | null;
     feature_ids: string[];
+    excluded_columns: string[];
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
   onAutotune: (target: string | null, time_column: string | null, nCandidates?: number) => void;
@@ -182,6 +185,17 @@ export function ConfigureScreen({
   const [featureIds, setFeatureIds] = useState<Set<string>>(
     () => new Set((featureSuggestions ?? []).filter((f) => f.recommended).map((f) => f.id)),
   );
+  // Leakage sentinel: critical flags start excluded; warns start kept.
+  const [excludedCols, setExcludedCols] = useState<Set<string>>(
+    () => new Set((leakageFlags ?? []).filter((f) => f.severity === "critical").map((f) => f.column)),
+  );
+  const toggleExcluded = (col: string) =>
+    setExcludedCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
   const toggleFeature = (id: string) =>
     setFeatureIds((prev) => {
       const next = new Set(prev);
@@ -278,6 +292,7 @@ export function ConfigureScreen({
                 target,
                 time_column: timeColumn,
                 feature_ids: [...featureIds],
+                excluded_columns: [...excludedCols],
               })
             }
           />
@@ -323,6 +338,74 @@ export function ConfigureScreen({
             onAction={() => onCompare(target, timeColumn)}
           />
         </div>
+      )}
+
+      {/* Leakage sentinel: columns that may not exist at prediction time */}
+      {!busy && leakageFlags && leakageFlags.length > 0 && (
+        <Card className="border-bad/30">
+          <CardHeader
+            title={
+              <span className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-bad" /> Answer-leak check
+              </span>
+            }
+            subtitle="These columns look like they contain the answer itself, or would not exist yet when you actually need a prediction. Excluded columns are left out of training only - your data is unchanged."
+          />
+          <CardBody className="space-y-2">
+            {leakageFlags.map((f) => {
+              const excluded = excludedCols.has(f.column);
+              return (
+                <div
+                  key={f.column}
+                  className={`rounded-xl border px-4 py-2.5 ${
+                    excluded ? "border-edge bg-panel-2 opacity-80" : "border-bad/40 bg-bad/5"
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold">{f.column}</span>
+                      <Badge tone={f.severity === "critical" ? "bad" : "warn"}>
+                        {f.severity === "critical" ? "almost certainly leaks" : "worth a look"}
+                      </Badge>
+                      {f.association != null && (
+                        <span className="text-[10px] tabular-nums text-ink-dim">
+                          association {f.association}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => excluded && toggleExcluded(f.column)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                          !excluded
+                            ? "border-warn/50 bg-warn/10 font-medium text-warn"
+                            : "border-edge bg-white/50 text-ink-dim"
+                        }`}
+                      >
+                        keep
+                      </button>
+                      <button
+                        onClick={() => !excluded && toggleExcluded(f.column)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                          excluded
+                            ? "border-good/50 bg-good/10 font-medium text-good"
+                            : "border-edge bg-white/50 text-ink-dim"
+                        }`}
+                      >
+                        exclude
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs font-medium">{f.question}</p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-ink-dim">{f.detail}</p>
+                </div>
+              );
+            })}
+            <p className="text-[10px] text-ink-dim">
+              {excludedCols.size} column{excludedCols.size !== 1 ? "s" : ""} will be excluded from training.
+            </p>
+          </CardBody>
+        </Card>
       )}
 
       {/* Agent-proposed engineered features - optional, human ticks them */}
@@ -519,6 +602,7 @@ export function ConfigureScreen({
                         target,
                         time_column: timeColumn,
                         feature_ids: [...featureIds],
+                        excluded_columns: [...excludedCols],
                       })
                     }
                   >
