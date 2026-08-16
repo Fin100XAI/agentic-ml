@@ -51,7 +51,20 @@ def instrumented_provider():
     return provider
 
 
+def _on_artifact(run: Run, df, transform_type: str, params: dict[str, Any]) -> str:
+    """Materialize a derived artifact for a run-time transformation."""
+    parent = run.artifact_id
+    if parent is None:
+        ds = store.datasets.get(run.dataset_id)
+        parent = ds.artifact_id if ds else None
+    art = store.add_derived_artifact(
+        df, [parent] if parent else [], transform_type, params
+    )
+    return art.id
+
+
 def instrumented_orchestrator() -> Orchestrator:
     orch = Orchestrator(instrumented_provider())
     orch.on_event = _on_orchestrator_event
+    orch.on_artifact = _on_artifact
     return orch

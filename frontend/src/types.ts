@@ -6,6 +6,17 @@ export interface SheetInfo {
   n_cols: number;
 }
 
+export interface ArtifactInfo {
+  id: string;
+  kind: "original" | "derived";
+  parent_ids: string[];
+  transform_type: string;
+  transform_params: Record<string, unknown>;
+  sha256: string;
+  created_at: string;
+  file_path: string;
+}
+
 export interface ActivityEvent {
   id: number;
   ts: string;
@@ -347,4 +358,5 @@ export interface Run {
   comparison: Comparison | null;
   autotune: Autotune | null;
   feature_suggestions?: FeatureSuggestion[] | null;
+  artifact_id?: string | null;
 }

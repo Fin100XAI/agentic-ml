@@ -1,4 +1,4 @@
-import type { ActivityEvent, ModelInfo, Run, RunSummary, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, ModelInfo, Run, RunSummary, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -73,6 +73,9 @@ export const api = {
     ),
 
   listRuns: () => request<{ runs: RunSummary[] }>("/runs"),
+
+  getLineage: (artifactId: string) =>
+    request<{ lineage: ArtifactInfo[] }>(`/artifacts/${artifactId}/lineage`),
 
   getActivity: (params: { run_id?: string; event_type?: string; limit?: number }) => {
     const qs = new URLSearchParams(

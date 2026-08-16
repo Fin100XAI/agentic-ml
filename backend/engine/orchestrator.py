@@ -92,6 +92,7 @@ class Run:
     comparison: dict[str, Any] | None = None
     autotune: dict[str, Any] | None = None
     feature_suggestions: list[dict[str, Any]] | None = None
+    artifact_id: str | None = None  # the data artifact this run trained on
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -132,6 +133,7 @@ class Run:
                 comparison=self.comparison,
                 autotune=self.autotune,
                 feature_suggestions=self.feature_suggestions,
+                artifact_id=self.artifact_id,
             )
         return d
 
@@ -144,6 +146,9 @@ class Orchestrator:
         # Optional app-layer hook (run, event_dict) -> None feeding the unified
         # activity log. The engine works identically without it.
         self.on_event: Any = None
+        # Optional app-layer hook (run, df, transform_type, params) -> artifact_id
+        # materializing a derived data artifact. None = no artifact ledger.
+        self.on_artifact: Any = None
 
     def _emit(self, run: Run, event_type: str, actor: str, payload: dict[str, Any],
               mode: str | None = None, latency_ms: int | None = None) -> None:
@@ -370,7 +375,16 @@ class Orchestrator:
         try:
             started = time.time()
             model = get_model(run.config["model_key"])
-            df_run = apply_features(run.df, run.config.get("engineered") or [])
+            engineered = run.config.get("engineered") or []
+            df_run = apply_features(run.df, engineered)
+            if engineered and self.on_artifact is not None:
+                try:
+                    run.artifact_id = self.on_artifact(
+                        run, df_run, "feature_eng",
+                        {"features": [s["id"] for s in engineered]},
+                    )
+                except Exception:
+                    pass  # the ledger must never block training
             run.result = model.run(
                 df_run,
                 run.config["hyperparams"],

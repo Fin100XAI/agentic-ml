@@ -29,6 +29,7 @@ import {
 import type { Driver, Insights, Interpretation, Run, RunResult, Segment, Validation } from "../../types";
 import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
+import { LineageBreadcrumb } from "../LineageBreadcrumb";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
 import { ClassDistributionChart, ClusterScatter, ForecastChart, ResultCharts } from "../charts";
@@ -315,6 +316,8 @@ export function InsightsScreen({
           </Button>
         </div>
       </div>
+
+      {run.artifact_id && <LineageBreadcrumb artifactId={run.artifact_id} />}
 
       {tab === "brief" ? (
         <>

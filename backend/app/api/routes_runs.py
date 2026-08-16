@@ -44,6 +44,7 @@ def start_run(req: StartRunRequest) -> dict:
     except KeyError as exc:
         raise HTTPException(404, str(exc)) from exc
     run = Run(dataset_id=ds.id, df=ds.df, filename=ds.filename)
+    run.artifact_id = ds.artifact_id  # lineage starts at the dataset's table artifact
     store.add_run(run)
     set_run_context(run)
     _orchestrator().start(run, req.question)

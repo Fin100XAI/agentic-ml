@@ -1,8 +1,9 @@
-"""Dataset endpoints: upload CSV/Excel, list models."""
+"""Dataset endpoints: upload CSV/Excel, list models, artifact lineage."""
 from __future__ import annotations
 
 import io
 import json
+from pathlib import Path
 
 import pandas as pd
 from fastapi import APIRouter, Form, HTTPException, UploadFile
@@ -30,6 +31,9 @@ async def upload_dataset(
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File exceeds the 50 MB POC limit.")
 
+    table_params: dict = {}
+    transform_type = "upload"
+
     if name.endswith(EXCEL_EXT):
         try:
             book = pd.read_excel(io.BytesIO(raw), sheet_name=None)
@@ -51,6 +55,7 @@ async def upload_dataset(
             except (KeyError, json.JSONDecodeError) as exc:
                 raise HTTPException(400, f"Invalid join spec: {exc}") from exc
             display_name = f"{file.filename} [{spec['left']}+{spec['right']}]"
+            transform_type, table_params = "join", spec
         elif sheet is None and len(book) > 1:
             # Multiple sheets: ask the human, with the join scout's proposal if any.
             try:
@@ -72,6 +77,8 @@ async def upload_dataset(
                 raise HTTPException(400, f"Sheet '{chosen}' not found in the workbook.")
             df = book[chosen]
             display_name = f"{file.filename} [{chosen}]" if len(book) > 1 else (file.filename or chosen)
+            if len(book) > 1:
+                table_params = {"sheet": chosen}
     else:
         try:
             df = pd.read_csv(io.BytesIO(raw))
@@ -82,11 +89,17 @@ async def upload_dataset(
     if df.empty or df.shape[1] == 0:
         raise HTTPException(400, "The file appears to be empty.")
 
-    ds = store.add_dataset(df, display_name)
+    # Immutable ledger: the raw file is stored read-only; the analyzed table
+    # is a derived artifact pointing back at it. The original never changes.
+    ext = Path(name).suffix or ".bin"
+    original = store.add_original_artifact(raw, ext)
+    table = store.add_derived_artifact(df, [original.id], transform_type, table_params)
+    ds = store.add_dataset(df, display_name, artifact_id=table.id)
     store.log_event(
-        "user", "file_upload", dataset_id=ds.id,
+        "user", "file_upload", dataset_id=ds.id, artifact_id=original.id,
         payload={
             "filename": display_name, "rows": int(df.shape[0]), "cols": int(df.shape[1]),
+            "sha256": original.sha256,
             **({"sheet": sheet} if sheet else {}),
             **({"join": json.loads(join)} if join else {}),
         },
@@ -103,3 +116,14 @@ async def upload_dataset(
 @router.get("/models")
 def list_models() -> dict:
     return {"models": [m.to_dict() for m in all_models()]}
+
+
+@router.get("/artifacts/{artifact_id}/lineage")
+def get_lineage(artifact_id: str) -> dict:
+    try:
+        chain = store.lineage(artifact_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    if not chain:
+        raise HTTPException(404, f"Unknown artifact: {artifact_id}")
+    return {"lineage": [a.to_dict() for a in chain]}

@@ -9,6 +9,7 @@ import {
 import type { Run } from "../../types";
 import { metricInfo } from "../../lib/metricInfo";
 import { api } from "../../api/client";
+import { LineageBreadcrumb } from "../LineageBreadcrumb";
 import { ResultCharts } from "../charts";
 import { Badge, Button, Card, CardBody } from "../ui";
 
@@ -69,6 +70,11 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
             <Badge tone={EVIDENCE_TONE[ev.level]}>evidence: {ev.level}</Badge>
           )}
         </div>
+        {run.artifact_id && (
+          <div className="mt-2">
+            <LineageBreadcrumb artifactId={run.artifact_id} />
+          </div>
+        )}
       </div>
 
       {/* Executive summary */}
