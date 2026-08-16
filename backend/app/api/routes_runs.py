@@ -15,7 +15,11 @@ from app.schemas import (
     StartRunRequest,
 )
 from app.store import store
-from app.telemetry import instrumented_orchestrator, instrumented_provider, set_run_context
+from app.telemetry import (
+    instrumented_orchestrator,
+    instrumented_provider,
+    set_run_context,
+)
 from engine.agents import run_ask_agent
 from engine.orchestrator import Orchestrator, Run
 
@@ -175,6 +179,54 @@ def autotune(run_id: str, req: CompareRequest) -> dict:
         raise HTTPException(409, str(exc)) from exc
     store.save_run(run)
     return run.to_dict()
+
+
+@router.post("/runs/diff")
+def diff_two_runs(req: dict) -> dict:
+    """Compare two completed runs of the same use case."""
+    from engine.rundiff import diff_runs, narrative_template, to_markdown
+
+    try:
+        run_a = store.get_run(str(req.get("run_a", "")))
+        run_b = store.get_run(str(req.get("run_b", "")))
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    for r in (run_a, run_b):
+        if not r.result or not r.insights:
+            raise HTTPException(409, f"Run {r.id} has no completed results to compare.")
+    if (run_a.config or {}).get("use_case") != (run_b.config or {}).get("use_case"):
+        raise HTTPException(409, "These analyses answer different kinds of questions "
+                                 f"({(run_a.config or {}).get('use_case')} vs "
+                                 f"{(run_b.config or {}).get('use_case')}) - pick two of the same kind.")
+
+    diff = diff_runs(run_a, run_b)
+    narrative = narrative_template(diff)
+    generated_by = "heuristic"
+    provider = instrumented_provider()
+    if provider is not None:
+        try:
+            narrative = provider.complete_text(
+                "You explain the difference between two analyses to a policy maker in "
+                "3-5 plain sentences: what changed in the data, the approach, the "
+                "results, and what that means for decisions. Never invent numbers - "
+                "only use the facts given. Style rule: use plain hyphens (-) only; "
+                "never use em dashes or en dashes.",
+                f"Computed deltas: {diff}\nDeterministic summary: {narrative}",
+                max_tokens=400,
+            )
+            generated_by = "claude"
+        except Exception:
+            pass
+    store.log_event(
+        "user", "export", run_id=run_b.id, dataset_id=run_b.dataset_id,
+        payload={"format": "run_diff", "against": run_a.id},
+    )
+    return {
+        "diff": diff,
+        "narrative": narrative,
+        "generated_by": generated_by,
+        "markdown": to_markdown(diff, narrative),
+    }
 
 
 @router.post("/runs/{run_id}/ask")

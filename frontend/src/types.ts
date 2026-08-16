@@ -86,6 +86,36 @@ export interface RegistryEntry {
   } | null;
 }
 
+export interface RunDiffResult {
+  diff: {
+    use_case: string;
+    a: { run_id: string; filename: string; question: string; created_at: string; trust_tier?: string };
+    b: { run_id: string; filename: string; question: string; created_at: string; trust_tier?: string };
+    data: {
+      rows: [number, number];
+      period_a: [string, string] | null;
+      period_b: [string, string] | null;
+      drift: { column: string; psi: number; label: string }[];
+    };
+    settings: {
+      model: [string | null, string | null];
+      target: [string | null, string | null];
+      hyperparams: Record<string, [unknown, unknown]>;
+      excluded: [string[], string[]];
+      engineered: [string[], string[]];
+    };
+    metrics: Record<string, { a: number; b: number; delta: number }>;
+    findings: {
+      drivers: { a: string[]; b: string[]; entered: string[]; dropped: string[]; top_changed: boolean };
+      segments?: { a: number; b: number };
+      direction?: { a: string | null; b: string | null };
+    };
+  };
+  narrative: string;
+  generated_by: string;
+  markdown: string;
+}
+
 export interface ScoreResult {
   n: number;
   reconciliation: {

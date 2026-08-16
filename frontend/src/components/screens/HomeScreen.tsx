@@ -1,10 +1,12 @@
 // Landing screen: what the platform can do, its agents, models, and past runs.
+import { useState } from "react";
 import {
   ArrowRight,
   BarChart3,
   Bot,
   FileUp,
   GitCompare,
+  GitCompareArrows,
   Play,
   Search,
   Settings2,
@@ -15,6 +17,7 @@ import type { ModelInfo, RegistryEntry, RunSummary } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
 import { GlossaryManager } from "../GlossaryManager";
 import { ModelsPanel } from "../ModelsPanel";
+import { RunDiffModal } from "../RunDiffModal";
 import { Badge, Button, Card, CardBody } from "../ui";
 
 const AGENTS = [
@@ -82,6 +85,10 @@ export function HomeScreen({
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
 }) {
   const useCases = ["classification", "regression", "clustering", "forecasting"];
+  const completedRuns = recentRuns.filter((r) => r.stage === "interpret" || r.stage === "compare");
+  const [diffA, setDiffA] = useState("");
+  const [diffB, setDiffB] = useState("");
+  const [diffOpen, setDiffOpen] = useState(false);
 
   return (
     <div className="space-y-10">
@@ -199,9 +206,46 @@ export function HomeScreen({
       {/* Recent runs */}
       {recentRuns.length > 0 && (
         <section>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
-            This session's analyses
-          </h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">
+              This session's analyses
+            </h3>
+            {completedRuns.length >= 2 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-dim">
+                <GitCompareArrows className="h-3.5 w-3.5" />
+                Compare
+                <select
+                  value={diffA}
+                  onChange={(e) => setDiffA(e.target.value)}
+                  className="max-w-40 rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px]"
+                >
+                  <option value="">earlier run…</option>
+                  {completedRuns.map((r) => (
+                    <option key={r.id} value={r.id}>{r.filename.slice(0, 28)} · {r.id.slice(0, 6)}</option>
+                  ))}
+                </select>
+                <span>vs</span>
+                <select
+                  value={diffB}
+                  onChange={(e) => setDiffB(e.target.value)}
+                  className="max-w-40 rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px]"
+                >
+                  <option value="">later run…</option>
+                  {completedRuns.map((r) => (
+                    <option key={r.id} value={r.id}>{r.filename.slice(0, 28)} · {r.id.slice(0, 6)}</option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!diffA || !diffB || diffA === diffB}
+                  onClick={() => setDiffOpen(true)}
+                >
+                  What changed?
+                </Button>
+              </div>
+            )}
+          </div>
           <Card>
             <CardBody className="divide-y divide-edge/60 p-0">
               {recentRuns.map((r) => (
@@ -227,6 +271,10 @@ export function HomeScreen({
             </CardBody>
           </Card>
         </section>
+      )}
+
+      {diffOpen && diffA && diffB && (
+        <RunDiffModal runA={diffA} runB={diffB} onClose={() => setDiffOpen(false)} />
       )}
     </div>
   );

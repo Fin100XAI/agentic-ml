@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunSummary, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -27,6 +27,9 @@ export const api = {
   health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
 
   listProjects: () => request<{ projects: Project[] }>("/projects"),
+
+  diffRuns: (runA: string, runB: string) =>
+    request<RunDiffResult>("/runs/diff", json({ run_a: runA, run_b: runB })),
 
   getGlossary: (projectId: string) =>
     request<{ entries: { term: string; definition: string }[] }>(`/projects/${projectId}/glossary`),
