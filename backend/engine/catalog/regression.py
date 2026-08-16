@@ -82,6 +82,12 @@ def _evaluate_regressor(
         "artifacts": artifacts,
         "features_used": [str(c) for c in X.columns],
         "fitted_model": model,  # popped by the orchestrator before serialization
+        # Held-out predictions for slice analysis; popped before serialization.
+        "eval_rows": {
+            "index": list(X_test.index),
+            "y_true": [round(float(v), 4) for v in y_test],
+            "y_pred": [round(float(v), 4) for v in pred],
+        },
     }
 
 

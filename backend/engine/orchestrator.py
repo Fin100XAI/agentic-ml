@@ -34,6 +34,7 @@ from engine.features import apply_features, propose_features
 from engine.health import assess_health
 from engine.leakage import screen_leakage
 from engine.remediation import apply_fixes, propose_fixes
+from engine.slices import slice_scan
 from engine.insights import build_insights, trust_tier, _original_column
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
@@ -507,6 +508,26 @@ class Orchestrator:
                 time_column=run.config.get("time_column"),
             )
             self._add_display_labels(run)
+            # Slice scan: where is the model materially worse? (non-fatal)
+            eval_rows = run.result.pop("eval_rows", None)
+            if eval_rows and run.config.get("target"):
+                try:
+                    started_s = time.time()
+                    sl = slice_scan(
+                        df_run, run.config["target"], run.config["use_case"],
+                        eval_rows["index"], eval_rows["y_true"], eval_rows["y_pred"],
+                    )
+                    if sl:
+                        run.result["slices"] = sl
+                        if sl["red_groups"]:
+                            self._log(
+                                run, "Slice scanner", "Found groups the model serves worse",
+                                "; ".join(sl["red_groups"][:4]),
+                                f"Overall {sl['metric']} {sl['overall']}; red groups fall clearly below it.",
+                                "deterministic", started_s,
+                            )
+                except Exception:
+                    pass
             # The fitted estimator never enters the JSON payload; the registry
             # hook checkpoints it (classification/regression) when attached.
             fitted = run.result.pop("fitted_model", None)
@@ -628,6 +649,14 @@ class Orchestrator:
             for issue in health.get("issues", []):
                 if issue["severity"] in ("warning", "critical"):
                     insights["evidence"]["caveats"].append(f"{issue['title']}: {issue['suggestion']}")
+            # Red slices are a trust issue the brief must not gloss over.
+            sl = (run.result or {}).get("slices") or {}
+            if sl.get("red_groups"):
+                insights["evidence"]["caveats"].append(
+                    "The model performs materially worse for: "
+                    + ", ".join(sl["red_groups"][:4])
+                    + ". Recommendations affecting these groups need extra care."
+                )
             # A shaky stability check is a trust issue too.
             val = (run.result or {}).get("validation") or {}
             if val.get("verdict") == "variable":

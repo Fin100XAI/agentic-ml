@@ -372,9 +372,18 @@ export interface Validation {
   elapsed_s?: number;
 }
 
+export interface SliceScan {
+  metric: string;
+  overall: number;
+  n_test: number;
+  rows: { column: string; group: string; n: number; value: number | null; status: "red" | "amber" | "ok" | "too_small" }[];
+  red_groups: string[];
+}
+
 export interface RunResult {
   metrics: Record<string, number | null>;
   validation?: Validation;
+  slices?: SliceScan;
   artifacts: {
     confusion_matrix?: { labels: string[]; matrix: number[][] };
     feature_importance?: { feature: string; label?: string; importance: number }[];

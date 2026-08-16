@@ -27,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { Driver, Insights, Interpretation, Run, RunResult, Segment, Validation } from "../../types";
+import type { Driver, Insights, Interpretation, Run, RunResult, Segment, SliceScan, Validation } from "../../types";
 import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { LineageBreadcrumb } from "../LineageBreadcrumb";
@@ -83,6 +83,77 @@ function StabilityPanel({ v }: { v: Validation }) {
           </div>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink-dim">{v.note}</p>
+      </CardBody>
+    </Card>
+  );
+}
+
+function SlicesPanel({ s }: { s: SliceScan }) {
+  const [showAll, setShowAll] = useState(false);
+  const interesting = s.rows.filter((r) => r.status === "red" || r.status === "amber");
+  const rows = showAll ? s.rows : interesting.length > 0 ? interesting : s.rows.slice(0, 6);
+  return (
+    <Card className={s.red_groups.length ? "border-bad/30" : undefined}>
+      <CardHeader
+        title="Who does the model serve worse?"
+        subtitle={`${s.metric} per group on the ${s.n_test.toLocaleString()} held-out rows (overall ${s.overall}). Red groups fall clearly below overall; tiny groups are skipped, not judged.`}
+        right={
+          s.red_groups.length > 0 ? (
+            <Badge tone="bad">{s.red_groups.length} red group{s.red_groups.length !== 1 ? "s" : ""}</Badge>
+          ) : (
+            <Badge tone="good">even performance</Badge>
+          )
+        }
+      />
+      <CardBody>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-edge text-[10px] uppercase tracking-wider text-ink-dim">
+                <th className="py-1.5 pr-3">Column</th>
+                <th className="py-1.5 pr-3">Group</th>
+                <th className="py-1.5 pr-3">Rows</th>
+                <th className="py-1.5 pr-3">{s.metric}</th>
+                <th className="py-1.5">Read as</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className={`border-b border-edge/40 ${r.status === "too_small" ? "opacity-50" : ""}`}>
+                  <td className="py-1.5 pr-3 font-medium">{r.column}</td>
+                  <td className="py-1.5 pr-3">{r.group}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{r.n}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{r.value ?? "-"}</td>
+                  <td className="py-1.5">
+                    {r.status === "too_small" ? (
+                      <span className="text-[10px] text-ink-dim">group too small to assess</span>
+                    ) : (
+                      <Badge tone={r.status === "red" ? "bad" : r.status === "amber" ? "warn" : "good"}>
+                        {r.status === "red" ? "materially worse" : r.status === "amber" ? "somewhat worse" : "in line"}
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {s.rows.length > rows.length && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="mt-2 text-xs font-medium text-accent hover:underline"
+          >
+            Show all {s.rows.length} groups
+          </button>
+        )}
+        {showAll && (
+          <button
+            onClick={() => setShowAll(false)}
+            className="mt-2 text-xs font-medium text-accent hover:underline"
+          >
+            Show fewer
+          </button>
+        )}
       </CardBody>
     </Card>
   );
@@ -567,6 +638,7 @@ export function InsightsScreen({
             })}
           </div>
           {result.validation && <StabilityPanel v={result.validation} />}
+          {result.slices && <SlicesPanel s={result.slices} />}
           {interpretation && (
             <Card>
               <CardHeader title="Model interpretation" right={<Badge tone={interpretation.generated_by === "claude" ? "accent" : "neutral"}>{interpretation.generated_by}</Badge>} />
