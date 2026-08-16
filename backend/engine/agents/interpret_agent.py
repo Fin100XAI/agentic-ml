@@ -81,6 +81,13 @@ def run_interpret_agent(
                 slim_artifacts[k] = {"axes": v.get("axes"), "n_points": len(v.get("points", []))}
             elif k == "series":
                 slim_artifacts[k] = {"n_points": len(v), "first": v[:3], "last": v[-3:]}
+            elif k == "multi":
+                # panel forecasts: the compact multi_summary_table already
+                # carries the per-group story - keep only counts here
+                slim_artifacts[k] = {"group_column": v.get("group_column"),
+                                     "n_groups": len(v.get("groups", []))}
+            elif k == "context_series":
+                slim_artifacts[k] = [{"name": c.get("name")} for c in v]
             else:
                 slim_artifacts[k] = v
         prompt = (

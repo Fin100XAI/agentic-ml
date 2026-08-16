@@ -124,12 +124,39 @@ def churn_drifted(n: int = 400) -> pd.DataFrame:
     })
 
 
+def store_demand(n_stores: int = 30, weeks: int = 78) -> pd.DataFrame:
+    """Multi-series forecasting demo: weekly demand per store (panel data).
+
+    Each store has its own level, trend and seasonality. One store opened
+    recently (too little history) so the honest-skip path is demoable.
+    """
+    rows = []
+    dates = pd.date_range("2024-01-01", periods=weeks, freq="W-MON")
+    for s in range(n_stores):
+        level = rng.uniform(200, 900)
+        trend = rng.uniform(-1.5, 3.0)
+        season_amp = rng.uniform(10, 60)
+        phase = rng.uniform(0, 2 * np.pi)
+        n = 8 if s == n_stores - 1 else weeks  # the last store just opened
+        for t in range(n):
+            demand = (level + trend * t
+                      + season_amp * np.sin(2 * np.pi * t / 52 + phase)
+                      + rng.normal(0, 15))
+            rows.append({
+                "week": dates[t].strftime("%Y-%m-%d"),
+                "store": f"Store {s + 1:02d}",
+                "demand": round(max(demand, 0), 1),
+            })
+    return pd.DataFrame(rows)
+
+
 if __name__ == "__main__":
     churn().to_csv("customer_churn.csv", index=False)
     churn_drifted().to_csv("customer_churn_drifted.csv", index=False)
+    store_demand().to_csv("store_demand.csv", index=False)
     segments().to_csv("customer_segments.csv", index=False)
     sales().to_csv("weekly_sales.csv", index=False)
     house_prices().to_csv("house_prices.csv", index=False)
     loan_applicants().to_csv("loan_applicants_pii.csv", index=False)
     print("Wrote customer_churn.csv, customer_churn_drifted.csv, customer_segments.csv, "
-          "weekly_sales.csv, house_prices.csv, loan_applicants_pii.csv")
+          "weekly_sales.csv, house_prices.csv, loan_applicants_pii.csv, store_demand.csv")

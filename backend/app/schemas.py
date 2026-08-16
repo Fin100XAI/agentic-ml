@@ -23,6 +23,8 @@ class ApproveConfigRequest(BaseModel):
     time_column: str | None = None
     feature_ids: list[str] | None = None  # approved engineered-feature ids
     excluded_columns: list[str] | None = None  # leakage-sentinel exclusions
+    group_column: str | None = None  # forecasting: forecast per group of this column
+    group_agg: str = "sum"  # how the roll-up combines groups: sum | mean
 
 
 class CompareRequest(BaseModel):

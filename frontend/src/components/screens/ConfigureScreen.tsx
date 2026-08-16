@@ -152,6 +152,8 @@ export function ConfigureScreen({
     time_column: string | null;
     feature_ids: string[];
     excluded_columns: string[];
+    group_column?: string | null;
+    group_agg?: string;
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
   onAutotune: (target: string | null, time_column: string | null, nCandidates?: number) => void;
@@ -189,6 +191,9 @@ export function ConfigureScreen({
   const [featureIds, setFeatureIds] = useState<Set<string>>(
     () => new Set((featureSuggestions ?? []).filter((f) => f.recommended).map((f) => f.id)),
   );
+  // Multi-series forecasting: forecast per group of this column (optional).
+  const [groupColumn, setGroupColumn] = useState<string | null>(null);
+  const [groupAgg, setGroupAgg] = useState<"sum" | "mean">("sum");
   // Leakage sentinel: critical flags start excluded; warns start kept.
   const [excludedCols, setExcludedCols] = useState<Set<string>>(
     () => new Set((leakageFlags ?? []).filter((f) => f.severity === "critical").map((f) => f.column)),
@@ -300,6 +305,8 @@ export function ConfigureScreen({
                 time_column: timeColumn,
                 feature_ids: [...featureIds],
                 excluded_columns: [...excludedCols],
+                group_column: groupColumn,
+                group_agg: groupAgg,
               })
             }
           />
@@ -582,6 +589,46 @@ export function ConfigureScreen({
               </label>
             )}
 
+            {recommendation.use_case === "forecasting" &&
+              (recommendation.group_candidates?.length ?? 0) > 0 && (
+                <div className="rounded-xl border border-accent/30 bg-accent-soft/20 px-3.5 py-2.5">
+                  <label className="block">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium">
+                      Forecast per group (optional)
+                      <InfoTip text="Your data holds many series side by side (e.g. demand per store). Pick the group column to forecast each one separately, with a combined roll-up. Groups with too little history are skipped honestly, never guessed." />
+                    </span>
+                    <select
+                      value={groupColumn ?? ""}
+                      onChange={(e) => setGroupColumn(e.target.value || null)}
+                      className="mt-1 w-full rounded-lg border border-edge bg-white/70 px-3 py-1.5 text-sm outline-none focus:border-accent"
+                    >
+                      <option value="">- one combined series -</option>
+                      {recommendation.group_candidates!.map((g) => (
+                        <option key={g.column} value={g.column}>
+                          {g.column} ({g.n_groups} groups, ~{g.avg_points} points each)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {groupColumn && (
+                    <div className="mt-2 flex items-center gap-3 text-[11px] text-ink-dim">
+                      Roll-up:
+                      {(["sum", "mean"] as const).map((a) => (
+                        <label key={a} className="flex items-center gap-1">
+                          <input
+                            type="radio"
+                            checked={groupAgg === a}
+                            onChange={() => setGroupAgg(a)}
+                            className="accent-[#4f46e5]"
+                          />
+                          {a === "sum" ? "total across groups" : "average per group"}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
             <div className="space-y-3 border-t border-edge pt-4">
               {selected.param_schema.map((spec) => (
                 <ParamField
@@ -610,6 +657,8 @@ export function ConfigureScreen({
                         time_column: timeColumn,
                         feature_ids: [...featureIds],
                         excluded_columns: [...excludedCols],
+                        group_column: groupColumn,
+                        group_agg: groupAgg,
                       })
                     }
                   >

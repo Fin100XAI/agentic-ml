@@ -33,6 +33,7 @@ from engine.catalog import get_model, models_for_use_case
 from engine.features import apply_features, propose_features
 from engine.health import assess_health
 from engine.leakage import screen_leakage
+from engine.multiforecast import detect_group_columns, forecast_groups
 from engine.remediation import apply_fixes, propose_fixes
 from engine.slices import slice_scan
 from engine.insights import build_insights, trust_tier, _original_column
@@ -363,6 +364,17 @@ class Orchestrator:
                 " ".join(v["rationale"] for v in list(cfgs.values())[:2]),
                 "deterministic", started,
             )
+            # Forecasting: offer per-group (panel) forecasting when the data
+            # holds repeated series (e.g. demand per store).
+            if run.recommendation["use_case"] == "forecasting":
+                try:
+                    run.recommendation["group_candidates"] = detect_group_columns(
+                        run.df, run.recommendation.get("target"),
+                        run.recommendation.get("time_column"),
+                    )
+                except Exception:
+                    run.recommendation["group_candidates"] = []
+
             # Leakage sentinel (non-fatal): flags columns the human must judge.
             try:
                 started = time.time()
@@ -425,6 +437,8 @@ class Orchestrator:
         time_column: str | None,
         feature_ids: list[str] | None = None,
         excluded_columns: list[str] | None = None,
+        group_column: str | None = None,
+        group_agg: str = "sum",
     ) -> Run:
         model = get_model(model_key)  # raises KeyError on bad key
         coerced = model.coerce_hyperparams(hyperparams)
@@ -443,6 +457,8 @@ class Orchestrator:
             "time_column": time_column,
             "engineered": chosen,
             "excluded": excluded,
+            "group_column": group_column if model.use_case == "forecasting" else None,
+            "group_agg": group_agg if group_agg in ("sum", "mean") else "sum",
         }
         # Leakage decisions: excluded columns approved out; flagged-but-kept logged.
         flagged = {f["column"] for f in (run.leakage or {}).get("flags", [])}
@@ -500,13 +516,23 @@ class Orchestrator:
                     )
                 except Exception:
                     pass  # the ledger must never block training
-            run.result = model.run(
-                df_run,
-                run.config["hyperparams"],
-                target=run.config.get("target"),
-                features=run.config.get("features"),
-                time_column=run.config.get("time_column"),
-            )
+            group_col = run.config.get("group_column")
+            if run.config["use_case"] == "forecasting" and group_col and group_col in df_run.columns:
+                # Panel mode: one forecast per group, rolled up; per-group
+                # backtests replace the single-series stability check.
+                run.result = forecast_groups(
+                    df_run, run.config["model_key"], run.config["hyperparams"],
+                    run.config["target"], run.config["time_column"], group_col,
+                    run.config.get("group_agg", "sum"),
+                )
+            else:
+                run.result = model.run(
+                    df_run,
+                    run.config["hyperparams"],
+                    target=run.config.get("target"),
+                    features=run.config.get("features"),
+                    time_column=run.config.get("time_column"),
+                )
             self._add_display_labels(run)
             # Slice scan: where is the model materially worse? (non-fatal)
             eval_rows = run.result.pop("eval_rows", None)
@@ -567,6 +593,8 @@ class Orchestrator:
         """Non-fatal resampling check attached to the result payload."""
         from .validate import stability_check
 
+        if (run.result or {}).get("artifacts", {}).get("multi"):
+            return  # panel mode carries its own per-group backtests
         try:
             started = time.time()
             df_run = apply_features(run.df, run.config.get("engineered") or [])

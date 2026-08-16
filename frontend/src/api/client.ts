@@ -139,6 +139,8 @@ export const api = {
       time_column: string | null;
       feature_ids?: string[] | null;
       excluded_columns?: string[] | null;
+      group_column?: string | null;
+      group_agg?: string;
     },
   ) => request<Run>(`/runs/${id}/approve-config`, json(body)),
 

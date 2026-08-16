@@ -31,6 +31,7 @@ import type { Driver, Insights, Interpretation, Run, RunResult, Segment, SliceSc
 import { metricInfo } from "../../lib/metricInfo";
 import { InfoTip } from "../InfoTip";
 import { LineageBreadcrumb } from "../LineageBreadcrumb";
+import { MultiForecastPanel } from "../MultiForecastPanel";
 import { ScenarioPanel } from "../ScenarioPanel";
 import { api } from "../../api/client";
 import { AskTheData } from "../AskTheData";
@@ -640,6 +641,7 @@ export function InsightsScreen({
           </div>
           {result.validation && <StabilityPanel v={result.validation} />}
           {result.slices && <SlicesPanel s={result.slices} />}
+          {result.artifacts.multi && <MultiForecastPanel multi={result.artifacts.multi} />}
           {run.registry_ref &&
             (insights.use_case === "classification" || insights.use_case === "regression") && (
               <ScenarioPanel modelId={run.registry_ref.model_id} version={run.registry_ref.version} />

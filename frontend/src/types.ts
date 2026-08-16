@@ -330,6 +330,7 @@ export interface Recommendation {
   alignment?: { aligned: boolean; note: string };
   generated_by: string;
   model_configs?: Record<string, ModelConfigSuggestion>;
+  group_candidates?: { column: string; n_groups: number; avg_points: number }[];
 }
 
 export interface ParamSpec {
@@ -388,6 +389,19 @@ export interface Validation {
   elapsed_s?: number;
 }
 
+export interface MultiGroup {
+  name: string;
+  n_points: number;
+  status: "ok" | "skipped";
+  reason?: string;
+  mape_pct?: number | null;
+  direction?: "up" | "down" | "flat";
+  delta_pct?: number;
+  backtest?: { folds: number[]; verdict: "stable" | "variable" } | null;
+  series?: { t: string; actual: number; predicted?: number }[];
+  forecast?: { t: string; forecast: number }[];
+}
+
 export interface SliceScan {
   metric: string;
   overall: number;
@@ -411,6 +425,12 @@ export interface RunResult {
     context_series?: { name: string; label?: string; values: (number | null)[] }[];
     predicted_vs_actual?: { points: { actual: number; predicted: number }[] };
     residual_hist?: { mid: number; count: number }[];
+    multi?: {
+      group_column: string;
+      agg: "sum" | "mean";
+      groups: MultiGroup[];
+    };
+    multi_summary_table?: Record<string, unknown>[];
   };
 }
 

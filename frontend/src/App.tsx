@@ -266,6 +266,8 @@ function App() {
     time_column: string | null;
     feature_ids?: string[];
     excluded_columns?: string[];
+    group_column?: string | null;
+    group_agg?: string;
   }) =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
