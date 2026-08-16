@@ -2,9 +2,10 @@
 // hash, metric summary, status, retrain action and what-changed history.
 // Nothing is ever overwritten.
 import { useEffect, useState } from "react";
-import { Boxes, History, RefreshCw } from "lucide-react";
+import { Boxes, History, RefreshCw, Target } from "lucide-react";
 import { api } from "../api/client";
 import type { RegistryEntry } from "../types";
+import { ScoreModal } from "./ScoreModal";
 import { Badge, Button, Card, CardBody, CardHeader } from "./ui";
 
 const PRIMARY: Record<string, string> = {
@@ -30,6 +31,7 @@ export function ModelsPanel({
   const [models, setModels] = useState<RegistryEntry[] | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [retrainFor, setRetrainFor] = useState<RegistryEntry | null>(null);
+  const [scoreFor, setScoreFor] = useState<RegistryEntry | null>(null);
   const [datasets, setDatasets] = useState<{ id: string; filename: string; n_rows: number }[]>([]);
 
   useEffect(() => {
@@ -122,6 +124,15 @@ export function ModelsPanel({
                                 <RefreshCw className="h-3 w-3" />
                               </button>
                             )}
+                            {m.checkpoint_path && (m.use_case === "classification" || m.use_case === "regression") && (
+                              <button
+                                onClick={() => setScoreFor(m)}
+                                title="Score a new file with this version"
+                                className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                              >
+                                <Target className="h-3 w-3" />
+                              </button>
+                            )}
                           </span>
                         </td>
                       </tr>
@@ -180,6 +191,8 @@ export function ModelsPanel({
           )}
         </CardBody>
       </Card>
+
+      {scoreFor && <ScoreModal entry={scoreFor} onClose={() => setScoreFor(null)} />}
     </section>
   );
 }

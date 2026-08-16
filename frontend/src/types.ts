@@ -86,6 +86,24 @@ export interface RegistryEntry {
   } | null;
 }
 
+export interface ScoreResult {
+  n: number;
+  reconciliation: {
+    renamed: { from: string; to: string }[];
+    missing: string[];
+    extra: string[];
+    ok: boolean;
+  };
+  distribution:
+    | { kind: "classes"; data: { label: string; count: number }[] }
+    | { kind: "histogram"; data: { mid: number; count: number }[] };
+  threshold_note: string | null;
+  summary: string;
+  generated_by: string;
+  artifact_id: string;
+  preview: Record<string, unknown>[];
+}
+
 export interface RemediationProposal {
   id: string;
   kind: string;

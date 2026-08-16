@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunSummary, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, ModelInfo, Project, RegistryEntry, Run, RunSummary, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -35,6 +35,17 @@ export const api = {
     request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
       `/projects/${projectId}`,
     ),
+
+  scoreModel: (modelId: string, version: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<ScoreResult>(`/models/${modelId}/${version}/score`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  artifactDownloadUrl: (artifactId: string) => `${BASE}/artifacts/${artifactId}/download`,
 
   retrainModel: (modelId: string, version: number, datasetId: string) =>
     request<{ run: Run; prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null } }>(
