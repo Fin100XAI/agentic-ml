@@ -6,6 +6,18 @@ export interface SheetInfo {
   n_cols: number;
 }
 
+export interface JoinSuggestion {
+  left: string;
+  right: string;
+  on_left: string;
+  on_right: string;
+  how: string;
+  match_pct: number;
+  joined_rows: number;
+  joined_cols: number;
+  note: string;
+}
+
 export interface UploadResponse {
   dataset_id?: string;
   filename: string;
@@ -14,6 +26,7 @@ export interface UploadResponse {
   columns?: string[];
   needs_sheet_selection?: boolean;
   sheets?: SheetInfo[];
+  join_suggestion?: JoinSuggestion | null;
 }
 
 export interface ColumnProfile {

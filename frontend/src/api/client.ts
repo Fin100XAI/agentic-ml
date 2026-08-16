@@ -26,10 +26,11 @@ const json = (body: unknown): RequestInit => ({
 export const api = {
   health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
 
-  uploadDataset: (file: File, sheet?: string) => {
+  uploadDataset: (file: File, sheet?: string, join?: object) => {
     const form = new FormData();
     form.append("file", file);
     if (sheet) form.append("sheet", sheet);
+    if (join) form.append("join", JSON.stringify(join));
     return request<UploadResponse>("/datasets", { method: "POST", body: form });
   },
 

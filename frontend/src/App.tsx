@@ -14,7 +14,7 @@ import { ReportScreen } from "./components/screens/ReportScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
-import type { ModelInfo, Run, RunSummary, SheetInfo } from "./types";
+import type { JoinSuggestion, ModelInfo, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report";
 
@@ -71,7 +71,12 @@ export default function App() {
   const [tuneOpen, setTuneOpen] = useState(false);
   const [tuneRunning, setTuneRunning] = useState(false);
   const [misalignNote, setMisalignNote] = useState<string | null>(null);
-  const [sheetChoice, setSheetChoice] = useState<{ file: File; question: string; sheets: SheetInfo[] } | null>(null);
+  const [sheetChoice, setSheetChoice] = useState<{
+    file: File;
+    question: string;
+    sheets: SheetInfo[];
+    join: JoinSuggestion | null;
+  } | null>(null);
 
   const refreshRuns = useCallback(() => {
     api.listRuns().then((r) => setRecentRuns(r.runs)).catch(() => {});
@@ -113,13 +118,13 @@ export default function App() {
     }
   }
 
-  const handleUpload = (file: File, question: string, sheet?: string) =>
+  const handleUpload = (file: File, question: string, sheet?: string, join?: JoinSuggestion) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
-      const ds = await api.uploadDataset(file, sheet);
+      const ds = await api.uploadDataset(file, sheet, join);
       if (ds.needs_sheet_selection && ds.sheets) {
         // Workbook has several sheets: ask the human which one to analyze.
-        setSheetChoice({ file, question, sheets: ds.sheets });
+        setSheetChoice({ file, question, sheets: ds.sheets, join: ds.join_suggestion ?? null });
         setUploadStage(null);
         return;
       }
@@ -475,9 +480,31 @@ export default function App() {
               <CardBody>
                 <h3 className="text-sm font-semibold">Which sheet should we analyze?</h3>
                 <p className="mt-1 text-xs text-ink-dim">
-                  {sheetChoice.file.name} has {sheetChoice.sheets.length} sheets. Pick one - you can
-                  analyze the others in separate runs.
+                  {sheetChoice.file.name} has {sheetChoice.sheets.length} sheets. Pick one - or
+                  combine them if the agent found a link.
                 </p>
+                {sheetChoice.join && (
+                  <button
+                    onClick={() => {
+                      const { file, question, join } = sheetChoice;
+                      setSheetChoice(null);
+                      handleUpload(file, question, undefined, join!);
+                    }}
+                    className="mt-3 w-full rounded-xl border border-accent/50 bg-accent-soft/40 px-4 py-3 text-left transition-all hover:border-accent"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-accent">
+                        Combine '{sheetChoice.join.left}' + '{sheetChoice.join.right}'
+                      </span>
+                      <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                        agent suggestion
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-[11px] leading-snug text-ink-dim">
+                      {sheetChoice.join.note}
+                    </span>
+                  </button>
+                )}
                 <div className="mt-3 space-y-2">
                   {sheetChoice.sheets.map((s) => (
                     <button

@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import io
+import json
 
 import pandas as pd
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from app.store import store
 from engine.catalog import all_models
+from engine.joins import perform_join, propose_join
 
 router = APIRouter()
 
@@ -16,7 +18,11 @@ EXCEL_EXT = (".xlsx", ".xls")
 
 
 @router.post("/datasets")
-async def upload_dataset(file: UploadFile, sheet: str | None = Form(None)) -> dict:
+async def upload_dataset(
+    file: UploadFile,
+    sheet: str | None = Form(None),
+    join: str | None = Form(None),
+) -> dict:
     name = (file.filename or "").lower()
     if not name.endswith((".csv", *EXCEL_EXT)):
         raise HTTPException(400, "Please upload a .csv or .xlsx file.")
@@ -32,8 +38,25 @@ async def upload_dataset(file: UploadFile, sheet: str | None = Form(None)) -> di
         book = {k: v for k, v in book.items() if not v.empty and v.shape[1] > 0}
         if not book:
             raise HTTPException(400, "The workbook has no non-empty sheets.")
-        if sheet is None and len(book) > 1:
-            # Multiple sheets: ask the human which one to analyze.
+        if join is not None:
+            # Human approved the join scout's proposal (or supplied their own).
+            try:
+                spec = json.loads(join)
+                df = perform_join(
+                    book, spec["left"], spec["right"],
+                    spec["on_left"], spec["on_right"], spec.get("how", "left"),
+                )
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except (KeyError, json.JSONDecodeError) as exc:
+                raise HTTPException(400, f"Invalid join spec: {exc}") from exc
+            display_name = f"{file.filename} [{spec['left']}+{spec['right']}]"
+        elif sheet is None and len(book) > 1:
+            # Multiple sheets: ask the human, with the join scout's proposal if any.
+            try:
+                suggestion = propose_join(book)
+            except Exception:
+                suggestion = None
             return {
                 "needs_sheet_selection": True,
                 "filename": file.filename,
@@ -41,12 +64,14 @@ async def upload_dataset(file: UploadFile, sheet: str | None = Form(None)) -> di
                     {"name": k, "n_rows": int(v.shape[0]), "n_cols": int(v.shape[1])}
                     for k, v in book.items()
                 ],
+                "join_suggestion": suggestion,
             }
-        chosen = sheet if sheet is not None else next(iter(book))
-        if chosen not in book:
-            raise HTTPException(400, f"Sheet '{chosen}' not found in the workbook.")
-        df = book[chosen]
-        display_name = f"{file.filename} [{chosen}]" if len(book) > 1 else (file.filename or chosen)
+        else:
+            chosen = sheet if sheet is not None else next(iter(book))
+            if chosen not in book:
+                raise HTTPException(400, f"Sheet '{chosen}' not found in the workbook.")
+            df = book[chosen]
+            display_name = f"{file.filename} [{chosen}]" if len(book) > 1 else (file.filename or chosen)
     else:
         try:
             df = pd.read_csv(io.BytesIO(raw))
