@@ -268,10 +268,15 @@ function App() {
     excluded_columns?: string[];
     group_column?: string | null;
     group_agg?: string;
+    regressors?: string[];
   }) =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
-      let r = await api.approveConfig(run.id, { ...config, features: null });
+      const { regressors, ...rest } = config;
+      let r = await api.approveConfig(run.id, {
+        ...rest,
+        features: regressors && regressors.length > 0 ? regressors : null,
+      });
       setRun(r);
       r = await api.execute(run.id);
       setRun(r);

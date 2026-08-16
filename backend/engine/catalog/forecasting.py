@@ -12,9 +12,10 @@ from .preprocess import RANDOM_SEED
 
 
 def _prepare_series(
-    df: pd.DataFrame, target: str | None, time_column: str | None
-) -> tuple[pd.Series, list[str]]:
-    """Return (time-ordered numeric series, iso timestamps)."""
+    df: pd.DataFrame, target: str | None, time_column: str | None,
+    features: list[str] | None = None,
+) -> tuple[pd.Series, list[str], pd.DataFrame | None]:
+    """Return (time-ordered numeric series, iso timestamps, aligned regressors)."""
     if not target or target not in df.columns:
         raise ValueError("Forecasting requires a numeric target column.")
     work = df.copy()
@@ -26,12 +27,20 @@ def _prepare_series(
     else:
         stamps = [str(i) for i in range(len(work))]
 
-    series = pd.to_numeric(work[target], errors="coerce").dropna()
-    stamps = [stamps[i] for i in range(len(series))] if len(stamps) >= len(series) else stamps
+    keep = pd.to_numeric(work[target], errors="coerce").notna()
+    work = work[keep]
+    stamps = [s for s, k in zip(stamps, keep) if k] if len(stamps) == len(keep) else stamps
+    series = pd.to_numeric(work[target], errors="coerce").reset_index(drop=True)
     if len(series) < 20:
         raise ValueError("Need at least 20 observations to forecast.")
-    series = series.reset_index(drop=True)
-    return series, stamps
+
+    exog = None
+    reg_cols = [c for c in (features or []) if c in work.columns and c != target]
+    if reg_cols:
+        exog = pd.DataFrame({
+            c: pd.to_numeric(work[c], errors="coerce").values for c in reg_cols
+        }).ffill().bfill().fillna(0.0).reset_index(drop=True)
+    return series, stamps, exog
 
 
 def _context_series(
@@ -85,6 +94,7 @@ def _build_result(
     fitted_test: np.ndarray,
     future: np.ndarray,
     context: list[dict[str, Any]] | None = None,
+    regressors: list[str] | None = None,
 ) -> dict[str, Any]:
     """Assemble metrics + chart series (history, test predictions, future forecast)."""
     actual_test = series.iloc[-holdout:].values
@@ -105,6 +115,14 @@ def _build_result(
     ]
 
     artifacts: dict[str, Any] = {"series": history, "forecast": forecast}
+    if regressors:
+        artifacts["regressors"] = {
+            "columns": regressors,
+            "future_handling": "carry_forward",
+            "note": "Backtests used the regressors' real historical values. For the "
+                    "future projection their values are unknown, so each is held at "
+                    "its last observed level - a naive assumption worth knowing about.",
+        }
     if context:
         # Trim to the plotted history length so overlays stay index-aligned.
         artifacts["context_series"] = [
@@ -133,7 +151,7 @@ class ArimaModel(ModelPlugin):
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         from statsmodels.tsa.statespace.sarimax import SARIMAX
 
-        series, stamps = _prepare_series(df, target, time_column)
+        series, stamps, exog = _prepare_series(df, target, time_column, features)
         horizon = hyperparams["horizon"]
         holdout = max(5, min(len(series) // 5, 50))
         train = series.iloc[:-holdout]
@@ -142,22 +160,31 @@ class ArimaModel(ModelPlugin):
         sp = hyperparams["seasonal_period"]
         seasonal_order = (1, 1, 1, sp) if sp and sp > 1 else (0, 0, 0, 0)
 
+        ex_train = exog.iloc[:-holdout].values if exog is not None else None
+        ex_test = exog.iloc[-holdout:].values if exog is not None else None
+        # Future regressor values are unknown: carry the last observation
+        # forward (naive) - the honest note lands in the artifacts.
+        ex_future = (np.tile(exog.iloc[-1].values, (horizon, 1))
+                     if exog is not None else None)
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fit = SARIMAX(
-                train.values, order=order, seasonal_order=seasonal_order,
+                train.values, exog=ex_train, order=order, seasonal_order=seasonal_order,
                 enforce_stationarity=False, enforce_invertibility=False,
             ).fit(disp=False)
-            test_pred = fit.forecast(steps=holdout)
+            test_pred = fit.forecast(steps=holdout, exog=ex_test)
             full_fit = SARIMAX(
-                series.values, order=order, seasonal_order=seasonal_order,
+                series.values, exog=exog.values if exog is not None else None,
+                order=order, seasonal_order=seasonal_order,
                 enforce_stationarity=False, enforce_invertibility=False,
             ).fit(disp=False)
-            future = full_fit.forecast(steps=horizon)
+            future = full_fit.forecast(steps=horizon, exog=ex_future)
 
         return _build_result(
             series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
             context=_context_series(df, target, time_column),
+            regressors=list(exog.columns) if exog is not None else None,
         )
 
 
@@ -180,7 +207,9 @@ class ExpSmoothingModel(ModelPlugin):
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-        series, stamps = _prepare_series(df, target, time_column)
+        # Exponential Smoothing has no regressor support - selected regressors
+        # are honestly ignored (the UI says so up front too).
+        series, stamps, _ = _prepare_series(df, target, time_column)
         horizon = hyperparams["horizon"]
         holdout = max(5, min(len(series) // 5, 50))
         train = series.iloc[:-holdout]
@@ -203,10 +232,18 @@ class ExpSmoothingModel(ModelPlugin):
             full = ExponentialSmoothing(series.values, trend=trend, seasonal=seasonal, seasonal_periods=sp).fit()
             future = full.forecast(horizon)
 
-        return _build_result(
+        result = _build_result(
             series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
             context=_context_series(df, target, time_column),
         )
+        if features:
+            result["artifacts"]["regressors"] = {
+                "columns": [], "future_handling": "unsupported",
+                "note": "Exponential Smoothing cannot use extra driver columns - the "
+                        "selected regressors were ignored. ARIMA and the XGBoost "
+                        "forecaster do support them.",
+            }
+        return result
 
 
 @register
@@ -228,7 +265,7 @@ class XGBForecastModel(ModelPlugin):
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         from xgboost import XGBRegressor
 
-        series, stamps = _prepare_series(df, target, time_column)
+        series, stamps, exog = _prepare_series(df, target, time_column, features)
         n_lags = min(hyperparams["n_lags"], len(series) // 3)
         if n_lags < 2:
             raise ValueError("Series too short for the requested lag window.")
@@ -236,7 +273,20 @@ class XGBForecastModel(ModelPlugin):
         holdout = max(5, min(len(series) // 5, 50))
 
         values = series.values.astype(float)
-        X_all = np.array([values[i - n_lags:i] for i in range(n_lags, len(values))])
+        E = exog.values.astype(float) if exog is not None else None
+
+        def feats_at(i: int, t_hist: list[float], E_mat) -> np.ndarray:
+            row = list(t_hist[-n_lags:])
+            if E_mat is not None:
+                for j in range(E_mat.shape[1]):
+                    # the driver's value NOW moves the target NOW; one lag
+                    # catches short delays without drowning the target lags
+                    row.append(E_mat[i, j])
+                    row.append(E_mat[i - 1, j])
+            return np.array(row).reshape(1, -1)
+
+        X_all = np.array([feats_at(i, list(values[:i]), E).ravel()
+                          for i in range(n_lags, len(values))])
         y_all = values[n_lags:]
         split = len(y_all) - holdout
 
@@ -248,15 +298,16 @@ class XGBForecastModel(ModelPlugin):
         )
         model.fit(X_all[:split], y_all[:split])
 
-        # Recursive prediction over the holdout window.
-        window = list(values[split + n_lags - n_lags: split + n_lags])[-n_lags:]
+        # Recursive over the holdout: regressors use their real history.
+        t_hist = list(values[:split + n_lags])
         test_pred = []
-        for _ in range(holdout):
-            p = float(model.predict(np.array(window[-n_lags:]).reshape(1, -1))[0])
+        for k in range(holdout):
+            i = split + n_lags + k
+            p = float(model.predict(feats_at(i, t_hist, E))[0])
             test_pred.append(p)
-            window.append(values[split + n_lags + len(test_pred) - 1] if split + n_lags + len(test_pred) - 1 < len(values) else p)
+            t_hist.append(values[i] if i < len(values) else p)
 
-        # Refit on everything, forecast the future recursively.
+        # Refit on everything; future regressors carry forward (naive).
         model_full = XGBRegressor(
             n_estimators=hyperparams["n_estimators"],
             learning_rate=hyperparams["learning_rate"],
@@ -264,14 +315,17 @@ class XGBForecastModel(ModelPlugin):
             random_state=RANDOM_SEED,
         )
         model_full.fit(X_all, y_all)
-        window = list(values[-n_lags:])
+        E_ext = np.vstack([E, np.tile(E[-1], (horizon, 1))]) if E is not None else None
+        t_hist = list(values)
         future = []
-        for _ in range(horizon):
-            p = float(model_full.predict(np.array(window[-n_lags:]).reshape(1, -1))[0])
+        for k in range(horizon):
+            i = len(values) + k
+            p = float(model_full.predict(feats_at(i, t_hist, E_ext))[0])
             future.append(p)
-            window.append(p)
+            t_hist.append(p)
 
         return _build_result(
             series, stamps, holdout, np.asarray(test_pred), np.asarray(future),
             context=_context_series(df, target, time_column),
+            regressors=list(exog.columns) if exog is not None else None,
         )

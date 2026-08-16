@@ -639,6 +639,16 @@ export function InsightsScreen({
               );
             })}
           </div>
+          {result.artifacts.regressors && (
+            <p className="rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-xs leading-relaxed">
+              <span className="font-semibold">
+                {result.artifacts.regressors.columns.length > 0
+                  ? `Driver columns used: ${result.artifacts.regressors.columns.join(", ")}. `
+                  : ""}
+              </span>
+              {result.artifacts.regressors.note}
+            </p>
+          )}
           {result.validation && <StabilityPanel v={result.validation} />}
           {result.slices && <SlicesPanel s={result.slices} />}
           {result.artifacts.multi && <MultiForecastPanel multi={result.artifacts.multi} />}

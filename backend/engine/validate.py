@@ -143,7 +143,8 @@ def _rolling_origin(
         try:
             res = plugin.run(
                 cut, config["hyperparams"],
-                target=config.get("target"), time_column=time_column,
+                target=config.get("target"), features=config.get("features"),
+                time_column=time_column,
             )
         except Exception:
             continue

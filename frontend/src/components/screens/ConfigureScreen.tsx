@@ -154,6 +154,7 @@ export function ConfigureScreen({
     excluded_columns: string[];
     group_column?: string | null;
     group_agg?: string;
+    regressors?: string[];
   }) => void;
   onCompare: (target: string | null, time_column: string | null) => void;
   onAutotune: (target: string | null, time_column: string | null, nCandidates?: number) => void;
@@ -194,6 +195,16 @@ export function ConfigureScreen({
   // Multi-series forecasting: forecast per group of this column (optional).
   const [groupColumn, setGroupColumn] = useState<string | null>(null);
   const [groupAgg, setGroupAgg] = useState<"sum" | "mean">("sum");
+  // Forecasting regressors: extra numeric drivers + the future-known question.
+  const [regressors, setRegressors] = useState<Set<string>>(new Set());
+  const [futureKnown, setFutureKnown] = useState<Set<string>>(new Set());
+  const toggleRegressor = (col: string) =>
+    setRegressors((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
   // Leakage sentinel: critical flags start excluded; warns start kept.
   const [excludedCols, setExcludedCols] = useState<Set<string>>(
     () => new Set((leakageFlags ?? []).filter((f) => f.severity === "critical").map((f) => f.column)),
@@ -307,6 +318,7 @@ export function ConfigureScreen({
                 excluded_columns: [...excludedCols],
                 group_column: groupColumn,
                 group_agg: groupAgg,
+                regressors: [...regressors],
               })
             }
           />
@@ -587,6 +599,69 @@ export function ConfigureScreen({
                   ))}
                 </select>
               </label>
+            )}
+
+            {recommendation.use_case === "forecasting" && target && (
+              (() => {
+                const regressorOptions = profile.columns
+                  .filter((c) => c.role === "numeric" && c.name !== target && c.name !== timeColumn)
+                  .map((c) => c.name);
+                if (regressorOptions.length === 0) return null;
+                const esSelected = selected.key === "exp_smoothing";
+                return (
+                  <div className="rounded-xl border border-edge bg-panel-2 px-3.5 py-2.5">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium">
+                      Extra driver columns (optional)
+                      <InfoTip text="Numeric columns the forecast can lean on (e.g. promotion spend driving sales). Backtests use their real history; future values are held at their last level unless you can supply them." />
+                    </span>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {regressorOptions.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => toggleRegressor(c)}
+                          className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
+                            regressors.has(c)
+                              ? "border-accent/50 bg-accent-soft/40 font-medium text-accent"
+                              : "border-edge bg-white/50 text-ink-dim"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                    {esSelected && regressors.size > 0 && (
+                      <p className="mt-2 rounded-lg border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-[11px]">
+                        Exponential Smoothing cannot use driver columns - they will be ignored.
+                        Pick ARIMA or the XGBoost forecaster to use them.
+                      </p>
+                    )}
+                    {!esSelected && [...regressors].map((c) => (
+                      <label key={c} className="mt-1.5 flex items-start gap-2 text-[11px]">
+                        <input
+                          type="checkbox"
+                          checked={futureKnown.has(c)}
+                          onChange={() =>
+                            setFutureKnown((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(c)) next.delete(c);
+                              else next.add(c);
+                              return next;
+                            })
+                          }
+                          className="mt-0.5 accent-[#4f46e5]"
+                        />
+                        <span>
+                          Will you know <span className="font-semibold">{c}</span>'s future values
+                          at forecast time?
+                          {!futureKnown.has(c) && (
+                            <span className="text-warn"> If not, it is held at its last level in the projection - a naive assumption.</span>
+                          )}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })()
             )}
 
             {recommendation.use_case === "forecasting" &&

@@ -431,6 +431,7 @@ export interface RunResult {
       groups: MultiGroup[];
     };
     multi_summary_table?: Record<string, unknown>[];
+    regressors?: { columns: string[]; future_handling: string; note: string };
   };
 }
 
