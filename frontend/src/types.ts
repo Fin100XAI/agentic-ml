@@ -77,6 +77,13 @@ export interface RegistryEntry {
   approved_by: string;
   approved_at: string;
   status: "active" | "superseded" | "archived";
+  n_rows?: number | null;
+  change_summary?: {
+    from_version: number;
+    data: { rows_before: number | null; rows_after: number; same_data: boolean };
+    settings: Record<string, [unknown, unknown]>;
+    metric: { metric: string; before: number; after: number; delta: number } | null;
+  } | null;
 }
 
 export interface RemediationProposal {

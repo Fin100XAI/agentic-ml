@@ -125,6 +125,8 @@ class Store:
             "ALTER TABLE runs ADD COLUMN project_id TEXT",
             "ALTER TABLE artifacts ADD COLUMN project_id TEXT",
             "ALTER TABLE activity_log ADD COLUMN project_id TEXT",
+            "ALTER TABLE model_registry ADD COLUMN n_rows INTEGER",
+            "ALTER TABLE model_registry ADD COLUMN change_summary TEXT",
         ):  # older DBs predate these columns
             try:
                 self._db.execute(ddl)
@@ -443,9 +445,37 @@ class Store:
         "artifact_id", "data_sha256", "use_case", "model_key", "model_name",
         "raw_columns", "feature_list", "hyperparams", "seed", "metrics",
         "stability_verdict", "checkpoint_path", "llm_provider", "llm_model",
-        "approved_by", "approved_at", "status",
+        "approved_by", "approved_at", "status", "n_rows", "change_summary",
     )
-    _REGISTRY_JSON_COLS = ("raw_columns", "feature_list", "hyperparams", "metrics")
+    _REGISTRY_JSON_COLS = ("raw_columns", "feature_list", "hyperparams", "metrics", "change_summary")
+
+    _PRIMARY_METRIC = {"classification": "f1", "regression": "rmse",
+                       "clustering": "silhouette", "forecasting": "mape_pct"}
+
+    def _change_summary(self, prev: dict, row: dict) -> dict:
+        """What changed between two versions - readable, computed, stored."""
+        settings_delta = {}
+        old_hp, new_hp = prev.get("hyperparams") or {}, row["hyperparams"]
+        for k in sorted(set(old_hp) | set(new_hp)):
+            if old_hp.get(k) != new_hp.get(k):
+                settings_delta[k] = [old_hp.get(k), new_hp.get(k)]
+        pk = self._PRIMARY_METRIC.get(row["use_case"], "")
+        old_m = (prev.get("metrics") or {}).get(pk)
+        new_m = (row["metrics"] or {}).get(pk)
+        metric_delta = None
+        if isinstance(old_m, (int, float)) and isinstance(new_m, (int, float)):
+            metric_delta = {"metric": pk, "before": old_m, "after": new_m,
+                            "delta": round(new_m - old_m, 4)}
+        return {
+            "from_version": prev.get("version"),
+            "data": {
+                "rows_before": prev.get("n_rows"),
+                "rows_after": row["n_rows"],
+                "same_data": bool(prev.get("data_sha256") and prev["data_sha256"] == row["data_sha256"]),
+            },
+            "settings": settings_delta,
+            "metric": metric_delta,
+        }
 
     def register_model(self, run: Run, fitted_model: object | None,
                        llm_provider: str | None, llm_model: str | None) -> dict | None:
@@ -500,7 +530,15 @@ class Store:
             "checkpoint_path": checkpoint_path,
             "llm_provider": llm_provider, "llm_model": llm_model,
             "approved_by": "local user", "approved_at": _now(), "status": "active",
+            "n_rows": int(len(run.df)), "change_summary": None,
         }
+        if version > 1:
+            try:
+                row["change_summary"] = self._change_summary(
+                    self.get_registry_entry(model_id, version - 1), row
+                )
+            except Exception:
+                pass  # a missing summary must not block registration
         values = [
             json.dumps(row[c], default=str) if c in self._REGISTRY_JSON_COLS else row[c]
             for c in self._REGISTRY_COLS

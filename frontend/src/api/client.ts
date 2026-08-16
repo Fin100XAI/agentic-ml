@@ -31,6 +31,17 @@ export const api = {
   getProjectModels: (projectId: string) =>
     request<{ models: RegistryEntry[] }>(`/projects/${projectId}/models`),
 
+  getProjectDetail: (projectId: string) =>
+    request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
+      `/projects/${projectId}`,
+    ),
+
+  retrainModel: (modelId: string, version: number, datasetId: string) =>
+    request<{ run: Run; prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null } }>(
+      `/models/${modelId}/${version}/retrain`,
+      json({ dataset_id: datasetId }),
+    ),
+
   createProject: (name: string, description = "") =>
     request<Project>("/projects", json({ name, description })),
 

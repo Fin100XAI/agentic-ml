@@ -126,6 +126,8 @@ export function ConfigureScreen({
   recommendation,
   models,
   initialModelKey,
+  initialHyperparams,
+  initialTarget,
   featureSuggestions,
   leakageFlags,
   onRun,
@@ -139,6 +141,8 @@ export function ConfigureScreen({
   recommendation: Recommendation;
   models: ModelInfo[];
   initialModelKey?: string;
+  initialHyperparams?: Record<string, unknown> | null;
+  initialTarget?: string | null;
   featureSuggestions?: FeatureSuggestion[] | null;
   leakageFlags?: LeakageFlag[] | null;
   onRun: (config: {
@@ -179,7 +183,7 @@ export function ConfigureScreen({
   const suggestion = recommendation.model_configs?.[selected?.key ?? ""];
 
   const [params, setParams] = useState<Record<string, unknown>>({});
-  const [target, setTarget] = useState<string | null>(recommendation.target);
+  const [target, setTarget] = useState<string | null>(initialTarget ?? recommendation.target);
   const [timeColumn, setTimeColumn] = useState<string | null>(recommendation.time_column);
   // Engineered features: the agent's recommended ones start ticked.
   const [featureIds, setFeatureIds] = useState<Set<string>>(
@@ -204,12 +208,15 @@ export function ConfigureScreen({
       return next;
     });
 
-  // Pre-fill with the agent's data-aware suggestion (fallback: schema defaults).
+  // Pre-fill order: retrain settings (when this model was retrained) beat the
+  // agent's data-aware suggestion, which beats schema defaults.
   useEffect(() => {
     if (!selected) return;
     const sug = recommendation.model_configs?.[selected.key]?.hyperparams ?? {};
+    const pre = initialHyperparams && selected.key === initialModelKey ? initialHyperparams : {};
     const values: Record<string, unknown> = {};
-    for (const p of selected.param_schema) values[p.name] = sug[p.name] ?? p.default;
+    for (const p of selected.param_schema)
+      values[p.name] = pre[p.name] ?? sug[p.name] ?? p.default;
     setParams(values);
   }, [selected?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 

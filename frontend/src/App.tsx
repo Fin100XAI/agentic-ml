@@ -19,7 +19,7 @@ import { AssemblyModal } from "./components/AssemblyModal";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
-import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, Run, RunSummary, SheetInfo } from "./types";
+import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
 type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
 
@@ -74,6 +74,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [llmEnabled, setLlmEnabled] = useState<boolean | null>(null);
   const [preferredModel, setPreferredModel] = useState<string | undefined>(undefined);
+  const [retrainPrefill, setRetrainPrefill] = useState<{
+    hyperparams: Record<string, unknown>;
+    target: string | null;
+  } | null>(null);
   const [uploadStage, setUploadStage] = useState<"uploading" | "profiling" | "analyzing" | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [tuneOpen, setTuneOpen] = useState(false);
@@ -304,6 +308,15 @@ export default function App() {
     refreshRuns();
   };
 
+  const handleRetrain = (entry: RegistryEntry, datasetId: string) =>
+    guard("Preparing the retrain…", async () => {
+      const r = await api.retrainModel(entry.model_id, entry.version, datasetId);
+      setRun(r.run);
+      setPreferredModel(r.prefill.model_key);
+      setRetrainPrefill({ hyperparams: r.prefill.hyperparams, target: r.prefill.target });
+      setScreen("configure");
+    });
+
   const openProject = (p: Project) => {
     setProject(p);
     setRun(null);
@@ -316,6 +329,7 @@ export default function App() {
     setRun(null);
     setError(null);
     setPreferredModel(undefined);
+    setRetrainPrefill(null);
     setScreen("upload");
   };
 
@@ -460,6 +474,7 @@ export default function App() {
             projectId={project?.id}
             onStart={startOver}
             onResume={handleResume}
+            onRetrain={handleRetrain}
           />
         )}
 
@@ -483,6 +498,8 @@ export default function App() {
             recommendation={run.recommendation}
             models={models}
             initialModelKey={preferredModel}
+            initialHyperparams={retrainPrefill?.hyperparams}
+            initialTarget={retrainPrefill?.target}
             featureSuggestions={run.feature_suggestions}
             leakageFlags={run.leakage?.flags}
             onRun={handleRunModel}

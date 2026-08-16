@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import type { ModelInfo, RunSummary } from "../../types";
+import type { ModelInfo, RegistryEntry, RunSummary } from "../../types";
 import { USE_CASE_INFO } from "../../lib/metricInfo";
 import { ModelsPanel } from "../ModelsPanel";
 import { Badge, Button, Card, CardBody } from "../ui";
@@ -70,6 +70,7 @@ export function HomeScreen({
   projectId,
   onStart,
   onResume,
+  onRetrain,
 }: {
   models: ModelInfo[];
   recentRuns: RunSummary[];
@@ -77,6 +78,7 @@ export function HomeScreen({
   projectId?: string;
   onStart: () => void;
   onResume: (id: string) => void;
+  onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
 }) {
   const useCases = ["classification", "regression", "clustering", "forecasting"];
 
@@ -188,7 +190,7 @@ export function HomeScreen({
       </section>
 
       {/* Trained model versions in this project */}
-      {projectId && <ModelsPanel projectId={projectId} />}
+      {projectId && <ModelsPanel projectId={projectId} onRetrain={onRetrain} />}
 
       {/* Recent runs */}
       {recentRuns.length > 0 && (
