@@ -48,12 +48,19 @@ def _heuristic(insights: dict[str, Any], question: str) -> dict[str, Any]:
     findings = insights.get("findings", [])
     evidence = insights.get("evidence", {})
 
+    tier = insights.get("trust_tier", "moderate")
     summary_bits = [insights.get("outcome_summary", "").rstrip(".")]
     summary_bits += [f["headline"].rstrip(".") for f in findings[1:3]]
     executive_summary = (
         ". ".join(b for b in summary_bits if b) + f". Evidence strength: {evidence.get('level', 'unknown')} - "
         + evidence.get("reason", "")
     )
+    if tier == "weak":
+        # Abstention: weak evidence leads with its own weakness.
+        executive_summary = (
+            "The evidence behind this analysis is weak - read everything below as "
+            "leads to verify, not conclusions to act on. " + executive_summary
+        )
 
     actions: list[str] = []
     if use_case == "classification":
@@ -110,8 +117,15 @@ def run_brief_agent(
     if provider is None:
         return _heuristic(insights, question)
     try:
+        tier = insights.get("trust_tier", "moderate")
+        tier_rule = {
+            "strong": "Trust tier: strong - you may recommend confidently, still noting correlation vs causation.",
+            "moderate": "Trust tier: moderate - recommend, but add a caution that results should be sanity-checked before major commitments.",
+            "weak": "Trust tier: weak - do NOT phrase actions as recommendations; phrase every one as a hypothesis to verify, and open the executive summary with a plain sentence about the weak evidence.",
+        }.get(tier, "")
         prompt = (
             f"The decision maker's question: {question or '(none given - infer the decision context)'}\n\n"
+            f"{tier_rule}\n\n"
             "Machine-computed findings (JSON):\n" + json.dumps(insights, default=str)
         )
         result = provider.complete_json(_SYSTEM, prompt, _SCHEMA)

@@ -156,7 +156,13 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
       {/* Actions + trust */}
       {brief && (
         <div className="grid gap-6 md:grid-cols-2">
-          <Section title="Recommended actions">
+          <Section title={run.insights?.trust_tier === "weak" ? "Hypotheses to verify" : "Recommended actions"}>
+            {run.insights?.trust_tier === "weak" && (
+              <p className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-2.5 text-xs leading-relaxed">
+                <span className="font-semibold">Evidence is weak for this run.</span> The items below
+                are leads to verify with more data or a pilot - not recommendations to act on yet.
+              </p>
+            )}
             <ol className="space-y-2">
               {brief.recommended_actions.map((a, i) => (
                 <li key={i} className="flex gap-2.5 text-sm">
@@ -167,6 +173,11 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
                 </li>
               ))}
             </ol>
+            {run.insights?.trust_tier === "moderate" && (
+              <p className="mt-2 text-[11px] text-ink-dim">
+                Caution: evidence is moderate - sanity-check these before major commitments.
+              </p>
+            )}
           </Section>
           {ev && (
             <Section title="How much to trust this">

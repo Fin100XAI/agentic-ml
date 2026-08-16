@@ -349,7 +349,25 @@ export function InsightsScreen({
                   <FileText className="h-4 w-4 text-accent" /> Executive summary
                 </span>
               }
-              right={<Badge tone={brief.generated_by === "claude" ? "accent" : "neutral"}>{brief.generated_by}</Badge>}
+              right={
+                <span className="flex items-center gap-1.5">
+                  {insights.critic && (
+                    <span className="flex items-center gap-1">
+                      <Badge tone={insights.critic.generated_by === "claude" ? "good" : "neutral"}>
+                        {insights.critic.generated_by === "claude" ? "reviewed by critic" : "critic: heuristic"}
+                      </Badge>
+                      <InfoTip
+                        text={
+                          insights.critic.changes.length
+                            ? "Critic changes: " + insights.critic.changes.join(" | ")
+                            : "The critic reviewed this brief and made no changes."
+                        }
+                      />
+                    </span>
+                  )}
+                  <Badge tone={brief.generated_by === "claude" ? "accent" : "neutral"}>{brief.generated_by}</Badge>
+                </span>
+              }
             />
             <CardBody>
               <p className="text-sm leading-relaxed">{brief.executive_summary}</p>
@@ -439,27 +457,43 @@ export function InsightsScreen({
             </section>
           )}
 
-          {/* Actions + trust */}
+          {/* Actions + trust - weak evidence reframes actions as hypotheses */}
           <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-good/30">
+            <Card className={insights.trust_tier === "weak" ? "border-warn/40" : "border-good/30"}>
               <CardHeader
                 title={
                   <span className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-good" /> Recommended actions
+                    <ListChecks className={`h-4 w-4 ${insights.trust_tier === "weak" ? "text-warn" : "text-good"}`} />
+                    {insights.trust_tier === "weak" ? "Hypotheses to verify" : "Recommended actions"}
                   </span>
                 }
               />
               <CardBody>
+                {insights.trust_tier === "weak" && (
+                  <div className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-2.5 text-xs leading-relaxed">
+                    <span className="font-semibold">Evidence is weak for this run.</span> The items
+                    below are leads worth verifying with more data or a small pilot - not
+                    recommendations to act on yet.
+                  </div>
+                )}
                 <ol className="space-y-2.5">
                   {brief.recommended_actions.map((act, i) => (
                     <li key={i} className="flex gap-2.5 text-sm">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-good/15 text-[11px] font-semibold text-good">
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                        insights.trust_tier === "weak" ? "bg-warn/15 text-warn" : "bg-good/15 text-good"
+                      }`}>
                         {i + 1}
                       </span>
                       <span className="min-w-0 break-words leading-relaxed">{act}</span>
                     </li>
                   ))}
                 </ol>
+                {insights.trust_tier === "moderate" && (
+                  <p className="mt-3 text-[11px] leading-snug text-ink-dim">
+                    Caution: evidence is moderate - sanity-check these against domain knowledge
+                    before major commitments.
+                  </p>
+                )}
               </CardBody>
             </Card>
 

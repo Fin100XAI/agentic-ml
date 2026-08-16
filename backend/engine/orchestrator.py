@@ -21,6 +21,7 @@ import time
 
 from engine.agents import (
     run_brief_agent,
+    run_critic_agent,
     run_eda_agent,
     run_feature_agent,
     run_interpret_agent,
@@ -33,7 +34,7 @@ from engine.features import apply_features, propose_features
 from engine.health import assess_health
 from engine.leakage import screen_leakage
 from engine.remediation import apply_fixes, propose_fixes
-from engine.insights import build_insights, _original_column
+from engine.insights import build_insights, trust_tier, _original_column
 from engine.llm.base import LLMProvider
 from engine.profiler import profile_dataframe
 from engine.suggest import suggest_hyperparams
@@ -622,9 +623,14 @@ class Orchestrator:
                     f"{min(val['folds'])} to {max(val['folds'])} across resamples - "
                     "results depend somewhat on which rows were used."
                 )
+            # Trust tier: evidence strength downgraded by a shaky stability verdict.
+            insights["trust_tier"] = trust_tier(
+                insights["evidence"]["level"], (run.result or {}).get("validation")
+            )
             self._log(
                 run, "Insight engine", "Extracted decision-ready findings",
-                f"{len(insights.get('findings', []))} findings; evidence: {insights.get('evidence', {}).get('level')}.",
+                f"{len(insights.get('findings', []))} findings; evidence: {insights.get('evidence', {}).get('level')}; "
+                f"trust tier: {insights['trust_tier']}.",
                 insights.get("outcome_summary", ""),
                 "deterministic", started,
             )
@@ -635,6 +641,27 @@ class Orchestrator:
                 insights["brief"].get("executive_summary", "")[:300],
                 "Actions: " + " | ".join(insights["brief"].get("recommended_actions", [])[:2]),
                 insights["brief"].get("generated_by", "heuristic"), started,
+            )
+
+            # Critic pass: verify claims, hedge to the tier, add causal caveats.
+            started = time.time()
+            draft = insights["brief"]
+            review = run_critic_agent(
+                self.provider, draft, insights, run.result["metrics"],
+                (run.result or {}).get("validation"), insights["trust_tier"],
+            )
+            insights["brief_draft"] = draft
+            insights["brief"] = review["brief"]
+            insights["critic"] = {
+                "changes": review["changes"],
+                "unmatched_claims": review["unmatched_claims"],
+                "generated_by": review["generated_by"],
+            }
+            self._log(
+                run, "Critic", "Reviewed the brief before publication",
+                f"{len(review['changes'])} change(s); {len(review['unmatched_claims'])} unmatched claim(s).",
+                " | ".join(review["changes"][:3]) or "No changes needed.",
+                review["generated_by"], started,
             )
             run.insights = insights
             node.status = "done"

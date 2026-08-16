@@ -449,6 +449,18 @@ def evidence_strength(use_case: str, metrics: dict[str, Any], n_rows: int, pct_m
     return {"level": level, "reason": reason, "caveats": caveats}
 
 
+def trust_tier(evidence_level: str, validation: dict[str, Any] | None) -> str:
+    """Combine evidence strength and the stability verdict into one tier.
+
+    A variable stability verdict downgrades the tier one level; a stable one
+    confirms it. The tier drives how assertively the brief may speak.
+    """
+    base = {"strong": 2, "moderate": 1, "limited": 0}.get(evidence_level, 1)
+    if (validation or {}).get("verdict") == "variable":
+        base -= 1
+    return {2: "strong", 1: "moderate"}.get(max(base, 0), "weak")
+
+
 # --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #

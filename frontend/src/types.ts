@@ -310,12 +310,15 @@ export interface Insights {
   segments?: Segment[];
   outlook?: Outlook;
   evidence: { level: "strong" | "moderate" | "limited"; reason: string; caveats: string[] };
+  trust_tier?: "strong" | "moderate" | "weak";
   brief: {
     executive_summary: string;
     recommended_actions: string[];
     watch_outs: string[];
     generated_by: string;
   };
+  brief_draft?: Insights["brief"];
+  critic?: { changes: string[]; unmatched_claims: string[]; generated_by: string };
 }
 
 export interface ComparisonEntry {

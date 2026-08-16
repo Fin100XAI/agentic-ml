@@ -1,5 +1,6 @@
 from .ask_agent import run_ask_agent
 from .brief_agent import run_brief_agent
+from .critic_agent import run_critic_agent
 from .eda_agent import run_eda_agent
 from .feature_agent import run_feature_agent
 from .interpret_agent import run_interpret_agent
@@ -14,4 +15,5 @@ __all__ = [
     "run_ask_agent",
     "run_feature_agent",
     "run_remediation_agent",
+    "run_critic_agent",
 ]

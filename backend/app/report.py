@@ -63,11 +63,22 @@ def build_report(run: Run) -> str:
             add("")
 
         if brief.get("recommended_actions"):
-            add("## Recommended actions")
+            tier = ins.get("trust_tier", "moderate")
+            if tier == "weak":
+                add("## Hypotheses to verify")
+                add("")
+                add("> **Evidence is weak for this run.** The items below are leads worth "
+                    "verifying with more data or a pilot - not recommendations to act on.")
+            else:
+                add("## Recommended actions")
             add("")
             for i, a in enumerate(brief["recommended_actions"], 1):
                 add(f"{i}. {a}")
             add("")
+            if tier == "moderate":
+                add("_Caution: evidence is moderate - sanity-check these against domain "
+                    "knowledge before major commitments._")
+                add("")
 
         add("## How much to trust this")
         add("")
