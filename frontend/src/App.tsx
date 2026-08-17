@@ -471,13 +471,15 @@ function App() {
     <div className="min-h-full">
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-edge bg-white shadow-sm shadow-slate-900/5">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-2.5">
-            <button className="flex items-center gap-2.5 text-left" onClick={goHome}>
-              <BrainCircuit className="h-6 w-6 text-accent" />
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
+              <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
               <div>
-                <h1 className="text-sm font-semibold leading-tight">Agentic ML Workbench</h1>
-                <p className="text-[11px] leading-tight text-ink-dim">
+                <h1 className="whitespace-nowrap text-sm font-semibold leading-tight">
+                  Agentic ML Workbench
+                </h1>
+                <p className="hidden whitespace-nowrap text-[11px] leading-tight text-ink-dim lg:block">
                   agents propose · you approve · models run
                 </p>
               </div>
@@ -512,11 +514,11 @@ function App() {
             </span>
             {/* Project breadcrumb */}
             {project && screen !== "projects" && (
-              <span className="hidden items-center gap-1 sm:flex">
+              <span className="hidden min-w-0 items-center gap-1 md:flex">
                 <span className="text-ink-dim">/</span>
                 <button
                   onClick={goHome}
-                  className="max-w-40 truncate rounded-full border border-edge bg-panel-2 px-2.5 py-0.5 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                  className="max-w-32 truncate rounded-full border border-edge bg-panel-2 px-2.5 py-0.5 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent xl:max-w-44"
                   title="Back to this project's dashboard"
                 >
                   {project.name}
@@ -525,74 +527,103 @@ function App() {
             )}
           </div>
 
-          {/* Stepper (hidden on home/projects) */}
-          {screen !== "home" && screen !== "projects" && (
-            <nav className="hidden items-center gap-1 md:flex">
+          {/* Stepper: labels at wide widths, compact dots in between,
+              nothing on narrow screens - it never fights the toolbars. */}
+          {screen !== "home" && screen !== "projects" && screen !== "about" && screen !== "activity" && (
+            <nav className="hidden shrink-0 items-center gap-1 lg:flex">
               {STEPS.map((s, i) => (
                 <div key={s.key} className="flex items-center gap-1">
-                  {i > 0 && <div className="h-px w-6 bg-edge" />}
+                  {i > 0 && <div className="h-px w-3 bg-edge xl:w-5" />}
                   <div
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ${
+                    className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs xl:px-2.5 ${
                       i === stepIndex
                         ? "bg-accent-soft font-medium text-accent"
                         : i < stepIndex
                           ? "text-good"
                           : "text-ink-dim"
                     }`}
+                    title={s.label}
                   >
                     {i < stepIndex ? (
                       <Check className="h-3 w-3" />
                     ) : (
                       <span className="text-[10px]">{i + 1}</span>
                     )}
-                    {s.label}
+                    <span className="hidden xl:inline">{s.label}</span>
                   </div>
                 </div>
               ))}
             </nav>
           )}
 
-          <div className="flex items-center gap-2">
+          {/* Right toolbar: labels collapse to icons below lg so nothing
+              ever wraps or overlaps the brand and stepper. */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors lg:px-3 ${
                 screen === "about"
                   ? "border-accent/40 bg-accent-soft/40 text-accent"
                   : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
               }`}
-              title="What this platform is, how it works, and why it can be trusted"
+              title="Guide: what this platform is, how it works, and why it can be trusted"
             >
-              <BookOpen className="h-3.5 w-3.5" /> Guide
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Guide</span>
             </button>
             <button
               onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors lg:px-3 ${
                 screen === "activity"
                   ? "border-accent/40 bg-accent-soft/40 text-accent"
                   : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
               }`}
+              title="Activity log: every action in order"
             >
-              <ScrollText className="h-3.5 w-3.5" /> Log
+              <ScrollText className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Log</span>
             </button>
             {run && (run.agent_log?.length ?? 0) > 0 && (
               <button
                 onClick={() => setLogOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-3 py-1 text-xs font-medium text-ink-dim backdrop-blur transition-colors hover:border-accent/40 hover:text-accent"
+                className="flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent lg:px-3"
+                title="Agent activity for this analysis"
               >
-                <Bot className="h-3.5 w-3.5" /> Agent activity
+                <Bot className="h-3.5 w-3.5" />
+                <span className="hidden xl:inline">Agent activity</span>
                 <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">
                   {run.agent_log?.length}
                 </span>
               </button>
             )}
             {llmEnabled === null ? (
-              <Badge tone="bad">backend offline?</Badge>
+              <span title="The backend is not responding">
+                <Badge tone="bad">
+                  <span className="hidden lg:inline">backend offline?</span>
+                  <span className="lg:hidden">offline</span>
+                </Badge>
+              </span>
             ) : !llmEnabled ? (
-              <Badge tone="warn">heuristic mode (no API key)</Badge>
+              <span title="No API key configured - agents use rule-based fallbacks">
+                <Badge tone="warn">
+                  <span className="hidden lg:inline">heuristic mode (no API key)</span>
+                  <span className="lg:hidden">heuristic</span>
+                </Badge>
+              </span>
             ) : llmOk === false ? (
-              <Badge tone="warn">heuristic mode (AI unreachable)</Badge>
+              <span title="AI unreachable - agents use rule-based fallbacks">
+                <Badge tone="warn">
+                  <span className="hidden lg:inline">heuristic mode (AI unreachable)</span>
+                  <span className="lg:hidden">heuristic</span>
+                </Badge>
+              </span>
             ) : (
-              <Badge tone="accent">AI connected</Badge>
+              <span title="AI provider reachable">
+                <Badge tone="accent">
+                  <span className="hidden lg:inline">AI connected</span>
+                  <span className="lg:hidden">AI</span>
+                </Badge>
+              </span>
             )}
           </div>
         </div>
