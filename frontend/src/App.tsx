@@ -436,7 +436,7 @@ function App() {
   return (
     <div className="min-h-full">
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-edge bg-white">
+      <header className="sticky top-0 z-20 border-b border-edge bg-white shadow-sm shadow-slate-900/5">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-2.5">
             <button className="flex items-center gap-2.5 text-left" onClick={goHome}>

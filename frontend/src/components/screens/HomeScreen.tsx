@@ -96,7 +96,7 @@ export function HomeScreen({
   return (
     <div className="space-y-10">
       {/* Hero */}
-      <div className="rounded-xl border border-edge bg-panel px-8 py-12 text-center shadow-sm">
+      <div className="rounded-2xl border border-edge bg-gradient-to-b from-accent-soft/25 via-panel to-panel px-8 py-14 text-center shadow-sm">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
           Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
         </p>
