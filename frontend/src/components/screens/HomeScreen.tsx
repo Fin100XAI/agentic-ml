@@ -111,7 +111,7 @@ export function HomeScreen({
           which groups need attention, where things are heading. Personal data is
           screened before any analysis, every number is computed - never guessed -
           nothing runs without your approval, and every action lands on an audit
-          trail fit for review. No data-science background required.
+          trail fit for review.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>
           Start a new analysis <ArrowRight className="h-4 w-4" />

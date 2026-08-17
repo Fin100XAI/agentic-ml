@@ -145,7 +145,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
             collections, service requests, demand histories - into decision briefs an officer
             can act on and defend. AI agents do the analytical legwork, machine learning
             computes every number, the officer approves every step, and everything lands on
-            an audit trail. No data-science background required.
+            an audit trail.
           </p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-edge border-t border-edge bg-panel-2/60 sm:grid-cols-5">
