@@ -102,14 +102,16 @@ export function HomeScreen({
         </p>
         <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold leading-tight">
           Evidence for every decision.
+          <span className="text-accent"> Accountability at every step.</span>
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
-          A team of AI agents turns departmental data - scheme enrollments, revenue
-          collections, service requests, demand histories - into a decision brief:
-          what drives outcomes, which groups need attention, where things are heading.
-          Machine learning computes every number, agents explain it in plain language,
-          and you approve every step on a complete audit trail. No data-science degree
-          required.
+          Decision support built for government. Upload departmental data - scheme
+          enrollments, revenue collections, service requests, demand histories - and
+          receive a brief an officer can act on and defend: what drives outcomes,
+          which groups need attention, where things are heading. Personal data is
+          screened before any analysis, every number is computed - never guessed -
+          nothing runs without your approval, and every action lands on an audit
+          trail fit for review. No data-science background required.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>
           Start a new analysis <ArrowRight className="h-4 w-4" />
