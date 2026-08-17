@@ -30,7 +30,7 @@ export function AgentLogDrawer({
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm" onClick={onClose} />
       {/* Drawer */}
-      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-edge bg-white/85 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl">
+      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-edge bg-white shadow-2xl shadow-slate-900/20">
         <div className="flex items-center justify-between border-b border-edge px-5 py-4">
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-accent" />

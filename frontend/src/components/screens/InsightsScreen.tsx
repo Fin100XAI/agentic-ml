@@ -213,7 +213,7 @@ function DriverChart({ driver }: { driver: Driver }) {
             label={{ position: "right", fill: "#0f172a", fontSize: 10, formatter: (v) => `${v}%` }}
           >
             {driver.groups.map((g, i) => (
-              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#4f46e5"} />
+              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#1d4ed8"} />
             ))}
           </Bar>
         </BarChart>
@@ -469,7 +469,7 @@ export function InsightsScreen({
           {/* Headline chart + findings, side by side */}
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">Key findings</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">Key findings</h3>
               {insights.findings.map((f, i) => (
                 <Card key={i}>
                   <CardBody className="py-3.5">
@@ -480,7 +480,7 @@ export function InsightsScreen({
               ))}
             </div>
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">The picture</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">The picture</h3>
               {insights.use_case === "classification" && a.class_distribution && (
                 <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">How outcomes split today</h4>
@@ -524,7 +524,7 @@ export function InsightsScreen({
           {/* Remaining drivers */}
           {insights.drivers && insights.drivers.length > 1 && (
             <section>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
                 Other drivers of the outcome
               </h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -538,7 +538,7 @@ export function InsightsScreen({
           {/* Segments */}
           {insights.segments && insights.segments.length > 0 && (
             <section>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent">
                 <Users className="h-4 w-4" /> Segment profiles
               </h3>
               <div className="grid gap-4 md:grid-cols-3">

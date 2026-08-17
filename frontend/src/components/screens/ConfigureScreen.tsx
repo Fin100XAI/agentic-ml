@@ -49,7 +49,7 @@ function ParamField({
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-2 h-4 w-4 accent-[#4f46e5]"
+          className="mt-2 h-4 w-4 accent-[#1d4ed8]"
         />
       ) : (
         <input
@@ -466,7 +466,7 @@ export function ConfigureScreen({
                       type="checkbox"
                       checked={on}
                       onChange={() => toggleFeature(f.id)}
-                      className="mt-0.5 h-3.5 w-3.5 accent-[#4f46e5]"
+                      className="mt-0.5 h-3.5 w-3.5 accent-[#1d4ed8]"
                     />
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -649,7 +649,7 @@ export function ConfigureScreen({
                               return next;
                             })
                           }
-                          className="mt-0.5 accent-[#4f46e5]"
+                          className="mt-0.5 accent-[#1d4ed8]"
                         />
                         <span>
                           Will you know <span className="font-semibold">{c}</span>'s future values
@@ -695,7 +695,7 @@ export function ConfigureScreen({
                             type="radio"
                             checked={groupAgg === a}
                             onChange={() => setGroupAgg(a)}
-                            className="accent-[#4f46e5]"
+                            className="accent-[#1d4ed8]"
                           />
                           {a === "sum" ? "total across groups" : "average per group"}
                         </label>

@@ -85,7 +85,7 @@ export function ActivityScreen({
                   onClick={() => setEventType(t)}
                   className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                     eventType === t
-                      ? "border-[#4f46e5]/40 bg-[#4f46e5]/10 font-medium text-[#4f46e5]"
+                      ? "border-[#1d4ed8]/40 bg-[#1d4ed8]/10 font-medium text-[#1d4ed8]"
                       : "border-edge bg-white/50 text-ink-dim"
                   }`}
                 >

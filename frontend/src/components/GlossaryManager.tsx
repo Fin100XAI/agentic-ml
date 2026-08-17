@@ -45,7 +45,7 @@ export function GlossaryManager({ projectId }: { projectId: string }) {
     <section>
       <button
         onClick={() => setOpen(!open)}
-        className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-dim transition-colors hover:text-ink"
+        className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent transition-colors hover:text-ink"
       >
         <BookOpen className="h-4 w-4" /> Data dictionary
         {entries.length > 0 && <Badge tone="accent">{entries.length} terms</Badge>}

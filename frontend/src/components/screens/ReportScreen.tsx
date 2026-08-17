@@ -18,7 +18,7 @@ const EVIDENCE_TONE = { strong: "good", moderate: "warn", limited: "bad" } as co
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="break-inside-avoid">
-      <h3 className="mb-3 border-b border-edge pb-1.5 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+      <h3 className="mb-3 border-b border-edge pb-1.5 text-sm font-semibold uppercase tracking-wider text-accent">
         {title}
       </h3>
       {children}

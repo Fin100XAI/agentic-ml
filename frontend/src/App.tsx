@@ -429,7 +429,7 @@ function App() {
   return (
     <div className="min-h-full">
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-edge bg-white/55 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b border-edge bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
           <div className="flex items-center gap-2.5">
             <button className="flex items-center gap-2.5 text-left" onClick={goHome}>
@@ -545,7 +545,7 @@ function App() {
 
         {/* Guide bar */}
         {screen !== "home" && GUIDE[screen] && (
-          <div className="border-t border-edge/60 bg-white/35">
+          <div className="border-t border-edge/60 bg-panel-2">
             <div className="mx-auto max-w-7xl px-6 py-1.5 text-[11px] text-ink-dim">
               {GUIDE[screen]}
             </div>
@@ -556,7 +556,7 @@ function App() {
       <main className="mx-auto max-w-7xl px-6 py-6">
         {/* Compact decision timeline */}
         {screen !== "home" && run && run.decisions.length > 0 && (
-          <div className="mb-6 rounded-xl border border-edge bg-panel backdrop-blur-xl">
+          <div className="mb-6 rounded-xl border border-edge bg-panel shadow-sm">
             <div className="flex items-center justify-between border-b border-edge/60 px-4 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
                 Decision trail

@@ -94,7 +94,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
             labelFormatter={(_, p) => (p?.[0]?.payload as { label?: string })?.label ?? ""}
             cursor={{ fill: "rgba(79,70,229,0.06)" }}
           />
-          <Bar dataKey="count" fill="#4f46e5" radius={[3, 3, 0, 0]} opacity={0.75} />
+          <Bar dataKey="count" fill="#1d4ed8" radius={[3, 3, 0, 0]} opacity={0.75} />
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-ink-dim">
@@ -303,7 +303,7 @@ function TypeComposition({ profile }: { profile: Profile }) {
   const entries = Object.entries(counts);
   const total = profile.columns.length || 1;
   const COLORS: Record<string, string> = {
-    numeric: "#4f46e5",
+    numeric: "#1d4ed8",
     categorical: "#059669",
     datetime: "#d97706",
     boolean: "#0891b2",

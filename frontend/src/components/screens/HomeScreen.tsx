@@ -96,15 +96,12 @@ export function HomeScreen({
   return (
     <div className="space-y-10">
       {/* Hero */}
-      <div className="rounded-2xl border border-edge bg-gradient-to-br from-panel via-panel to-accent-soft/30 px-8 py-10 text-center">
-        {projectName && (
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-accent">
-            {projectName}
-          </p>
-        )}
-        <h2 className="mx-auto max-w-2xl text-2xl font-bold leading-snug">
-          Agentic ML Workbench
-          <span className="text-accent"> - evidence for every decision.</span>
+      <div className="rounded-xl border border-edge bg-panel px-8 py-12 text-center shadow-sm">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+          Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
+        </p>
+        <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold leading-tight">
+          Evidence for every decision.
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
           A team of AI agents turns departmental data - scheme enrollments, revenue
@@ -134,7 +131,7 @@ export function HomeScreen({
 
       {/* What you can analyze */}
       <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
           What you can analyze
         </h3>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -162,7 +159,7 @@ export function HomeScreen({
 
       {/* Agents */}
       <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
           Meet your agents
         </h3>
         <div className="grid gap-4 md:grid-cols-3">
@@ -187,7 +184,7 @@ export function HomeScreen({
 
       {/* Platform features */}
       <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
           Built for people, not just data scientists
         </h3>
         <div className="grid gap-4 md:grid-cols-3">
@@ -216,7 +213,7 @@ export function HomeScreen({
       {recentRuns.length > 0 && (
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">
               This session's analyses
             </h3>
             {completedRuns.length >= 2 && (

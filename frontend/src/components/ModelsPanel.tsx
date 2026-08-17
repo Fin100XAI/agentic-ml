@@ -49,7 +49,7 @@ export function ModelsPanel({
 
   return (
     <section>
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-ink-dim">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent">
         <Boxes className="h-4 w-4" /> Models in this project
       </h3>
       <Card>

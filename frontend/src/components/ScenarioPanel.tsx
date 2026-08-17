@@ -103,7 +103,7 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
                 step={(f.max - f.min) / 100 || 1}
                 value={Math.min(Math.max(values[col] ?? f.min, f.min), f.max)}
                 onChange={(e) => setValues((v) => ({ ...v, [col]: Number(e.target.value) }))}
-                className="w-40 accent-[#4f46e5]"
+                className="w-40 accent-[#1d4ed8]"
               />
               <input
                 type="number"
@@ -175,7 +175,7 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
                 <XAxis dataKey="x" tick={{ stroke: "#64748b", fontSize: 10 }} tickFormatter={(v) => String(Math.round(v * 100) / 100)} />
                 <YAxis tick={{ stroke: "#64748b", fontSize: 10 }} domain={["auto", "auto"]} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10 }} />
-                <Line type="monotone" dataKey="y" stroke="#4f46e5" strokeWidth={2} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="y" stroke="#1d4ed8" strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
             <p className="mt-1 text-[10px] leading-snug text-ink-dim">

@@ -1,4 +1,4 @@
-// Small glass-styled UI primitives.
+// Small flat UI primitives: white cards, slate borders, royal blue accent.
 import { clsx } from "clsx";
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 
@@ -6,7 +6,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={clsx(
-        "rounded-2xl border border-edge bg-panel shadow-lg shadow-slate-900/5 backdrop-blur-xl",
+        "rounded-xl border border-edge bg-panel shadow-sm",
         className,
       )}
       {...props}
@@ -52,13 +52,13 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all",
         "disabled:cursor-not-allowed disabled:opacity-50",
         size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
         variant === "primary" &&
-          "bg-accent text-white shadow-md shadow-accent/25 hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/30 active:bg-accent/80",
+          "bg-accent text-white shadow-sm hover:bg-accent/90 active:bg-accent/80",
         variant === "outline" &&
-          "border border-edge bg-panel-2 text-ink backdrop-blur hover:border-accent/40 hover:bg-white",
+          "border border-edge bg-panel text-ink hover:border-accent/50 hover:text-accent",
         variant === "ghost" && "bg-transparent text-ink-dim hover:text-ink",
         className,
       )}
@@ -101,7 +101,7 @@ export function Spinner({ label }: { label?: string }) {
 
 export function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
+    <div className="min-w-0 rounded-lg border border-edge bg-panel-2 px-3 py-2">
       <div className="truncate text-[11px] uppercase tracking-wider text-ink-dim" title={label}>
         {label}
       </div>
