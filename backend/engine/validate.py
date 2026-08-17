@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from .catalog import get_model
-from .catalog.preprocess import RANDOM_SEED, encode_target, select_feature_frame
+from .catalog.preprocess import RANDOM_SEED, encode_target, structural_frame
 
 MAX_ROWS = 50_000
 
@@ -76,7 +76,9 @@ def _kfold_classification(df: pd.DataFrame, config: dict[str, Any]) -> dict[str,
     from sklearn.metrics import f1_score
     from sklearn.model_selection import StratifiedKFold
 
-    X = select_feature_frame(data, target=target, features=config.get("features"))
+    # Structural prep only; the estimator is a full Pipeline, so imputation
+    # and encoding REFIT inside each fold - no cross-fold statistics.
+    X = structural_frame(data, target=target, features=config.get("features"))
     average = "binary" if len(class_names) == 2 else "weighted"
     scores: list[float] = []
     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=RANDOM_SEED)
@@ -111,7 +113,8 @@ def _kfold_regression(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any
     from sklearn.metrics import mean_squared_error
     from sklearn.model_selection import KFold
 
-    X = select_feature_frame(data, target=target, features=config.get("features"))
+    # Structural prep only; per-fold pipelines refit imputation/encoding.
+    X = structural_frame(data, target=target, features=config.get("features"))
     scores: list[float] = []
     kf = KFold(n_splits=k, shuffle=True, random_state=RANDOM_SEED)
     for train_idx, test_idx in kf.split(X):
@@ -135,6 +138,9 @@ def _rolling_origin(
         work = df.assign(_ts=ts).dropna(subset=["_ts"]).sort_values("_ts").drop(columns=["_ts"])
 
     # The main run already measured the latest origin; add two earlier ones.
+    # Each origin calls plugin.run on ONLY the training-window head-cut, so
+    # lag features and any prep statistics are computed inside the window -
+    # nothing from the future leaks backward.
     scores: list[float] = []
     for frac in (0.6, 0.8):
         cut = work.head(int(len(work) * frac))

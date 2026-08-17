@@ -10,8 +10,15 @@ from sklearn.linear_model import ElasticNet, LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
+from sklearn.pipeline import Pipeline
+
 from .base import ModelPlugin, ParamSpec, register
-from .preprocess import RANDOM_SEED, select_feature_frame
+from .preprocess import (
+    RANDOM_SEED,
+    build_preprocessor,
+    processed_feature_names,
+    structural_frame,
+)
 
 _SCATTER_CAP = 500  # points sent to the predicted-vs-actual chart
 
@@ -65,15 +72,17 @@ def _evaluate_regressor(
         "residual_hist": residual_hist,
     }
 
+    inner = model.named_steps["model"] if hasattr(model, "named_steps") else model
+    names = processed_feature_names(model) or [str(c) for c in X.columns]
     importances = None
-    if hasattr(model, "feature_importances_"):
-        importances = model.feature_importances_
-    elif hasattr(model, "coef_"):
-        importances = np.abs(np.asarray(model.coef_)).ravel()
-    if importances is not None and len(importances) == X.shape[1]:
+    if hasattr(inner, "feature_importances_"):
+        importances = inner.feature_importances_
+    elif hasattr(inner, "coef_"):
+        importances = np.abs(np.asarray(inner.coef_)).ravel()
+    if importances is not None and len(importances) == len(names):
         order = np.argsort(importances)[::-1][:15]
         artifacts["feature_importance"] = [
-            {"feature": str(X.columns[i]), "importance": round(float(importances[i]), 4)}
+            {"feature": names[i], "importance": round(float(importances[i]), 4)}
             for i in order
         ]
 
@@ -95,7 +104,7 @@ def _prepare(df: pd.DataFrame, target: str | None, features: list[str] | None):
     y_all = _require_numeric_target(target, df)
     data = df[y_all.notna()]
     y = y_all[y_all.notna()].values.astype(float)
-    X = select_feature_frame(data, target=target, features=features)
+    X = structural_frame(data, target=target, features=features)
     return X, y
 
 
@@ -119,11 +128,13 @@ class ElasticNetModel(ModelPlugin):
 
     def build_estimator(self, hyperparams):
         if hyperparams["alpha"] <= 0:
-            return LinearRegression()
-        return ElasticNet(
-            alpha=hyperparams["alpha"], l1_ratio=hyperparams["l1_ratio"],
-            random_state=RANDOM_SEED, max_iter=5000,
-        )
+            model = LinearRegression()
+        else:
+            model = ElasticNet(
+                alpha=hyperparams["alpha"], l1_ratio=hyperparams["l1_ratio"],
+                random_state=RANDOM_SEED, max_iter=5000,
+            )
+        return Pipeline([("prep", build_preprocessor()), ("model", model)])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         X, y = _prepare(df, target, features)
@@ -147,13 +158,16 @@ class RandomForestRegressorModel(ModelPlugin):
         ]
 
     def build_estimator(self, hyperparams):
-        return RandomForestRegressor(
-            n_estimators=hyperparams["n_estimators"],
-            max_depth=hyperparams["max_depth"] or None,
-            min_samples_leaf=hyperparams["min_samples_leaf"],
-            random_state=RANDOM_SEED,
-            n_jobs=-1,
-        )
+        return Pipeline([
+            ("prep", build_preprocessor()),
+            ("model", RandomForestRegressor(
+                n_estimators=hyperparams["n_estimators"],
+                max_depth=hyperparams["max_depth"] or None,
+                min_samples_leaf=hyperparams["min_samples_leaf"],
+                random_state=RANDOM_SEED,
+                n_jobs=-1,
+            )),
+        ])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         X, y = _prepare(df, target, features)
@@ -180,13 +194,16 @@ class XGBRegressorModel(ModelPlugin):
     def build_estimator(self, hyperparams):
         from xgboost import XGBRegressor
 
-        return XGBRegressor(
-            n_estimators=hyperparams["n_estimators"],
-            max_depth=hyperparams["max_depth"],
-            learning_rate=hyperparams["learning_rate"],
-            subsample=hyperparams["subsample"],
-            random_state=RANDOM_SEED,
-        )
+        return Pipeline([
+            ("prep", build_preprocessor()),
+            ("model", XGBRegressor(
+                n_estimators=hyperparams["n_estimators"],
+                max_depth=hyperparams["max_depth"],
+                learning_rate=hyperparams["learning_rate"],
+                subsample=hyperparams["subsample"],
+                random_state=RANDOM_SEED,
+            )),
+        ])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         X, y = _prepare(df, target, features)

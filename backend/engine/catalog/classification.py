@@ -17,8 +17,16 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
+from sklearn.pipeline import Pipeline
+
 from .base import ModelPlugin, ParamSpec, register
-from .preprocess import RANDOM_SEED, encode_target, select_feature_frame
+from .preprocess import (
+    RANDOM_SEED,
+    build_preprocessor,
+    encode_target,
+    processed_feature_names,
+    structural_frame,
+)
 
 
 def _evaluate_classifier(
@@ -92,20 +100,25 @@ def _evaluate_classifier(
             "points": threshold_curve,
         }
 
+    # Importances come from the model step; names from the fitted preprocessor.
+    inner = model.named_steps["model"] if hasattr(model, "named_steps") else model
+    names = processed_feature_names(model) or [str(c) for c in X.columns]
     importances = None
-    if hasattr(model, "feature_importances_"):
-        importances = model.feature_importances_
-    elif hasattr(model, "coef_"):
-        importances = np.abs(model.coef_).mean(axis=0)
-    if importances is not None:
+    if hasattr(inner, "feature_importances_"):
+        importances = inner.feature_importances_
+    elif hasattr(inner, "coef_"):
+        importances = np.abs(inner.coef_).mean(axis=0)
+    if importances is not None and len(importances) == len(names):
         order = np.argsort(importances)[::-1][:15]
         artifacts["feature_importance"] = [
-            {"feature": str(X.columns[i]), "importance": round(float(importances[i]), 4)} for i in order
+            {"feature": names[i], "importance": round(float(importances[i]), 4)} for i in order
         ]
 
     return {
         "metrics": metrics,
         "artifacts": artifacts,
+        # The pipeline's INPUT columns: what scoring must supply. The fitted
+        # transformers inside the checkpoint handle encoding from there.
         "features_used": [str(c) for c in X.columns],
         "class_names": class_names,
         "fitted_model": model,  # popped by the orchestrator before serialization
@@ -143,17 +156,21 @@ class LogisticRegressionModel(ModelPlugin):
         ]
 
     def build_estimator(self, hyperparams):
-        return LogisticRegression(
-            C=hyperparams["C"], max_iter=hyperparams["max_iter"],
-            class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
-            random_state=RANDOM_SEED,
-        )
+        # Full fold-safe pipeline: impute/encode refit wherever .fit runs.
+        return Pipeline([
+            ("prep", build_preprocessor()),
+            ("model", LogisticRegression(
+                C=hyperparams["C"], max_iter=hyperparams["max_iter"],
+                class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
+                random_state=RANDOM_SEED,
+            )),
+        ])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         target = _require_target(target, df)
         data = df.dropna(subset=[target])
         y, class_names = encode_target(data[target])
-        X = select_feature_frame(data, target=target, features=features)
+        X = structural_frame(data, target=target, features=features)
         return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])
 
 
@@ -176,20 +193,23 @@ class RandomForestModel(ModelPlugin):
         ]
 
     def build_estimator(self, hyperparams):
-        return RandomForestClassifier(
-            n_estimators=hyperparams["n_estimators"],
-            max_depth=hyperparams["max_depth"] or None,
-            min_samples_leaf=hyperparams["min_samples_leaf"],
-            class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
-            random_state=RANDOM_SEED,
-            n_jobs=-1,
-        )
+        return Pipeline([
+            ("prep", build_preprocessor()),
+            ("model", RandomForestClassifier(
+                n_estimators=hyperparams["n_estimators"],
+                max_depth=hyperparams["max_depth"] or None,
+                min_samples_leaf=hyperparams["min_samples_leaf"],
+                class_weight=None if hyperparams.get("class_weight", "none") == "none" else "balanced",
+                random_state=RANDOM_SEED,
+                n_jobs=-1,
+            )),
+        ])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         target = _require_target(target, df)
         data = df.dropna(subset=[target])
         y, class_names = encode_target(data[target])
-        X = select_feature_frame(data, target=target, features=features)
+        X = structural_frame(data, target=target, features=features)
         return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])
 
 
@@ -215,19 +235,22 @@ class XGBoostModel(ModelPlugin):
     def build_estimator(self, hyperparams):
         from xgboost import XGBClassifier
 
-        return XGBClassifier(
-            n_estimators=hyperparams["n_estimators"],
-            max_depth=hyperparams["max_depth"],
-            learning_rate=hyperparams["learning_rate"],
-            subsample=hyperparams["subsample"],
-            scale_pos_weight=hyperparams.get("scale_pos_weight", 1.0),
-            random_state=RANDOM_SEED,
-            eval_metric="logloss",
-        )
+        return Pipeline([
+            ("prep", build_preprocessor()),
+            ("model", XGBClassifier(
+                n_estimators=hyperparams["n_estimators"],
+                max_depth=hyperparams["max_depth"],
+                learning_rate=hyperparams["learning_rate"],
+                subsample=hyperparams["subsample"],
+                scale_pos_weight=hyperparams.get("scale_pos_weight", 1.0),
+                random_state=RANDOM_SEED,
+                eval_metric="logloss",
+            )),
+        ])
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
         target = _require_target(target, df)
         data = df.dropna(subset=[target])
         y, class_names = encode_target(data[target])
-        X = select_feature_frame(data, target=target, features=features)
+        X = structural_frame(data, target=target, features=features)
         return _evaluate_classifier(self.build_estimator(hyperparams), X, y, class_names, hyperparams["test_size"])

@@ -10,9 +10,25 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import davies_bouldin_score, silhouette_score
 
 from .base import ModelPlugin, ParamSpec, register
-from .preprocess import RANDOM_SEED, scale, select_feature_frame
+from .preprocess import RANDOM_SEED, build_preprocessor, processed_feature_names, structural_frame
 
 MAX_SCATTER_POINTS = 2000
+
+
+def _scaled_matrix(df, target, features):
+    """Fold-safe prep for distance-based models: impute/encode/scale are all
+    FIT on the frame passed in - so subsample stability draws refit them per
+    draw instead of inheriting full-frame statistics."""
+    from sklearn.pipeline import Pipeline as SkPipeline
+    from sklearn.preprocessing import StandardScaler
+
+    X = structural_frame(df, target=target, features=features)
+    if X.empty:
+        raise ValueError("No usable features for clustering.")
+    prep = SkPipeline([("prep", build_preprocessor()), ("scale", StandardScaler())])
+    Xs = prep.fit_transform(X)
+    names = processed_feature_names(prep) or [str(c) for c in X.columns]
+    return Xs, names
 
 
 def _cluster_artifacts(X_scaled: np.ndarray, labels: np.ndarray, feature_names: list[str]) -> dict[str, Any]:
@@ -76,13 +92,10 @@ class KMeansModel(ModelPlugin):
         ]
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
-        X = select_feature_frame(df, target=target, features=features)
-        if X.empty:
-            raise ValueError("No usable numeric features for clustering.")
-        Xs = scale(X)
+        Xs, names = _scaled_matrix(df, target, features)
         model = KMeans(n_clusters=hyperparams["n_clusters"], n_init=hyperparams["n_init"], random_state=RANDOM_SEED)
         labels = model.fit_predict(Xs)
-        result = _cluster_artifacts(Xs, labels, list(X.columns))
+        result = _cluster_artifacts(Xs, labels, names)
         result["metrics"]["inertia"] = round(float(model.inertia_), 2)
         return result
 
@@ -102,12 +115,9 @@ class DBSCANModel(ModelPlugin):
         ]
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
-        X = select_feature_frame(df, target=target, features=features)
-        if X.empty:
-            raise ValueError("No usable numeric features for clustering.")
-        Xs = scale(X)
+        Xs, names = _scaled_matrix(df, target, features)
         labels = DBSCAN(eps=hyperparams["eps"], min_samples=hyperparams["min_samples"]).fit_predict(Xs)
-        return _cluster_artifacts(Xs, labels, list(X.columns))
+        return _cluster_artifacts(Xs, labels, names)
 
 
 @register
@@ -126,11 +136,8 @@ class AgglomerativeModel(ModelPlugin):
         ]
 
     def run(self, df, hyperparams, target=None, features=None, time_column=None):
-        X = select_feature_frame(df, target=target, features=features)
-        if X.empty:
-            raise ValueError("No usable numeric features for clustering.")
-        Xs = scale(X)
+        Xs, names = _scaled_matrix(df, target, features)
         labels = AgglomerativeClustering(
             n_clusters=hyperparams["n_clusters"], linkage=hyperparams["linkage"]
         ).fit_predict(Xs)
-        return _cluster_artifacts(Xs, labels, list(X.columns))
+        return _cluster_artifacts(Xs, labels, names)

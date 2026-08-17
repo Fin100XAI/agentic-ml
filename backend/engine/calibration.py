@@ -14,7 +14,7 @@ from sklearn.base import clone
 from sklearn.model_selection import StratifiedKFold
 
 from .catalog import get_model
-from .catalog.preprocess import RANDOM_SEED, encode_target, select_feature_frame
+from .catalog.preprocess import RANDOM_SEED, encode_target, structural_frame
 
 MIN_ROWS = 100
 MAX_ROWS = 20_000  # beyond this, repeated refits get slow; skip honestly
@@ -75,7 +75,8 @@ def calibration_check(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any
     est = plugin.build_estimator(config["hyperparams"])
     if not hasattr(est, "predict_proba"):
         return None
-    X = select_feature_frame(data, target=target, features=config.get("features"))
+    # Structural prep only; the pipeline refits impute/encode per fold.
+    X = structural_frame(data, target=target, features=config.get("features"))
     k = 5 if counts.min() >= 5 else 3
     cv = StratifiedKFold(n_splits=k, shuffle=True, random_state=RANDOM_SEED)
     # Manual out-of-fold loop (cross_val_predict trips on xgboost/sklearn

@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .catalog.preprocess import select_feature_frame
+from .catalog.preprocess import select_feature_frame, structural_frame
 from .features import apply_features
 from .librarian import _normalize
 from .pii import apply_pii_actions
@@ -84,10 +84,18 @@ def rebuild_and_score(
     work = apply_features(work, train_config.get("engineered") or [])
     work = work.drop(columns=train_config.get("excluded") or [], errors="ignore")
 
-    # 4. Same numeric frame, aligned to the exact trained columns (unseen
-    #    one-hot categories become 0; anything extra is dropped).
-    X = select_feature_frame(work, target=target, features=train_config.get("features"))
-    X = X.reindex(columns=entry["feature_list"], fill_value=0.0)
+    # 4. Alignment depends on the checkpoint era. Pipeline checkpoints carry
+    #    their FITTED imputers/encoders, so we hand them the raw structural
+    #    frame and let training-time statistics do the preparation - never
+    #    re-derived from the new file. Legacy bare estimators keep the old
+    #    processed-column alignment.
+    if hasattr(model, "named_steps"):
+        X = structural_frame(work, target=target, features=train_config.get("features"))
+        # Missing columns become NaN -> filled by TRAINING-time imputer stats.
+        X = X.reindex(columns=entry["feature_list"])
+    else:
+        X = select_feature_frame(work, target=target, features=train_config.get("features"))
+        X = X.reindex(columns=entry["feature_list"], fill_value=0.0)
 
     preds = model.predict(X)
     out = new_df.copy()

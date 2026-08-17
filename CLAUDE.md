@@ -73,6 +73,8 @@ cd backend\sample_data; ..\..\backend\.venv\Scripts\python.exe make_samples.py
 - Windows: Prophet is deliberately excluded (needs C++ toolchain); forecasting
   uses ARIMA/ExpSmoothing/XGBoost-lags instead.
 - statsmodels must be >=0.14.6 to work with scipy >=1.16.
+- xgboost must be >=2.1.4 with scikit-learn >=1.6 (older xgboost lacks
+  __sklearn_tags__ and breaks inside Pipelines and cross_val_*).
 - The dev launch config (`.claude/launch.json`) starts uvicorn WITHOUT
   --reload; restart the preview server after backend changes.
 - PowerShell 5.1: no `&&`; avoid Get-Content/Set-Content on UTF-8 files
