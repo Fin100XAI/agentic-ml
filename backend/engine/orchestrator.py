@@ -279,11 +279,18 @@ class Orchestrator:
 
         accepted = [p["id"] for p in proposals if p["id"] in set(accepted_ids)]
         declined = [p["id"] for p in proposals if p["id"] not in set(accepted_ids)]
-        fixed = apply_fixes(run.df, proposals, accepted)
+        from .remediation import fit_apply_fixes
+
+        fixed, fitted_params = fit_apply_fixes(run.df, proposals, accepted)
+        # Fitted parameters (imputation values, winsorize bounds, dropped
+        # columns) ride on both the run and the artifact - scoring and
+        # scenarios replay THESE, never statistics re-derived from new data.
+        rem["fitted_params"] = fitted_params
         if self.on_artifact is not None:
             try:
                 run.artifact_id = self.on_artifact(
-                    run, fixed, "remediation", {"fixes": accepted}
+                    run, fixed, "remediation",
+                    {"fixes": accepted, "fitted_params": fitted_params},
                 )
             except Exception:
                 pass

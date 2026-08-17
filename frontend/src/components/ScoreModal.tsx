@@ -101,6 +101,11 @@ export function ScoreModal({
                 {result.threshold_note && (
                   <p className="text-[11px] text-ink-dim">{result.threshold_note}</p>
                 )}
+                {result.replay_warning && (
+                  <p className="rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-[11px] leading-relaxed text-warn">
+                    {result.replay_warning}
+                  </p>
+                )}
 
                 <div className="rounded-xl border border-edge bg-panel p-4">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">

@@ -165,6 +165,7 @@ export interface ScoreResult {
     | { kind: "classes"; data: { label: string; count: number }[] }
     | { kind: "histogram"; data: { mid: number; count: number }[] };
   threshold_note: string | null;
+  replay_warning?: string | null;
   summary: string;
   generated_by: string;
   artifact_id: string;

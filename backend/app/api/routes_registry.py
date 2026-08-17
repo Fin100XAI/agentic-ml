@@ -176,6 +176,7 @@ def score_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) 
         "n": int(len(scored)),
         "reconciliation": {k: v for k, v in result["reconciliation"].items() if k != "mapping"},
         "distribution": result["distribution"],
+        "replay_warning": result.get("replay_warning"),
         "threshold_note": result["threshold_note"],
         "summary": summary,
         "generated_by": generated_by,

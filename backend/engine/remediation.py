@@ -112,15 +112,24 @@ def propose_fixes(df: pd.DataFrame) -> list[dict[str, Any]]:
     return proposals
 
 
-def apply_fixes(
+def fit_apply_fixes(
     df: pd.DataFrame, proposals: list[dict[str, Any]], accepted_ids: list[str]
-) -> pd.DataFrame:
-    """Apply the approved subset. Never mutates the input frame."""
+) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
+    """Apply the approved subset AND capture every fitted parameter.
+
+    Frame-level transforms (imputation statistics, winsorize cut values,
+    dropped-column names) record what they computed, keyed by proposal id,
+    so scoring and scenarios can REPLAY the training-time values instead of
+    re-deriving them from new data. Never mutates the input frame.
+    """
     accepted = {p["id"]: p for p in proposals if p["id"] in set(accepted_ids)}
     work = df.copy()
+    fitted: dict[str, dict[str, Any]] = {}
 
     if "dedupe" in accepted:
+        before = len(work)
         work = work.drop_duplicates().reset_index(drop=True)
+        fitted["dedupe"] = {"removed": int(before - len(work))}
 
     for p in accepted.values():
         col = p.get("column")
@@ -128,20 +137,100 @@ def apply_fixes(
             continue
         kind = p["kind"]
         if kind == "coerce_numeric":
+            # Row-wise: the formula IS the parameter; nothing to fit.
+            work[col] = pd.to_numeric(
+                work[col].astype(str).str.replace(",", "", regex=False), errors="coerce"
+            )
+            fitted[p["id"]] = {"kind": kind}
+        elif kind == "drop_column":
+            work = work.drop(columns=[col])
+            fitted[p["id"]] = {"kind": kind, "column": col}
+        elif kind == "impute_median":
+            med = work[col].median()
+            work[col] = work[col].fillna(med)
+            fitted[p["id"]] = {"kind": kind, "column": col,
+                               "value": float(med) if pd.notna(med) else None}
+        elif kind == "impute_mode":
+            mode = work[col].mode()
+            v = mode.iloc[0] if len(mode) else None
+            if v is not None:
+                work[col] = work[col].fillna(v)
+            fitted[p["id"]] = {"kind": kind, "column": col,
+                               "value": None if v is None else str(v)}
+        elif kind == "winsorize":
+            vals = pd.to_numeric(work[col], errors="coerce")
+            lo, hi = vals.quantile(0.01), vals.quantile(0.99)
+            work[col] = vals.clip(lower=lo, upper=hi)
+            fitted[p["id"]] = {"kind": kind, "column": col,
+                               "lo": float(lo), "hi": float(hi)}
+
+    return work, fitted
+
+
+def apply_fixes(
+    df: pd.DataFrame, proposals: list[dict[str, Any]], accepted_ids: list[str]
+) -> pd.DataFrame:
+    """Back-compat fit-and-apply (training time). Prefer fit_apply_fixes."""
+    return fit_apply_fixes(df, proposals, accepted_ids)[0]
+
+
+def replay_fixes(
+    df: pd.DataFrame,
+    proposals: list[dict[str, Any]],
+    accepted_ids: list[str],
+    fitted: dict[str, dict[str, Any]] | None,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Replay approved fixes on NEW data using STORED training-time parameters.
+
+    Row-wise transforms re-apply their formula; frame-level transforms use
+    the fitted values captured at apply time - never re-derived from the
+    incoming frame. Dedupe never applies to new data (every incoming row
+    deserves a prediction). Returns (frame, notes); a note is added whenever
+    a stored parameter is missing (pre-fix artifact) and the transform had
+    to fall back to re-derivation - callers surface that as a warning.
+    """
+    accepted = {p["id"]: p for p in proposals if p["id"] in set(accepted_ids)}
+    fitted = fitted or {}
+    work = df.copy()
+    notes: list[str] = []
+
+    if "dedupe" in accepted:
+        notes.append("dedupe skipped: not applicable to incoming data")
+
+    for pid, p in accepted.items():
+        if pid == "dedupe":
+            continue
+        col = p.get("column")
+        if not col or col not in work.columns:
+            continue
+        kind = p["kind"]
+        params = fitted.get(pid) or {}
+        if kind == "coerce_numeric":
             work[col] = pd.to_numeric(
                 work[col].astype(str).str.replace(",", "", regex=False), errors="coerce"
             )
         elif kind == "drop_column":
             work = work.drop(columns=[col])
         elif kind == "impute_median":
-            work[col] = work[col].fillna(work[col].median())
+            if params.get("value") is not None:
+                work[col] = work[col].fillna(params["value"])
+            else:
+                notes.append(f"impute '{col}': training median not stored - re-derived from this file")
+                work[col] = work[col].fillna(work[col].median())
         elif kind == "impute_mode":
-            mode = work[col].mode()
-            if len(mode):
-                work[col] = work[col].fillna(mode.iloc[0])
+            if params.get("value") is not None:
+                work[col] = work[col].fillna(params["value"])
+            else:
+                notes.append(f"impute '{col}': training mode not stored - re-derived from this file")
+                mode = work[col].mode()
+                if len(mode):
+                    work[col] = work[col].fillna(mode.iloc[0])
         elif kind == "winsorize":
             vals = pd.to_numeric(work[col], errors="coerce")
-            lo, hi = vals.quantile(0.01), vals.quantile(0.99)
-            work[col] = vals.clip(lower=lo, upper=hi)
+            if params.get("lo") is not None and params.get("hi") is not None:
+                work[col] = vals.clip(lower=params["lo"], upper=params["hi"])
+            else:
+                notes.append(f"cap '{col}': training bounds not stored - re-derived from this file")
+                work[col] = vals.clip(lower=vals.quantile(0.01), upper=vals.quantile(0.99))
 
-    return work
+    return work, notes

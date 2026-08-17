@@ -16,7 +16,7 @@ from .catalog.preprocess import select_feature_frame, structural_frame
 from .features import apply_features
 from .librarian import _normalize
 from .pii import apply_pii_actions
-from .remediation import apply_fixes
+from .remediation import replay_fixes
 
 PREVIEW_ROWS = 50
 HIST_BINS = 15
@@ -73,12 +73,19 @@ def rebuild_and_score(
         if effective:
             work = apply_pii_actions(work, pii_findings, effective)
 
-    # 2. Same approved data fixes (dedupe is skipped - every incoming row
-    #    deserves a prediction, even a duplicate).
+    # 2. Same approved data fixes, replayed with STORED training-time
+    #    parameters (imputation values, winsorize bounds) - never statistics
+    #    re-derived from this file. Dedupe is skipped: every incoming row
+    #    deserves a prediction, even a duplicate.
+    replay_notes: list[str] = []
     if remediation and remediation.get("status") == "applied":
-        proposals = [p for p in remediation.get("proposals", []) if p["kind"] != "dedupe"]
-        accepted = [i for i in remediation.get("applied_ids", []) if i != "dedupe"]
-        work = apply_fixes(work, proposals, accepted)
+        work, replay_notes = replay_fixes(
+            work,
+            remediation.get("proposals", []),
+            remediation.get("applied_ids", []),
+            remediation.get("fitted_params"),
+        )
+        replay_notes = [n for n in replay_notes if "dedupe" not in n]
 
     # 3. Same engineered features and leakage exclusions.
     work = apply_features(work, train_config.get("engineered") or [])
@@ -131,6 +138,14 @@ def rebuild_and_score(
         "scored": out,
         "reconciliation": recon,
         "distribution": _distribution(out, use_case),
+        # Plain-language warning when this model's lineage predates stored
+        # replay parameters - the preparation had to re-derive statistics.
+        "replay_warning": (
+            "This model was trained before preparation parameters were stored, so "
+            "some fixes were re-derived from this file instead of replayed exactly: "
+            + "; ".join(replay_notes) + ". Retrain once to store them."
+            if replay_notes else None
+        ),
         "threshold_note": (
             f"Class labels use the approved decision threshold of {threshold}"
             + (" (tuned on this model's results screen)." if entry.get("decision_threshold") else " (the default).")
