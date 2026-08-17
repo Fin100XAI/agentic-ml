@@ -17,9 +17,20 @@ export function ThresholdPanel({
   modelId?: string;
   version?: number;
 }) {
-  const [thr, setThr] = useState(curve.suggested);
+  const [thr, setThr] = useState(curve.suggested ?? 0.5);
   const [saved, setSaved] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  if (curve.skipped || !curve.points || !curve.labels) {
+    return (
+      <Card>
+        <CardBody className="py-3">
+          <p className="text-xs leading-relaxed text-ink-dim">
+            <span className="font-semibold text-ink">Decision threshold:</span> {curve.note}
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
   const point =
     curve.points.reduce((best, p) =>
       Math.abs(p.threshold - thr) < Math.abs(best.threshold - thr) ? p : best,
@@ -44,7 +55,7 @@ export function ThresholdPanel({
             <SlidersHorizontal className="h-4 w-4 text-accent" /> Decision threshold
           </span>
         }
-        subtitle={`Above this probability the model calls '${curve.labels[1]}'. Move it to trade missed cases against false alarms - the suggested ${curve.suggested} maximizes F1, but the right point depends on which mistake costs you more.`}
+        subtitle={`Above this probability the model calls '${curve.labels[1]}'. Every number here is cross-validated (${curve.cv_folds ?? 5}-fold, ${curve.n ?? "all"} rows the fold models never saw), so the trade-off you see is the honest one. The suggested ${curve.suggested} maximizes F1, but the right point depends on which mistake costs you more.`}
       />
       <CardBody>
         <div className="flex flex-wrap items-start gap-6">

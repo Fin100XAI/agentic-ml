@@ -53,36 +53,17 @@ def _evaluate_classifier(
         "n_train": int(len(y_train)),
         "n_test": int(len(y_test)),
     }
-    threshold_curve = None
-    suggested_threshold = None
     if len(class_names) == 2 and hasattr(model, "predict_proba"):
         try:
             proba = model.predict_proba(X_test)[:, 1]
+            # In-sample (held-out split) discrimination scores; the honest
+            # cross-validated versions land as *_cv via the OOF machinery.
+            # The threshold curve is OOF-only (orchestrator attaches it) -
+            # never tuned on the same predictions that report the metrics.
             metrics["roc_auc"] = round(float(roc_auc_score(y_test, proba)), 4)
             from sklearn.metrics import average_precision_score
 
             metrics["pr_auc"] = round(float(average_precision_score(y_test, proba)), 4)
-            # Precision/recall/F1 across decision thresholds - the human picks
-            # the operating point; F1-optimal is only the suggestion.
-            threshold_curve = []
-            best_f1, best_thr = -1.0, 0.5
-            for thr in np.arange(0.05, 0.96, 0.05):
-                yp = (proba >= thr).astype(int)
-                tp = int(((yp == 1) & (y_test == 1)).sum())
-                fp = int(((yp == 1) & (y_test == 0)).sum())
-                fn = int(((yp == 0) & (y_test == 1)).sum())
-                tn = int(((yp == 0) & (y_test == 0)).sum())
-                p = tp / (tp + fp) if tp + fp else 0.0
-                r = tp / (tp + fn) if tp + fn else 0.0
-                f = 2 * p * r / (p + r) if p + r else 0.0
-                threshold_curve.append({
-                    "threshold": round(float(thr), 2),
-                    "precision": round(p, 4), "recall": round(r, 4), "f1": round(f, 4),
-                    "tp": tp, "fp": fp, "fn": fn, "tn": tn,
-                })
-                if f > best_f1:
-                    best_f1, best_thr = f, round(float(thr), 2)
-            suggested_threshold = best_thr
         except ValueError:
             pass
 
@@ -93,12 +74,6 @@ def _evaluate_classifier(
             {"label": class_names[i], "count": int(c)} for i, c in enumerate(np.bincount(y, minlength=len(class_names)))
         ],
     }
-    if threshold_curve:
-        artifacts["threshold_curve"] = {
-            "labels": class_names,
-            "suggested": suggested_threshold,
-            "points": threshold_curve,
-        }
 
     # Importances come from the model step; names from the fitted preprocessor.
     inner = model.named_steps["model"] if hasattr(model, "named_steps") else model

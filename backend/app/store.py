@@ -184,6 +184,7 @@ class Store:
             "ALTER TABLE model_registry ADD COLUMN feature_ranges TEXT",
             "ALTER TABLE model_registry ADD COLUMN baseline TEXT",
             "ALTER TABLE model_registry ADD COLUMN decision_threshold REAL",
+            "ALTER TABLE model_registry ADD COLUMN threshold_source TEXT",
         ):  # older DBs predate these columns
             try:
                 self._db.execute(ddl)
@@ -656,7 +657,7 @@ class Store:
         "raw_columns", "feature_list", "hyperparams", "seed", "metrics",
         "stability_verdict", "checkpoint_path", "llm_provider", "llm_model",
         "approved_by", "approved_at", "status", "n_rows", "change_summary",
-        "feature_ranges", "baseline", "decision_threshold",
+        "feature_ranges", "baseline", "decision_threshold", "threshold_source",
     )
     _REGISTRY_JSON_COLS = (
         "raw_columns", "feature_list", "hyperparams", "metrics", "change_summary",
@@ -749,6 +750,13 @@ class Store:
             "decision_threshold": (
                 (run.result.get("artifacts") or {}).get("threshold_curve") or {}
             ).get("suggested"),
+            # Audit trail: the seeded threshold came from out-of-fold CV,
+            # never from the same predictions that report the metrics.
+            "threshold_source": (
+                "oof_cv"
+                if ((run.result.get("artifacts") or {}).get("threshold_curve") or {}).get("suggested") is not None
+                else None
+            ),
         }
         if version > 1:
             try:
@@ -819,9 +827,9 @@ class Store:
         self.get_registry_entry(model_id, version)  # raises on unknown
         with self._lock:
             self._db.execute(
-                "UPDATE model_registry SET decision_threshold = ? "
+                "UPDATE model_registry SET decision_threshold = ?, threshold_source = ? "
                 "WHERE model_id = ? AND version = ?",
-                (float(threshold), model_id, version),
+                (float(threshold), "human_from_oof_curve", model_id, version),
             )
             self._db.commit()
 

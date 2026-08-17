@@ -86,6 +86,32 @@ export const METRIC_INFO: Record<string, MetricInfo> = {
       "Average forecast error as a percentage. Under 10% is excellent, 10-25% is usable, above that is rough.",
     good: "lower",
   },
+  f1_cv: {
+    label: "F1 (cross-validated)",
+    explain:
+      "F1 measured on out-of-fold predictions at the suggested threshold - rows each fold model never saw. The honest headline; if it is lower than plain F1, trust this one.",
+    good: "higher",
+  },
+  precision_cv: {
+    label: "Precision (cross-validated)",
+    explain: "Precision on out-of-fold predictions at the suggested threshold.",
+    good: "higher",
+  },
+  recall_cv: {
+    label: "Recall (cross-validated)",
+    explain: "Recall on out-of-fold predictions at the suggested threshold.",
+    good: "higher",
+  },
+  roc_auc_cv: {
+    label: "ROC AUC (cross-validated)",
+    explain: "Separation quality measured on out-of-fold predictions.",
+    good: "higher",
+  },
+  pr_auc_cv: {
+    label: "PR AUC (cross-validated)",
+    explain: "Precision-recall area measured on out-of-fold predictions.",
+    good: "higher",
+  },
   pr_auc: {
     label: "PR AUC",
     explain:

@@ -39,12 +39,13 @@ _NOTES = {
 }
 
 
-def calibration_check(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any] | None:
-    """Reliability curve + Brier score from out-of-fold CV probabilities.
+def compute_oof(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any] | None:
+    """Out-of-fold probabilities from a stratified CV - the single source of
+    truth for calibration, threshold tuning, and cross-validated metrics.
 
-    Returns None when calibration does not apply (not binary classification,
-    no probability support) and an honest skip record when data is too
-    small/large to check.
+    Returns None when OOF does not apply (not binary classification, no
+    probability support) and {"skipped": True, "note"} when the data is too
+    small/large to check honestly.
     """
     if config.get("use_case") != "classification":
         return None
@@ -82,10 +83,30 @@ def calibration_check(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any
     # Manual out-of-fold loop (cross_val_predict trips on xgboost/sklearn
     # tag interop); every row is predicted by a model that never saw it.
     proba = np.zeros(len(y))
-    for train_idx, test_idx in cv.split(X, y):
+    fold_ids = np.zeros(len(y), dtype=int)
+    for fold, (train_idx, test_idx) in enumerate(cv.split(X, y)):
         fold_model = clone(est)
         fold_model.fit(X.iloc[train_idx], y[train_idx])
         proba[test_idx] = fold_model.predict_proba(X.iloc[test_idx])[:, 1]
+        fold_ids[test_idx] = fold
+
+    return {
+        "skipped": False,
+        "proba": [round(float(p), 6) for p in proba],
+        "y_true": [int(v) for v in y],
+        "fold": [int(f) for f in fold_ids],
+        "class_names": class_names,
+        "cv_folds": k,
+        "n": int(len(y)),
+    }
+
+
+def calibration_from_oof(oof: dict[str, Any]) -> dict[str, Any]:
+    """Reliability curve + Brier score from a computed OOF vector."""
+    proba = np.asarray(oof["proba"], dtype=float)
+    y = np.asarray(oof["y_true"], dtype=int)
+    class_names = oof["class_names"]
+    k = oof["cv_folds"]
 
     brier = float(np.mean((proba - y) ** 2))
     bins: list[dict[str, Any]] = []
@@ -131,3 +152,67 @@ def calibration_check(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any
         "bins": bins,
         "note": _NOTES[verdict],
     }
+
+
+def threshold_curve_from_oof(oof: dict[str, Any]) -> dict[str, Any]:
+    """Precision/recall/F1 across 19 thresholds, from OOF predictions ONLY.
+
+    A threshold selected and evaluated on the same in-sample predictions
+    inflates the reported metric; out-of-fold selection is honest.
+    """
+    proba = np.asarray(oof["proba"], dtype=float)
+    y = np.asarray(oof["y_true"], dtype=int)
+    points = []
+    best_f1, best_thr = -1.0, 0.5
+    for thr in np.arange(0.05, 0.96, 0.05):
+        yp = (proba >= thr).astype(int)
+        tp = int(((yp == 1) & (y == 1)).sum())
+        fp = int(((yp == 1) & (y == 0)).sum())
+        fn = int(((yp == 0) & (y == 1)).sum())
+        tn = int(((yp == 0) & (y == 0)).sum())
+        p = tp / (tp + fp) if tp + fp else 0.0
+        r = tp / (tp + fn) if tp + fn else 0.0
+        f = 2 * p * r / (p + r) if p + r else 0.0
+        points.append({
+            "threshold": round(float(thr), 2),
+            "precision": round(p, 4), "recall": round(r, 4), "f1": round(f, 4),
+            "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+        })
+        if f > best_f1:
+            best_f1, best_thr = f, round(float(thr), 2)
+    return {
+        "labels": oof["class_names"],
+        "suggested": best_thr,
+        "points": points,
+        "source": "oof_cv",
+        "n": int(len(y)),
+        "cv_folds": oof["cv_folds"],
+    }
+
+
+def cv_metrics_from_oof(oof: dict[str, Any], threshold: float) -> dict[str, float]:
+    """Cross-validated headline metrics at the chosen operating point."""
+    from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+
+    proba = np.asarray(oof["proba"], dtype=float)
+    y = np.asarray(oof["y_true"], dtype=int)
+    yp = (proba >= threshold).astype(int)
+    out = {
+        "f1_cv": round(float(f1_score(y, yp, zero_division=0)), 4),
+        "precision_cv": round(float(precision_score(y, yp, zero_division=0)), 4),
+        "recall_cv": round(float(recall_score(y, yp, zero_division=0)), 4),
+    }
+    try:
+        out["roc_auc_cv"] = round(float(roc_auc_score(y, proba)), 4)
+        out["pr_auc_cv"] = round(float(average_precision_score(y, proba)), 4)
+    except ValueError:
+        pass
+    return out
+
+
+def calibration_check(df: pd.DataFrame, config: dict[str, Any]) -> dict[str, Any] | None:
+    """Back-compat wrapper: compute OOF then the reliability verdict."""
+    oof = compute_oof(df, config)
+    if oof is None or oof.get("skipped"):
+        return oof
+    return calibration_from_oof(oof)

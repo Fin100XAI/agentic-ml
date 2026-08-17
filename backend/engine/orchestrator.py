@@ -103,6 +103,11 @@ class Run:
     remediation: dict[str, Any] | None = None  # {"status", "proposals", "applied_ids"}
     leakage: dict[str, Any] | None = None  # {"target", "flags": [...]}
     registry_ref: dict[str, Any] | None = None  # {"model_id", "version"}
+    # Out-of-fold CV predictions: {"proba", "y_true", "fold", ...}. The single
+    # source of truth for calibration, threshold tuning and *_cv metrics.
+    # Persisted with the run (pickle) but deliberately NOT in to_dict - the
+    # UI consumes the derived artifacts, not the raw vector.
+    oof: dict[str, Any] | None = None
     error: str | None = None
     decisions: list[DecisionNode] = field(default_factory=list)
     agent_log: list[dict[str, Any]] = field(default_factory=list)
@@ -557,11 +562,6 @@ class Orchestrator:
             # The fitted estimator never enters the JSON payload; the registry
             # hook checkpoints it (classification/regression) when attached.
             fitted = run.result.pop("fitted_model", None)
-            if self.on_checkpoint is not None:
-                try:
-                    run.registry_ref = self.on_checkpoint(run, fitted)
-                except Exception:
-                    run.registry_ref = None
             node.status = "done"
             node.agent_output = {"metrics": run.result["metrics"]}
             node.detail = "Model trained and evaluated."
@@ -571,8 +571,16 @@ class Orchestrator:
                 f"Settings used: {run.config['hyperparams']}",
                 "deterministic", started,
             )
+            # Honesty checks run BEFORE registration so the registry entry
+            # records the real stability verdict and the OOF-selected
+            # threshold - not the in-sample versions.
             self._run_stability_check(run)
-            self._run_calibration_check(run)
+            self._run_oof_checks(run)
+            if self.on_checkpoint is not None:
+                try:
+                    run.registry_ref = self.on_checkpoint(run, fitted)
+                except Exception:
+                    run.registry_ref = None
             run.stage = "execute"
             run.error = None
             self._emit(run, "train", "system", {
@@ -590,27 +598,56 @@ class Orchestrator:
         self._build_insights(run)
         return run
 
-    def _run_calibration_check(self, run: Run) -> None:
-        """Non-fatal probability-quality check for binary classification."""
-        from .calibration import calibration_check
+    def _run_oof_checks(self, run: Run) -> None:
+        """One OOF computation feeds calibration, threshold tuning and the
+        cross-validated headline metrics - all describing the same model on
+        the same out-of-fold predictions. Non-fatal."""
+        from .calibration import (
+            calibration_from_oof,
+            compute_oof,
+            cv_metrics_from_oof,
+            threshold_curve_from_oof,
+        )
 
         try:
             started = time.time()
             df_run = apply_features(run.df, run.config.get("engineered") or [])
             df_run = df_run.drop(columns=run.config.get("excluded") or [], errors="ignore")
-            cal = calibration_check(df_run, run.config)
+            oof = compute_oof(df_run, run.config)
         except Exception:
             return
-        if not cal:
+        if oof is None:
             return
-        run.result["artifacts"]["calibration"] = cal
-        if not cal.get("skipped"):
+        if oof.get("skipped"):
+            # Honest small/large-data path: no tuning on training predictions,
+            # ever. Scoring falls back to the standard 0.5 cut-off.
+            run.result["artifacts"]["calibration"] = oof
+            run.result["artifacts"]["threshold_curve"] = {
+                "skipped": True,
+                "note": oof["note"] + " No threshold tuning either - scoring uses the "
+                        "standard 0.5 cut-off.",
+            }
+            return
+        run.oof = oof
+        try:
+            cal = calibration_from_oof(oof)
+            curve = threshold_curve_from_oof(oof)
+            run.result["artifacts"]["calibration"] = cal
+            run.result["artifacts"]["threshold_curve"] = curve
+            # Headline metrics at the suggested operating point, measured on
+            # rows the fold models never saw. The in-sample versions stay in
+            # the appendix, labeled as such.
+            run.result["metrics"].update(cv_metrics_from_oof(oof, curve["suggested"]))
             self._log(
                 run, "Calibration checker", "Measured probability quality",
-                f"Verdict: {cal['verdict']} (Brier {cal['brier']}, gap {cal['ece']}).",
-                f"Out-of-fold probabilities from {cal['cv_folds']}-fold CV on {cal['n']} rows.",
+                f"Verdict: {cal['verdict']} (Brier {cal['brier']}, gap {cal['ece']}); "
+                f"OOF-selected threshold {curve['suggested']}.",
+                f"Out-of-fold probabilities from {oof['cv_folds']}-fold CV on {oof['n']} rows "
+                "drive the reliability curve, the threshold curve and the *_cv metrics.",
                 "deterministic", started,
             )
+        except Exception:
+            pass
 
     def _run_stability_check(self, run: Run) -> None:
         """Non-fatal resampling check attached to the result payload."""

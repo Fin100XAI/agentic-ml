@@ -78,6 +78,7 @@ export interface RegistryEntry {
   approved_at: string;
   status: "active" | "superseded" | "archived";
   n_rows?: number | null;
+  threshold_source?: string | null;
   change_summary?: {
     from_version: number;
     data: { rows_before: number | null; rows_after: number; same_data: boolean };
@@ -475,9 +476,14 @@ export interface RunResult {
     multi_summary_table?: Record<string, unknown>[];
     regressors?: { columns: string[]; future_handling: string; note: string };
     threshold_curve?: {
-      labels: string[];
-      suggested: number;
-      points: { threshold: number; precision: number; recall: number; f1: number; tp: number; fp: number; fn: number; tn: number }[];
+      skipped?: boolean;
+      note?: string;
+      labels?: string[];
+      suggested?: number;
+      source?: string;
+      n?: number;
+      cv_folds?: number;
+      points?: { threshold: number; precision: number; recall: number; f1: number; tp: number; fp: number; fn: number; tn: number }[];
     };
     calibration?: {
       skipped: boolean;
