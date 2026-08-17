@@ -4,10 +4,17 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**Agentic ML Workbench** - an industry-agnostic, LLM-agent-driven ML pipeline POC.
-A user uploads a CSV; agents profile it (EDA), recommend a model, and - with the
-human approving each step - train it and explain the results with charts and
-commentary. Every decision renders as a node in a wire diagram.
+**Agentic ML Workbench** - an industry-agnostic, LLM-agent-driven decision-support
+POC for administrative/policy stakeholders. A user uploads a CSV into a project;
+agents screen it for PII, profile it, propose fixes and features, recommend a
+model, and - with the human approving each step - train it and explain the
+results as a decision brief with charts, trust tiers, and a critic review.
+Trained models live in a versioned registry with scoring, drift monitoring,
+what-if scenarios, and an approval-gated intake inbox for recurring files.
+Every decision lands on a visible timeline and in the unified activity log.
+UI design system: flat corporate look, white cards, slate borders, royal blue
+accent (#1d4ed8) - tokens in frontend/src/index.css, primitives in
+frontend/src/components/ui.tsx.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 

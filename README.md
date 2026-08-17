@@ -181,8 +181,8 @@ and llm-or-fallback mode.
 
 **Frontend** (`frontend/`)
 - React 18 + Vite + TypeScript
-- Tailwind CSS v4 (`@tailwindcss/vite`, design tokens via `@theme`) - light
-  glassmorphism theme
+- Tailwind CSS v4 (`@tailwindcss/vite`, design tokens via `@theme`) - flat
+  corporate theme: white cards, slate borders, royal blue accent
 - Recharts for all charts, lucide-react icons
 - Screens in `src/components/screens/`; API client and mirrored backend types in
   `src/api/` and `src/types.ts`
