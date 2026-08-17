@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -11,6 +11,7 @@ import { EdaScreen } from "./components/screens/EdaScreen";
 import { HomeScreen } from "./components/screens/HomeScreen";
 import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ReportScreen } from "./components/screens/ReportScreen";
+import { AboutScreen } from "./components/screens/AboutScreen";
 import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
@@ -23,7 +24,7 @@ import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity";
+type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -45,6 +46,7 @@ const GUIDE: Record<Screen, string> = {
     "Step 4 - Every method ranked on your data. Generate insights with the winner, or tune any of them.",
   report: "The full report - print it, save it as PDF, or download the markdown.",
   activity: "Every action in order - uploads, agent calls, approvals, training and exports.",
+  about: "",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -552,6 +554,17 @@ function App() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                screen === "about"
+                  ? "border-accent/40 bg-accent-soft/40 text-accent"
+                  : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
+              }`}
+              title="What this platform is, how it works, and why it can be trusted"
+            >
+              <BookOpen className="h-3.5 w-3.5" /> Guide
+            </button>
+            <button
               onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium backdrop-blur transition-colors ${
                 screen === "activity"
@@ -688,6 +701,8 @@ function App() {
         )}
 
         {screen === "activity" && <ActivityScreen currentRunId={run?.id} projectId={project?.id} />}
+
+        {screen === "about" && <AboutScreen onStart={project ? startOver : undefined} />}
 
         {screen === "results" &&
           run?.result &&

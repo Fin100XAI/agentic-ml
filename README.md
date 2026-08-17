@@ -13,30 +13,35 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 ## How a run works
 
-1. **Upload** a CSV or Excel file. Multi-sheet workbooks get a sheet picker, and a
-   join scout proposes combining sheets when it finds a linking key.
-2. **PII screen** - before ANY analysis or AI call, columns that look like personal
+1. **Upload** a CSV or Excel file. Multi-sheet workbooks get a sheet picker, a
+   join scout proposes combining sheets when it finds a linking key, and
+   same-shaped sheets (quarterly/yearly tabs) can be combined row-wise in one
+   click with a `source_sheet` provenance column.
+2. **Column check** - fix cryptic headers (AMT_FY23 -> claim_amount) before any
+   analysis. Renames are derived artifacts (originals untouched) and the old
+   names are remembered as aliases, so future files still match automatically.
+3. **PII screen** - before ANY analysis or AI call, columns that look like personal
    data (emails, Indian mobiles, Aadhaar-like numbers, PAN, names, addresses) are
    flagged with a per-column mask/drop/keep choice. Masking produces a derived
    copy; the original file is stored read-only with its hash.
-3. **Profile + health check** - column types, human-friendly names, missing data,
+4. **Profile + health check** - column types, human-friendly names, missing data,
    imbalance, duplicates, size warnings - each with a suggestion.
-4. **Remediation** - the engine proposes concrete fixes (impute, de-duplicate,
+5. **Remediation** - the engine proposes concrete fixes (impute, de-duplicate,
    fix numbers-stored-as-text, drop mostly-empty columns, optional outlier caps);
    you tick what to apply, or skip. Applied fixes become one derived artifact.
-5. **EDA agent** explains the dataset in plain language with charts and proposes
+6. **EDA agent** explains the dataset in plain language with charts and proposes
    concrete problem statements.
-6. **Set direction** - pick a proposed problem or write your own. If the question
+7. **Set direction** - pick a proposed problem or write your own. If the question
    does not match the data, the agent says so before you continue.
-7. **Recommendation agent** picks the use case, ranks the models, and computes
+8. **Recommendation agent** picks the use case, ranks the models, and computes
    hyperparameter suggestions from your actual data. The **leakage sentinel**
    flags columns that contain the answer or would not exist at prediction time -
    each is a keep/exclude question; exclusions apply at training only.
-8. **Feature agent** proposes optional engineered features (log scale, ratios,
+9. **Feature agent** proposes optional engineered features (log scale, ratios,
    interactions, text length) - you tick the ones to include.
-9. **Choose a path**: run the chosen model, auto-tune it first (you set how many
+10. **Choose a path**: run the chosen model, auto-tune it first (you set how many
    combinations), or compare every model on a leaderboard.
-10. **Results** land as a decision brief: executive summary, key findings, drivers,
+11. **Results** land as a decision brief: executive summary, key findings, drivers,
     segment profiles, outlook, recommended actions, and a trust panel. A technical
     appendix holds metrics, the stability check, error slices, the
     decision-threshold tuner and probability check (binary classification),
@@ -45,9 +50,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
     numbers, causal caveats), and a **trust tier** derived from the stability
     verdict reframes weak-evidence runs as "hypotheses to verify" everywhere -
     UI, markdown and PDF.
-11. **Ask the data** - a grounded chat answers follow-up questions from the run's
+12. **Ask the data** - a grounded chat answers follow-up questions from the run's
     own numbers.
-12. **Export** - in-app report page, markdown download, or a styled PDF. Every
+13. **Export** - in-app report page, markdown download, or a styled PDF. Every
     action along the way (uploads, agent calls with tokens and latency, approvals,
     declines, transforms, training, exports) is in the activity log, with a data
     lineage breadcrumb (original -> PII mask -> fixes -> features) on the results.
@@ -139,7 +144,18 @@ with which reasoning, in how many ms) and on the run's decision trail.
   cadence flags overdue arrivals - nothing ever auto-runs.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback
   used when no API key is set or a call fails; the UI badges each output as
-  `claude` or `heuristic`.
+  `AI` or `heuristic`, and an unreachable provider raises a visible banner -
+  heuristic mode is a valid state, never a silent one.
+- **Cross-validated honesty** - preprocessing refits inside every validation
+  fold (no train/test leakage in the stability verdicts); decision thresholds
+  are selected on out-of-fold predictions and reported as `*_cv` metrics;
+  engineered features derived from leakage-excluded columns are suppressed at
+  proposal, approval, and train time; scoring replays stored training-time
+  parameters (imputation values, outlier caps) rather than re-deriving them
+  from new data.
+- **Column renaming with alias memory** - approve working names at upload;
+  future files arriving with the original headers still score and drift-check
+  automatically.
 - **Reproducible** - fixed random seed (42) everywhere randomness exists.
 
 ## The agents
