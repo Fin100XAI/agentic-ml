@@ -132,8 +132,14 @@ suggestions, user-set combo count) branch from stage 4.
 ## 4. Data layer
 
 - `artifacts` table: id, kind (original|derived), parent_ids, transform_type
-  (upload | pii_mask | remediation | join | stack | feature_eng | score),
-  transform_params, sha256, created_at, file_path.
+  (upload | rename | pii_mask | remediation | join | stack | feature_eng |
+  score), transform_params, sha256, created_at, file_path.
+- Column renames are approved at upload (before the PII screen): a `rename`
+  artifact records the mapping, PII findings are remapped, and the alias map
+  is stored on the dataset so future files arriving with the ORIGINAL
+  headers still match at scoring/drift time. Multi-sheet workbooks whose
+  sheets share a normalized schema get a one-click row-wise combine with a
+  `source_sheet` provenance column.
 - Files live content-addressed in `backend/artifact_store/` (originals
   read-only). `GET /api/artifacts/{id}/lineage` walks the chain; the UI shows
   a breadcrumb (original -> PII mask -> fixes -> features) with hashes in

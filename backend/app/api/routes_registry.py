@@ -133,6 +133,10 @@ def score_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) 
     model_id, version = entry["model_id"], entry["version"]
     model = pickle.loads(Path(entry["checkpoint_path"]).read_bytes())
     ds = store.datasets.get(train_run.dataset_id)
+    # Rename aliases: a fresh file arriving with the ORIGINAL messy headers
+    # still matches a model trained on the approved names.
+    if ds is not None and ds.renames:
+        new_df = new_df.rename(columns={k: v for k, v in ds.renames.items() if k in new_df.columns})
     result = rebuild_and_score(
         new_df, entry, model, train_run.config,
         pii_actions=(ds.pii or {}).get("actions") if ds else None,
@@ -215,6 +219,9 @@ def drift_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) 
     from engine.scoring import rebuild_and_score
 
     model_id, version = entry["model_id"], entry["version"]
+    ds_alias = store.datasets.get(train_run.dataset_id)
+    if ds_alias is not None and ds_alias.renames:
+        new_df = new_df.rename(columns={k: v for k, v in ds_alias.renames.items() if k in new_df.columns})
     target = train_run.config.get("target")
     # Score only when the outcome came along AND a checkpoint exists -
     # that unlocks the performance-decay check.

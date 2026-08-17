@@ -102,6 +102,7 @@ class Dataset:
     artifact_id: str | None = None  # table artifact this frame came from
     pii: dict | None = None  # {"status": "pending|reviewed|clean", "findings": [...], "actions": {...}}
     project_id: str | None = None
+    renames: dict | None = None  # original -> approved column name (alias map for scoring)
 
 
 class Store:
@@ -176,6 +177,7 @@ class Store:
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
             "ALTER TABLE datasets ADD COLUMN project_id TEXT",
+            "ALTER TABLE datasets ADD COLUMN renames TEXT",
             "ALTER TABLE runs ADD COLUMN project_id TEXT",
             "ALTER TABLE artifacts ADD COLUMN project_id TEXT",
             "ALTER TABLE activity_log ADD COLUMN project_id TEXT",
@@ -207,8 +209,8 @@ class Store:
             self.projects[pid] = Project(id=pid, name=name, description=desc or "", created_at=created)
 
     def _load(self) -> None:
-        for ds_id, filename, blob, art_id, pii_json, proj_id in self._db.execute(
-            "SELECT id, filename, frame, artifact_id, pii, project_id FROM datasets"
+        for ds_id, filename, blob, art_id, pii_json, proj_id, renames_json in self._db.execute(
+            "SELECT id, filename, frame, artifact_id, pii, project_id, renames FROM datasets"
         ):
             try:
                 df = pickle.loads(blob)
@@ -216,6 +218,7 @@ class Store:
                     df=df, filename=filename, id=ds_id, artifact_id=art_id,
                     pii=json.loads(pii_json) if pii_json else None,
                     project_id=proj_id,
+                    renames=json.loads(renames_json) if renames_json else None,
                 )
             except Exception:
                 continue  # skip unreadable rows rather than failing startup
@@ -262,12 +265,13 @@ class Store:
     def _persist_dataset(self, ds: Dataset) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii, project_id) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii, project_id, renames) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     ds.id, ds.filename, pickle.dumps(ds.df), ds.artifact_id,
                     json.dumps(ds.pii, default=str) if ds.pii else None,
                     ds.project_id,
+                    json.dumps(ds.renames) if ds.renames else None,
                 ),
             )
             self._db.commit()

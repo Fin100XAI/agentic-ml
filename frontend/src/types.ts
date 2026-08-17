@@ -234,6 +234,7 @@ export interface UploadResponse {
   needs_sheet_selection?: boolean;
   sheets?: SheetInfo[];
   join_suggestion?: JoinSuggestion | null;
+  stack_suggestion?: { sheets: string[]; n_rows: number; note: string } | null;
   pii_status?: "pending" | "reviewed" | "clean";
   pii_findings?: PiiFinding[];
   needs_assembly_decision?: boolean;

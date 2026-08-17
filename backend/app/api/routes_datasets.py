@@ -12,7 +12,7 @@ from app.schemas import PiiReviewRequest
 from app.store import store
 from engine.catalog import all_models
 from engine.intake import route_upload
-from engine.joins import perform_join, propose_join
+from engine.joins import perform_join, perform_multi_stack, propose_join, propose_stack
 from engine.librarian import classify_file, perform_stack
 from engine.pii import apply_pii_actions, detect_pii
 
@@ -27,6 +27,7 @@ async def upload_dataset(
     file: UploadFile,
     sheet: str | None = Form(None),
     join: str | None = Form(None),
+    stack: str | None = Form(None),  # JSON list of sheet names to combine row-wise
     project_id: str | None = Form(None),
     assembly: str | None = Form(None),  # librarian decision: JSON or "standalone"
 ) -> dict:
@@ -64,12 +65,27 @@ async def upload_dataset(
                 raise HTTPException(400, f"Invalid join spec: {exc}") from exc
             display_name = f"{file.filename} [{spec['left']}+{spec['right']}]"
             transform_type, table_params = "join", spec
+        elif stack is not None:
+            # Human approved combining same-shaped sheets row-wise.
+            try:
+                names = json.loads(stack)
+                df = perform_multi_stack(book, names)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except json.JSONDecodeError as exc:
+                raise HTTPException(400, f"Invalid stack spec: {exc}") from exc
+            display_name = f"{file.filename} [{len(names)} sheets combined]"
+            transform_type, table_params = "stack", {"sheets": names}
         elif sheet is None and len(book) > 1:
-            # Multiple sheets: ask the human, with the join scout's proposal if any.
+            # Multiple sheets: ask the human, with the scouts' proposals if any.
             try:
                 suggestion = propose_join(book)
             except Exception:
                 suggestion = None
+            try:
+                stack_suggestion = propose_stack(book)
+            except Exception:
+                stack_suggestion = None
             return {
                 "needs_sheet_selection": True,
                 "filename": file.filename,
@@ -78,6 +94,7 @@ async def upload_dataset(
                     for k, v in book.items()
                 ],
                 "join_suggestion": suggestion,
+                "stack_suggestion": stack_suggestion,
             }
         else:
             chosen = sheet if sheet is not None else next(iter(book))
@@ -217,6 +234,67 @@ async def upload_dataset(
         "pii_findings": findings,
         "intake": intake,
     }
+
+
+@router.post("/datasets/{dataset_id}/rename")
+def rename_columns(dataset_id: str, req: dict) -> dict:
+    """Approve working column names before any analysis.
+
+    Produces a `rename` derived artifact (the original file never changes)
+    and remembers the mapping as an alias set, so future files arriving with
+    the OLD names still match at scoring time. PII findings are remapped so
+    the privacy screen shows the approved names.
+    """
+    try:
+        ds = store.get_dataset(dataset_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    raw = req.get("renames") or {}
+    renames = {
+        str(old): str(new).strip()
+        for old, new in raw.items()
+        if old in ds.df.columns and str(new).strip() and str(new).strip() != str(old)
+    }
+    if not renames:
+        return {"dataset_id": ds.id, "columns": [str(c) for c in ds.df.columns],
+                "pii_status": (ds.pii or {}).get("status", "clean"),
+                "pii_findings": (ds.pii or {}).get("findings", [])}
+
+    new_names = [renames.get(str(c), str(c)) for c in ds.df.columns]
+    dupes = {n for n in new_names if new_names.count(n) > 1}
+    if dupes:
+        raise HTTPException(400, "These names would collide: " + ", ".join(sorted(dupes))
+                                 + ". Every column needs a unique name.")
+
+    renamed = ds.df.rename(columns=renames)
+    art = store.add_derived_artifact(
+        renamed, [ds.artifact_id] if ds.artifact_id else [],
+        "rename", {"renames": renames}, project_id=ds.project_id,
+    )
+    ds.df = renamed
+    ds.artifact_id = art.id
+    # Alias map accumulates across successive renames (old original -> newest name).
+    merged = dict(ds.renames or {})
+    for old, new in renames.items():
+        for k, v in list(merged.items()):
+            if v == old:
+                merged[k] = new
+        merged[old] = new
+    ds.renames = merged
+    # The privacy screen must show the approved names.
+    if ds.pii:
+        for f in ds.pii.get("findings", []):
+            f["column"] = renames.get(f["column"], f["column"])
+        ds.pii["actions"] = {renames.get(c, c): a for c, a in (ds.pii.get("actions") or {}).items()}
+    store.update_dataset(ds)
+    store.log_event(
+        "user", "transform", dataset_id=ds.id, artifact_id=art.id,
+        payload={"action": "rename_columns", "renames": renames},
+    )
+    return {"dataset_id": ds.id, "columns": [str(c) for c in ds.df.columns],
+            "pii_status": (ds.pii or {}).get("status", "clean"),
+            "pii_findings": (ds.pii or {}).get("findings", [])}
 
 
 @router.post("/datasets/{dataset_id}/pii-review")

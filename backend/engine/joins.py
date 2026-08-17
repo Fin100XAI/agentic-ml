@@ -16,6 +16,57 @@ _SAMPLE = 2000
 MIN_CONTAINMENT = 0.5  # at least half the left values must find a match
 
 
+def _norm(col: str) -> str:
+    return str(col).strip().lower().replace(" ", "_")
+
+
+def propose_stack(book: dict[str, pd.DataFrame]) -> dict[str, Any] | None:
+    """Largest group of sheets sharing a normalized column set -> stack offer.
+
+    Quarterly or yearly tabs of the same report usually differ only in
+    header case/spacing; combining them row-wise with a source_sheet column
+    is the natural assembly.
+    """
+    groups: dict[frozenset, list[str]] = {}
+    for name, frame in book.items():
+        groups.setdefault(frozenset(_norm(c) for c in frame.columns), []).append(name)
+    best = max(groups.values(), key=len)
+    if len(best) < 2:
+        return None
+    return {
+        "sheets": best,
+        "n_rows": int(sum(len(book[s]) for s in best)),
+        "note": (
+            f"{len(best)} sheets share the same columns - combine them into one "
+            "table (rows appended, with a source_sheet column recording where "
+            "each row came from)."
+        ),
+    }
+
+
+def perform_multi_stack(book: dict[str, pd.DataFrame], sheets: list[str]) -> pd.DataFrame:
+    """Append the chosen sheets row-wise, aligning headers by normalization.
+
+    The first sheet's spelling wins; every row keeps its origin in
+    ``source_sheet``. Refuses sheets whose columns do not line up.
+    """
+    chosen = [s for s in sheets if s in book]
+    if len(chosen) < 2:
+        raise ValueError("Pick at least two sheets to combine.")
+    canon = {_norm(c): str(c) for c in book[chosen[0]].columns}
+    frames = []
+    for name in chosen:
+        frame = book[name]
+        if {_norm(c) for c in frame.columns} != set(canon):
+            raise ValueError(
+                f"Sheet '{name}' has different columns than '{chosen[0]}' - "
+                "sheets can only be combined when they hold the same table."
+            )
+        renamed = frame.rename(columns={c: canon[_norm(c)] for c in frame.columns})
+        frames.append(renamed.assign(source_sheet=name))
+    return pd.concat(frames, ignore_index=True)
+
+
 def propose_join(book: dict[str, pd.DataFrame]) -> dict[str, Any] | None:
     names = list(book)
     best: dict[str, Any] | None = None

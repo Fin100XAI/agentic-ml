@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -130,16 +130,23 @@ export const api = {
 
   uploadDataset: (
     file: File, sheet?: string, join?: object, projectId?: string,
-    assembly?: object | "standalone",
+    assembly?: object | "standalone", stack?: string[],
   ) => {
     const form = new FormData();
     form.append("file", file);
     if (sheet) form.append("sheet", sheet);
     if (join) form.append("join", JSON.stringify(join));
+    if (stack) form.append("stack", JSON.stringify(stack));
     if (projectId) form.append("project_id", projectId);
     if (assembly) form.append("assembly", assembly === "standalone" ? "standalone" : JSON.stringify(assembly));
     return request<UploadResponse>("/datasets", { method: "POST", body: form });
   },
+
+  renameColumns: (datasetId: string, renames: Record<string, string>) =>
+    request<{ dataset_id: string; columns: string[]; pii_status: "pending" | "reviewed" | "clean"; pii_findings: PiiFinding[] }>(
+      `/datasets/${datasetId}/rename`,
+      json({ renames }),
+    ),
 
   listModels: () => request<{ models: ModelInfo[] }>("/models"),
 

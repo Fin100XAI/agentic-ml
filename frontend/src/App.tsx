@@ -16,6 +16,7 @@ import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
 import { Badge, Button, Card, CardBody } from "./components/ui";
 import { AssemblyModal } from "./components/AssemblyModal";
+import { ColumnReviewModal } from "./components/ColumnReviewModal";
 import { BriefingView } from "./components/screens/BriefingView";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
@@ -105,6 +106,15 @@ function App() {
     question: string;
     sheets: SheetInfo[];
     join: JoinSuggestion | null;
+    stack: { sheets: string[]; n_rows: number; note: string } | null;
+  } | null>(null);
+  const [columnReview, setColumnReview] = useState<{
+    datasetId: string;
+    question: string;
+    columns: string[];
+    piiStatus: string;
+    piiFindings: PiiFinding[];
+    filename: string;
   } | null>(null);
   const [piiReview, setPiiReview] = useState<{
     datasetId: string;
@@ -209,14 +219,18 @@ function App() {
 
   const handleUpload = (
     file: File, question: string, sheet?: string, join?: JoinSuggestion,
-    assembly?: object | "standalone",
+    assembly?: object | "standalone", stack?: string[],
   ) =>
     guard("Analyzing…", async () => {
       setUploadStage("uploading");
-      const ds = await api.uploadDataset(file, sheet, join, project?.id, assembly);
+      const ds = await api.uploadDataset(file, sheet, join, project?.id, assembly, stack);
       if (ds.needs_sheet_selection && ds.sheets) {
         // Workbook has several sheets: ask the human which one to analyze.
-        setSheetChoice({ file, question, sheets: ds.sheets, join: ds.join_suggestion ?? null });
+        setSheetChoice({
+          file, question, sheets: ds.sheets,
+          join: ds.join_suggestion ?? null,
+          stack: ds.stack_suggestion ?? null,
+        });
         setUploadStage(null);
         return;
       }
@@ -228,18 +242,36 @@ function App() {
         setUploadStage(null);
         return;
       }
-      if (ds.pii_status === "pending" && ds.pii_findings?.length) {
+      // Column review: approve working names BEFORE any analysis or AI call.
+      setColumnReview({
+        datasetId: ds.dataset_id!,
+        question,
+        columns: ds.columns ?? [],
+        piiStatus: ds.pii_status ?? "clean",
+        piiFindings: ds.pii_findings ?? [],
+        filename: ds.filename,
+      });
+      setUploadStage(null);
+    });
+
+  const handleColumnReview = (renames: Record<string, string>) =>
+    guard("Applying column names…", async () => {
+      if (!columnReview) return;
+      const { datasetId, question } = columnReview;
+      let piiStatus = columnReview.piiStatus;
+      let findings = columnReview.piiFindings;
+      if (Object.keys(renames).length > 0) {
+        const r = await api.renameColumns(datasetId, renames);
+        piiStatus = r.pii_status;
+        findings = r.pii_findings;
+      }
+      setColumnReview(null);
+      if (piiStatus === "pending" && findings.length) {
         // Personal data found: the human decides before ANY analysis or AI call.
-        setPiiReview({
-          datasetId: ds.dataset_id!,
-          filename: ds.filename,
-          question,
-          findings: ds.pii_findings,
-        });
-        setUploadStage(null);
+        setPiiReview({ datasetId, filename: columnReview.filename, question, findings });
         return;
       }
-      await runAnalysis(ds.dataset_id!, question);
+      await runAnalysis(datasetId, question);
     });
 
   const handlePiiApprove = (actions: Record<string, string>) =>
@@ -795,6 +827,16 @@ function App() {
         />
       )}
 
+      {/* Column review: approve working names before analysis */}
+      {columnReview && (
+        <ColumnReviewModal
+          filename={columnReview.filename}
+          columns={columnReview.columns}
+          busy={busy}
+          onContinue={handleColumnReview}
+        />
+      )}
+
       {/* Excel sheet picker */}
       {sheetChoice && (
         <>
@@ -807,6 +849,28 @@ function App() {
                   {sheetChoice.file.name} has {sheetChoice.sheets.length} sheets. Pick one - or
                   combine them if the agent found a link.
                 </p>
+                {sheetChoice.stack && (
+                  <button
+                    onClick={() => {
+                      const { file, question, stack } = sheetChoice;
+                      setSheetChoice(null);
+                      handleUpload(file, question, undefined, undefined, undefined, stack!.sheets);
+                    }}
+                    className="mt-3 w-full rounded-xl border border-accent/50 bg-accent-soft/40 px-4 py-3 text-left transition-all hover:border-accent"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-accent">
+                        Combine {sheetChoice.stack.sheets.length} sheets into one table
+                      </span>
+                      <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                        {sheetChoice.stack.n_rows.toLocaleString()} rows total
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-[11px] leading-snug text-ink-dim">
+                      {sheetChoice.stack.note}
+                    </span>
+                  </button>
+                )}
                 {sheetChoice.join && (
                   <button
                     onClick={() => {
