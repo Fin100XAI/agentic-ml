@@ -88,6 +88,8 @@ function App() {
   const [busyLabel, setBusyLabel] = useState("Working…");
   const [error, setError] = useState<string | null>(null);
   const [llmEnabled, setLlmEnabled] = useState<boolean | null>(null);
+  const [llmOk, setLlmOk] = useState<boolean | null>(null);
+  const [llmBannerDismissed, setLlmBannerDismissed] = useState(false);
   const [preferredModel, setPreferredModel] = useState<string | undefined>(undefined);
   const [retrainPrefill, setRetrainPrefill] = useState<{
     hyperparams: Record<string, unknown>;
@@ -124,7 +126,12 @@ function App() {
 
   useEffect(() => {
     const checkHealth = () =>
-      api.health().then((h) => setLlmEnabled(h.llm_enabled)).catch(() => setLlmEnabled(null));
+      api.health()
+        .then((h) => {
+          setLlmEnabled(h.llm_enabled);
+          setLlmOk(h.llm_ok ?? null);
+        })
+        .catch(() => setLlmEnabled(null));
     const loadModels = () =>
       api.listModels().then((r) => setModels(r.models)).catch(() => {});
 
@@ -535,10 +542,12 @@ function App() {
             )}
             {llmEnabled === null ? (
               <Badge tone="bad">backend offline?</Badge>
-            ) : llmEnabled ? (
-              <Badge tone="accent">AI connected</Badge>
-            ) : (
+            ) : !llmEnabled ? (
               <Badge tone="warn">heuristic mode (no API key)</Badge>
+            ) : llmOk === false ? (
+              <Badge tone="warn">heuristic mode (AI unreachable)</Badge>
+            ) : (
+              <Badge tone="accent">AI connected</Badge>
             )}
           </div>
         </div>
@@ -552,6 +561,25 @@ function App() {
           </div>
         )}
       </header>
+
+      {/* Heuristic mode must be a visible state, never a silent one. */}
+      {llmEnabled === true && llmOk === false && !llmBannerDismissed && (
+        <div className="border-b border-warn/30 bg-warn/10">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2 text-xs text-warn">
+            <span className="font-medium">
+              LLM unreachable - running in heuristic mode. Analyses still work; agent
+              commentary uses rule-based fallbacks until the provider recovers.
+            </span>
+            <button
+              onClick={() => setLlmBannerDismissed(true)}
+              className="shrink-0 rounded-md px-2 py-0.5 font-semibold hover:bg-warn/10"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-7xl px-6 py-6">
         {/* Compact decision timeline */}

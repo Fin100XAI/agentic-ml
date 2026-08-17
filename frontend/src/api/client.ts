@@ -24,7 +24,14 @@ const json = (body: unknown): RequestInit => ({
 });
 
 export const api = {
-  health: () => request<{ status: string; llm_enabled: boolean; model: string }>("/health"),
+  health: () =>
+    request<{
+      status: string;
+      llm_enabled: boolean;
+      model: string;
+      llm_ok?: boolean | null;
+      llm_error?: string | null;
+    }>("/health"),
 
   listProjects: () => request<{ projects: Project[] }>("/projects"),
 
