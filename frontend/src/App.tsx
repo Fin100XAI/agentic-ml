@@ -103,6 +103,10 @@ function App() {
   const [tuneOpen, setTuneOpen] = useState(false);
   const [tuneRunning, setTuneRunning] = useState(false);
   const [misalignNote, setMisalignNote] = useState<string | null>(null);
+  // Model-run failure: "data" = the data does not fit the chosen model
+  // (retrying is futile - change the model or setup); "transient" = worth
+  // one more attempt before changing anything.
+  const [runFailure, setRunFailure] = useState<{ message: string; kind: "data" | "transient" } | null>(null);
   const [sheetChoice, setSheetChoice] = useState<{
     file: File;
     question: string;
@@ -300,6 +304,29 @@ function App() {
       if (align && !align.aligned) setMisalignNote(align.note || "The question may not match this dataset.");
     });
 
+  // Data-shape errors carry these plain-language markers from the engine;
+  // anything else is treated as re-attemptable.
+  const DATA_ERROR =
+    /requires|too few|too short|not enough|no usable|missing columns|has different columns|numeric values to model|refusing to train|excluded by your leakage|cannot|unable to/i;
+  const classifyRunError = (msg: string): "data" | "transient" =>
+    DATA_ERROR.test(msg) ? "data" : "transient";
+
+  const handleRetryRun = () =>
+    guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
+      if (!run) return;
+      setRunFailure(null);
+      const r = await api.execute(run.id);
+      setRun(r);
+      if (r.error) setRunFailure({ message: r.error, kind: classifyRunError(r.error) });
+      else setScreen("results");
+    });
+
+  const handleChangeModel = () => {
+    setRunFailure(null);
+    setError(null);
+    setScreen("configure");
+  };
+
   const handleRunModel = (config: {
     model_key: string;
     hyperparams: Record<string, unknown>;
@@ -321,7 +348,7 @@ function App() {
       setRun(r);
       r = await api.execute(run.id);
       setRun(r);
-      if (r.error) setError(r.error);
+      if (r.error) setRunFailure({ message: r.error, kind: classifyRunError(r.error) });
       else setScreen("results");
     });
 
@@ -683,7 +710,6 @@ function App() {
 
         {screen === "home" && (
           <HomeScreen
-            models={models}
             recentRuns={recentRuns}
             projectName={project?.name}
             projectId={project?.id}
@@ -799,6 +825,54 @@ function App() {
       />
 
       {/* Question/data misalignment warning */}
+      {/* Model-run failure: retry for transient problems, change the model
+          when the data itself does not fit the chosen method. */}
+      {runFailure && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
+            <Card className={runFailure.kind === "data" ? "border-warn/50 bg-white/95" : "border-bad/40 bg-white/95"}>
+              <CardBody>
+                <h3 className="text-sm font-semibold">
+                  {runFailure.kind === "data"
+                    ? "This data does not fit the chosen model"
+                    : "The model run hit a problem"}
+                </h3>
+                <p className="mt-2 rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs leading-relaxed text-ink-dim">
+                  {runFailure.message}
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-dim">
+                  {runFailure.kind === "data"
+                    ? "Running it again would hit the same wall. Pick a different model or adjust the target, features or exclusions - your data and approvals are unchanged."
+                    : "This can be a one-off. Try the run again; if it keeps failing, switch the model or adjust the settings."}
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  {runFailure.kind === "data" ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setRunFailure(null)}>
+                        Close
+                      </Button>
+                      <Button size="sm" onClick={handleChangeModel}>
+                        Choose a different model
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" onClick={handleChangeModel}>
+                        Change model or settings
+                      </Button>
+                      <Button size="sm" onClick={handleRetryRun} disabled={busy}>
+                        Try again
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+
       {misalignNote && (
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />

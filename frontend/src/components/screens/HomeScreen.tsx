@@ -5,16 +5,15 @@ import {
   BarChart3,
   Bot,
   FileUp,
-  GitCompare,
   GitCompareArrows,
+  LineChart,
   Play,
   Search,
   Settings2,
-  ShieldCheck,
-  Sparkles,
+  Target,
+  Users,
 } from "lucide-react";
-import type { ModelInfo, RegistryEntry, RunSummary } from "../../types";
-import { USE_CASE_INFO } from "../../lib/metricInfo";
+import type { RegistryEntry, RunSummary } from "../../types";
 import { GlossaryManager } from "../GlossaryManager";
 import { IntakePanel } from "../IntakePanel";
 import { ModelsPanel } from "../ModelsPanel";
@@ -50,26 +49,36 @@ const PIPELINE = [
   { icon: BarChart3, label: "Decision brief + actions" },
 ];
 
-const FEATURES = [
+// The four kinds of analysis, framed as the questions an administrator
+// actually asks - no algorithm names on the landing page.
+const QUESTIONS = [
   {
-    icon: ShieldCheck,
-    title: "You stay in control",
-    text: "Agents propose - nothing runs until you approve. Every decision is logged on a timeline.",
+    icon: Users,
+    title: "Who needs attention?",
+    kind: "Sort into groups",
+    example: "Which beneficiaries are at risk of dropping out of a scheme? Which applications need senior review?",
   },
   {
-    icon: GitCompare,
-    title: "Compare all models at once",
-    text: "One click trains every model for your task and ranks them, so you don't have to guess.",
+    icon: Target,
+    title: "How much will it be?",
+    kind: "Estimate an amount",
+    example: "Estimate property valuations, expected collections per ward, or likely claim amounts.",
   },
   {
-    icon: Sparkles,
-    title: "Settings suggested from your data",
-    text: "Group counts, seasonality, tree depths - computed from the dataset you uploaded, with the reasoning shown.",
+    icon: GitCompareArrows,
+    title: "What groups exist?",
+    kind: "Discover segments",
+    example: "Segment citizens, villages or facilities into natural groups so schemes can be targeted, not blanket.",
+  },
+  {
+    icon: LineChart,
+    title: "Where is it heading?",
+    kind: "Project the future",
+    example: "Project revenue collections, service demand or supply needs - per district, with honest uncertainty.",
   },
 ];
 
 export function HomeScreen({
-  models,
   recentRuns,
   projectName,
   projectId,
@@ -78,7 +87,6 @@ export function HomeScreen({
   onRetrain,
   onOpenRetrainRun,
 }: {
-  models: ModelInfo[];
   recentRuns: RunSummary[];
   projectName?: string;
   projectId?: string;
@@ -87,7 +95,6 @@ export function HomeScreen({
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
   onOpenRetrainRun?: (runId: string, prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null }) => void;
 }) {
-  const useCases = ["classification", "regression", "clustering", "forecasting"];
   const completedRuns = recentRuns.filter((r) => r.stage === "interpret" || r.stage === "compare");
   const [diffA, setDiffA] = useState("");
   const [diffB, setDiffB] = useState("");
@@ -131,32 +138,34 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* What you can analyze */}
+      {/* The questions it can answer - no algorithm names on the landing page;
+          the recommendation agent picks the method behind the scenes. */}
       <section>
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
-          What you can analyze
+          The questions you can answer
         </h3>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {useCases.map((uc) => {
-            const info = USE_CASE_INFO[uc];
-            const ucModels = models.filter((m) => m.use_case === uc);
-            return (
-              <Card key={uc} className="transition-colors hover:border-accent/50">
-                <CardBody>
-                  <div className="text-2xl">{info.icon}</div>
-                  <h4 className="mt-2 text-sm font-semibold">{info.title}</h4>
-                  <p className="mt-0.5 text-xs text-ink-dim">{info.tagline}</p>
-                  <p className="mt-2 text-[11px] italic leading-snug text-ink-dim/80">{info.example}</p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {ucModels.map((m) => (
-                      <Badge key={m.key} tone="accent">{m.name}</Badge>
-                    ))}
+        <div className="grid gap-4 md:grid-cols-2">
+          {QUESTIONS.map((q) => (
+            <Card key={q.title} className="transition-colors hover:border-accent/50">
+              <CardBody>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="rounded-lg bg-accent-soft p-2">
+                      <q.icon className="h-4 w-4 text-accent" />
+                    </span>
+                    <h4 className="text-sm font-semibold">{q.title}</h4>
                   </div>
-                </CardBody>
-              </Card>
-            );
-          })}
+                  <Badge tone="accent">{q.kind}</Badge>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-ink-dim">{q.example}</p>
+              </CardBody>
+            </Card>
+          ))}
         </div>
+        <p className="mt-2.5 text-[11px] text-ink-dim">
+          Bring the question - the recommendation agent picks the right analysis method from
+          your data and explains its choice. You approve before anything runs.
+        </p>
       </section>
 
       {/* Agents */}
@@ -180,24 +189,6 @@ export function HomeScreen({
                 </p>
               </CardBody>
             </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* Platform features */}
-      <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
-          Built for people, not just data scientists
-        </h3>
-        <div className="grid gap-4 md:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="rounded-xl border border-edge bg-panel-2/50 px-4 py-3.5">
-              <div className="flex items-center gap-2">
-                <f.icon className="h-4 w-4 text-warn" />
-                <h4 className="text-xs font-semibold">{f.title}</h4>
-              </div>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-ink-dim">{f.text}</p>
-            </div>
           ))}
         </div>
       </section>
