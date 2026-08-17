@@ -402,6 +402,28 @@ class Orchestrator:
                 candidates = propose_features(
                     run.df, run.recommendation.get("target"), run.recommendation["use_case"]
                 )
+                # Leakage back-door guard: a feature derived from a column the
+                # sentinel wants excluded would reintroduce the leak under a
+                # new name. Filter such candidates and log each suppression.
+                critical = {
+                    f["column"] for f in (run.leakage or {}).get("flags", [])
+                    if f.get("severity") == "critical"
+                }
+                if critical:
+                    from .features import parents_of
+
+                    kept = []
+                    for cand in candidates:
+                        bad = parents_of(cand) & critical
+                        if bad:
+                            self._emit(run, "transform", "system", {
+                                "action": "feature_suppressed",
+                                "feature": cand["name"],
+                                "note": f"suppressed: derived from excluded {sorted(bad)}",
+                            })
+                        else:
+                            kept.append(cand)
+                    candidates = kept
                 run.feature_suggestions = run_feature_agent(
                     self.provider, candidates, run.question,
                     run.recommendation["use_case"], run.labels(),
@@ -445,6 +467,8 @@ class Orchestrator:
         group_column: str | None = None,
         group_agg: str = "sum",
     ) -> Run:
+        from .features import parents_of
+
         model = get_model(model_key)  # raises KeyError on bad key
         coerced = model.coerce_hyperparams(hyperparams)
         chosen = [
@@ -452,6 +476,27 @@ class Orchestrator:
             if s["id"] in set(feature_ids or [])
         ]
         excluded = [c for c in (excluded_columns or []) if c in run.df.columns and c != target]
+        # Excluded columns cannot ride in as plain features/regressors either.
+        blocked_features = sorted(set(features or []) & set(excluded))
+        if blocked_features:
+            raise ValueError(
+                "These columns are excluded by your leakage answers and cannot be "
+                "used as features or drivers: " + ", ".join(f"'{c}'" for c in blocked_features)
+                + ". Un-exclude them first if you are sure they are safe."
+            )
+        # Re-validate ticked engineered features against the FINAL excluded
+        # set (the user may have changed sentinel answers after ticking):
+        # invalid ones are un-ticked with a visible notice, never silently.
+        suppressed = [s for s in chosen if parents_of(s) & set(excluded)]
+        if suppressed:
+            chosen = [s for s in chosen if s not in suppressed]
+            for s in suppressed:
+                self._emit(run, "transform", "system", {
+                    "action": "feature_suppressed",
+                    "feature": s["name"],
+                    "note": "suppressed: derived from excluded "
+                            f"{sorted(parents_of(s) & set(excluded))}",
+                })
         run.config = {
             "model_key": model_key,
             "model_name": model.name,
@@ -508,9 +553,28 @@ class Orchestrator:
             started = time.time()
             model = get_model(run.config["model_key"])
             engineered = run.config.get("engineered") or []
+            excluded = run.config.get("excluded") or []
+            # Train-time assertion (defense in depth): no feature entering
+            # training may descend from an excluded column. Any code path
+            # that forgets the earlier filters fails loudly here.
+            from .features import parents_of
+
+            for spec in engineered:
+                bad = parents_of(spec) & set(excluded)
+                if bad:
+                    raise ValueError(
+                        f"Refusing to train: engineered feature '{spec['name']}' is "
+                        f"derived from {sorted(bad)}, which you excluded as a leakage "
+                        "risk. Remove the feature or un-exclude the column."
+                    )
+            bad_feats = set(run.config.get("features") or []) & set(excluded)
+            if bad_feats:
+                raise ValueError(
+                    "Refusing to train: " + ", ".join(f"'{c}'" for c in sorted(bad_feats))
+                    + " are excluded as leakage risks but listed as features/drivers."
+                )
             df_run = apply_features(run.df, engineered)
             # Leakage exclusions apply at train time only - the artifact keeps them.
-            excluded = run.config.get("excluded") or []
             if excluded:
                 df_run = df_run.drop(columns=excluded, errors="ignore")
             if engineered and self.on_artifact is not None:

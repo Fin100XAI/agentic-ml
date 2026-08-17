@@ -18,6 +18,15 @@ import pandas as pd
 MAX_CANDIDATES = 8
 
 
+def parents_of(spec: dict[str, Any]) -> set[str]:
+    """The raw source columns an engineered feature is derived from.
+
+    Explicit lineage metadata: the leakage guard uses this to make sure an
+    excluded column cannot sneak back in under a new engineered name.
+    """
+    return set(spec.get("parent_columns") or spec.get("columns") or [])
+
+
 def propose_features(
     df: pd.DataFrame, target: str | None = None, use_case: str | None = None
 ) -> list[dict[str, Any]]:
@@ -37,7 +46,7 @@ def propose_features(
             out.append({
                 "id": f"log:{col}",
                 "kind": "log",
-                "columns": [col],
+                "columns": [col], "parent_columns": [col],
                 "name": f"{col}__log",
                 "rationale": f"'{col}' is heavily skewed (skew {skew:.1f}) - a log scale lets the model treat "
                              "a jump from 10 to 100 like a jump from 100 to 1000 instead of ignoring the small end.",
@@ -53,7 +62,7 @@ def propose_features(
             out.append({
                 "id": f"ratio:{a}:{b}",
                 "kind": "ratio",
-                "columns": [a, b],
+                "columns": [a, b], "parent_columns": [a, b],
                 "name": f"{a}__per__{b}",
                 "rationale": f"'{a}' relative to '{b}' - the two strongest numeric signals; their ratio often "
                              "captures intensity (per-unit behaviour) that neither column shows alone.",
@@ -62,7 +71,7 @@ def propose_features(
         out.append({
             "id": f"interact:{a}:{b}",
             "kind": "interaction",
-            "columns": [a, b],
+            "columns": [a, b], "parent_columns": [a, b],
             "name": f"{a}__x__{b}",
             "rationale": f"'{a}' combined with '{b}' - lets the model see cases where both are high (or both low) "
                          "as different from cases where only one is.",
@@ -82,7 +91,7 @@ def propose_features(
             out.append({
                 "id": f"length:{col}",
                 "kind": "length",
-                "columns": [col],
+                "columns": [col], "parent_columns": [col],
                 "name": f"{col}__length",
                 "rationale": f"'{col}' is free text the model would otherwise drop - its length alone "
                              "(short note vs long note) is often a usable signal.",
