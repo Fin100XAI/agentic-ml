@@ -1,7 +1,7 @@
 // Models tab: every trained model version in the project - purpose, data
 // hash, metric summary, status, retrain action and what-changed history.
 // Nothing is ever overwritten.
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Activity, Boxes, History, RefreshCw, Target } from "lucide-react";
 import { api } from "../api/client";
 import type { RegistryEntry } from "../types";
@@ -78,8 +78,8 @@ export function ModelsPanel({
                   const score = pk ? m.metrics?.[pk] : null;
                   const key = `${m.model_id}-${m.version}`;
                   return (
-                    <>
-                      <tr key={key} className="border-b border-edge/50">
+                    <Fragment key={key}>
+                      <tr className="border-b border-edge/50">
                         <td
                           className="py-2 pr-3 font-medium"
                           title={`model ${m.model_id}\ntraining data sha256: ${m.data_sha256 ?? "n/a"}\nfeatures: ${(m.feature_list ?? []).join(", ")}`}
@@ -148,13 +148,13 @@ export function ModelsPanel({
                         </td>
                       </tr>
                       {expanded === key && m.change_summary && (
-                        <tr key={`${key}-detail`} className="border-b border-edge/50 bg-white/40">
+                        <tr className="border-b border-edge/50 bg-white/40">
                           <td colSpan={8} className="px-3 py-2.5">
                             <ChangeSummary summary={m.change_summary} />
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
