@@ -18,6 +18,7 @@ anthropic==0.122.0
 # Env
 python-dotenv==1.0.1
 openpyxl==3.1.5
+xlrd==2.0.2
 
 # PDF report export
 fpdf2==2.8.8
