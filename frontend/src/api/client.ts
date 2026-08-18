@@ -80,8 +80,14 @@ export const api = {
   routeChoice: (runId: string, choice: "direct_query" | "model") =>
     request<{ ok: boolean }>(`/runs/${runId}/route-choice`, json({ choice })),
 
-  explore: (datasetId: string) =>
-    request<ExploreResponse>(`/datasets/${datasetId}/explore`, { method: "POST" }),
+  explore: (datasetId: string, lang = "en") =>
+    request<ExploreResponse>(
+      `/datasets/${datasetId}/explore?lang=${encodeURIComponent(lang)}`,
+      { method: "POST" }),
+
+  refreshAllIndicators: (projectId: string) =>
+    request<{ refreshed: { name: string; filename: string }[]; skipped: string[] }>(
+      `/projects/${projectId}/indicators/refresh`, { method: "POST" }),
 
   datasetOverview: (datasetId: string) =>
     request<DataOverview>(`/datasets/${datasetId}/overview`),

@@ -260,7 +260,7 @@ def dataset_overview(dataset_id: str) -> dict:
 
 
 @router.post("/datasets/{dataset_id}/explore")
-def auto_explore(dataset_id: str) -> dict:
+def auto_explore(dataset_id: str, lang: str = "en") -> dict:
     """The exploring agents: starter questions asked AND answered before the
     user types anything. Plans are generated deterministically from the
     schema and run through the same executor as user questions; ONE batched
@@ -301,7 +301,7 @@ def auto_explore(dataset_id: str) -> dict:
     except QueryExecutionError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    narrative = _batch_narrative(findings_raw)
+    narrative = _batch_narrative(findings_raw, lang)
     for f, h, m in zip(findings_raw, narrative["headlines"], narrative["meanings"]):
         f["headline"] = h
         f["meaning"] = m
@@ -316,10 +316,15 @@ def auto_explore(dataset_id: str) -> dict:
             "filename": ds.filename, "artifact_id": ds.artifact_id}
 
 
-def _batch_narrative(findings: list[dict[str, Any]]) -> dict[str, Any]:
+_LANGS = {"hi": "Hindi (Devanagari script)", "mr": "Marathi (Devanagari script)"}
+
+
+def _batch_narrative(findings: list[dict[str, Any]], lang: str = "en") -> dict[str, Any]:
     """The analyst agent: ONE call for the whole board covering headlines,
     per-finding meanings, and the overall takeaway. Every number it may use
-    is precomputed (tables + signals); templated fallbacks use the same."""
+    is precomputed (tables + signals); templated fallbacks use the same.
+    lang: hi/mr writes the phrasing in that language (AI only - the
+    templated fallback stays English, honestly badged as heuristic)."""
     fb_headlines = [_template_headline(f["result"]["table"], f["result"]["columns"])
                     for f in findings]
     fb_meanings = [plain_meaning(f.get("signals", {})) for f in findings]
@@ -336,6 +341,8 @@ def _batch_narrative(findings: list[dict[str, Any]]) -> dict[str, Any]:
                     "table": f["result"]["table"][:8],
                     "signals": f.get("signals", {})}
                    for i, f in enumerate(findings)]
+        lang_note = (f" Write ALL text in {_LANGS[lang]} - keep column names "
+                     f"and numbers as they are." if lang in _LANGS else "")
         raw = provider.complete_json(
             "You are a data analyst explaining findings to a government "
             "officer with no statistics background. For each item: 'text' is "
@@ -344,7 +351,8 @@ def _batch_narrative(findings: list[dict[str, Any]]) -> dict[str, Any]:
             "present in the item's table or signals - NEVER compute new ones. "
             "Note honest limits (a gap is not proof of cause). 'synthesis' is "
             "2-3 sentences: the overall story across all items plus ONE "
-            "suggested next question. Style: plain hyphens only, no jargon.",
+            "suggested next question. Style: plain hyphens only, no jargon."
+            + lang_note,
             f"Items: {_json.dumps(compact)}",
             {"type": "object", "properties": {
                 "headlines": {"type": "array", "items": {
@@ -782,6 +790,51 @@ def run_indicator(sq_id: str, req: dict | None = None) -> dict:
                     payload={"saved_query_id": sq_id, "indicator": rec["name"],
                              "rows_out": result["row_counts"][-1]["rows"]})
     return {"saved_query": rec, "result": result, "chart": chart}
+
+
+@router.post("/projects/{project_id}/indicators/refresh")
+def refresh_all_indicators(project_id: str) -> dict:
+    """One click after a new file arrives: re-run every indicator against
+    the NEWEST compatible dataset in the project (fingerprint compatibility
+    = the plan resolves against its columns). Nothing moves without this
+    click; every refresh is logged."""
+    from datetime import datetime, timezone
+
+    sqs = store.list_saved_queries(project_id)
+    # Insertion order = upload order; newest last.
+    candidates = [d for d in store.datasets.values()
+                  if d.project_id == project_id
+                  and not (d.pii and d.pii.get("status") == "pending")]
+    candidates.reverse()
+    refreshed, skipped = [], []
+    for rec in sqs:
+        done = False
+        for ds in candidates:
+            try:
+                plan = QueryPlan.model_validate(rec["plan"])
+                resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+                result = execute_plan(resolved, ds.df)
+            except (ColumnResolutionError, QueryExecutionError):
+                continue
+            chart = choose_chart(result, resolved)
+            rec["last_result"] = _indicator_result(result, chart)
+            rec["last_run_at"] = datetime.now(timezone.utc).isoformat()
+            rec["dataset_id"] = ds.id
+            store.save_saved_query(rec)
+            store.log_event("Query engine", "query_execute", dataset_id=ds.id,
+                            mode="fallback",
+                            payload={"saved_query_id": rec["id"],
+                                     "indicator": rec["name"], "refresh_all": True,
+                                     "rows_out": result["row_counts"][-1]["rows"]})
+            refreshed.append({"name": rec["name"], "filename": ds.filename})
+            done = True
+            break
+        if not done:
+            skipped.append(rec["name"])
+    store.log_event("user", "approval", project_id=project_id,
+                    payload={"gate": "refresh_indicators",
+                             "refreshed": len(refreshed), "skipped": len(skipped)})
+    return {"refreshed": refreshed, "skipped": skipped}
 
 
 @router.delete("/saved-queries/{sq_id}")

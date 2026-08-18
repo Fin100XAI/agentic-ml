@@ -60,7 +60,10 @@ export function AnalyticsScreen({
   onAsk: (question?: string) => void;
   onBack: () => void;
 }) {
-  const cached = boardCache.get(datasetId) ?? null;
+  // Phrasing language (AI-only; heuristic fallback stays English, badged).
+  const [lang, setLang] = useState(() => sessionStorage.getItem("board-lang") ?? "en");
+  const cacheKey = `${datasetId}|${lang}`;
+  const cached = boardCache.get(cacheKey) ?? null;
   const [resp, setResp] = useState<ExploreResponse | null>(cached);
   const [busy, setBusy] = useState(cached === null);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +85,8 @@ export function AnalyticsScreen({
     try {
       // Let any in-flight exploration settle first - otherwise its pre-merge
       // result would land in the cache after the merge and look current.
-      await inFlight.get(datasetId)?.catch(() => {});
-      inFlight.delete(datasetId);
+      await inFlight.get(cacheKey)?.catch(() => {});
+      inFlight.delete(cacheKey);
       for (const col of placeCheck.columns) {
         const mapping: Record<string, string> = {};
         for (const p of col.proposals) {
@@ -94,8 +97,10 @@ export function AnalyticsScreen({
           await api.harmonizePlaces(datasetId, col.column, mapping);
         }
       }
-      // The data changed: clear caches and explore the merged version.
-      boardCache.delete(datasetId);
+      // The data changed: clear caches (every language) and re-explore.
+      for (const k of [...boardCache.keys()]) {
+        if (k.startsWith(`${datasetId}|`)) boardCache.delete(k);
+      }
       overviewCache.delete(datasetId);
       setPlaceCheck(null);
       setOverview(null);
@@ -115,18 +120,18 @@ export function AnalyticsScreen({
     setBusy(true);
     setError(null);
     try {
-      let p = inFlight.get(datasetId);
+      let p = inFlight.get(cacheKey);
       if (!p) {
-        p = api.explore(datasetId);
-        inFlight.set(datasetId, p);
+        p = api.explore(datasetId, lang);
+        inFlight.set(cacheKey, p);
       }
       const r = await p;
-      boardCache.set(datasetId, r);
+      boardCache.set(cacheKey, r);
       setResp(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      inFlight.delete(datasetId);
+      inFlight.delete(cacheKey);
       setBusy(false);
     }
   };
@@ -143,7 +148,14 @@ export function AnalyticsScreen({
         }
       })
       .catch(() => {});
-    if (!boardCache.has(datasetId)) void explore();
+    const c = boardCache.get(cacheKey);
+    if (c) {
+      setResp(c);
+      setBusy(false);
+    } else {
+      setResp(null);
+      void explore();
+    }
     if (!overviewCache.has(datasetId)) {
       let p = overviewInFlight.get(datasetId);
       if (!p) {
@@ -158,7 +170,7 @@ export function AnalyticsScreen({
         .finally(() => overviewInFlight.delete(datasetId));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId]);
+  }, [datasetId, lang]);
 
   const downloadBoard = async () => {
     if (!resp) return;
@@ -194,6 +206,19 @@ export function AnalyticsScreen({
           <span className="hidden text-sm font-normal text-ink-dim sm:inline">· {filename}</span>
         </h2>
         <div className="flex items-center gap-2">
+          <select
+            value={lang}
+            onChange={(e) => {
+              setLang(e.target.value);
+              sessionStorage.setItem("board-lang", e.target.value);
+            }}
+            title="Language for the AI-written headlines and takeaways (numbers stay as computed; without AI the fallback text is English)"
+            className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px] text-ink outline-none focus:border-accent"
+          >
+            <option value="en">English</option>
+            <option value="hi">हिंदी</option>
+            <option value="mr">मराठी</option>
+          </select>
           {resp && resp.findings.length > 0 && (
             <Button variant="outline" size="sm" onClick={downloadBoard} disabled={exporting}>
               {exporting ? <Spinner /> : <Download className="h-3.5 w-3.5" />} Briefing

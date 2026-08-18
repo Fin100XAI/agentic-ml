@@ -37,17 +37,48 @@ export function IndicatorsPanel({ projectId }: { projectId: string }) {
     await load();
   };
 
+  const [refreshingAll, setRefreshingAll] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
+  const refreshAll = async () => {
+    setRefreshingAll(true);
+    setError(null);
+    try {
+      const r = await api.refreshAllIndicators(projectId);
+      setRefreshNote(
+        `${r.refreshed.length} refreshed against the latest compatible data` +
+        (r.skipped.length ? `; ${r.skipped.length} had no compatible file` : ""),
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
+
   if (items.length === 0) return null;
 
   return (
     <div className="rounded-xl border border-edge bg-panel p-4 shadow-sm">
-      <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
-        <Gauge className="h-3.5 w-3.5 text-accent" /> Indicators
-      </h3>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
+          <Gauge className="h-3.5 w-3.5 text-accent" /> Indicators
+        </h3>
+        <button
+          onClick={refreshAll}
+          disabled={refreshingAll}
+          className="flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-2.5 py-1 text-[11px] font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-40"
+          title="Re-run every indicator against the newest compatible file in this project"
+        >
+          <RefreshCw className={`h-3 w-3 ${refreshingAll ? "animate-spin" : ""}`} />
+          Refresh all against latest data
+        </button>
+      </div>
       <p className="mt-0.5 text-[11px] text-ink-dim">
         Saved questions, recomputed on demand - each card shows when its number was last
         refreshed from the data.
       </p>
+      {refreshNote && <p className="mt-1 text-[11px] text-good">{refreshNote}</p>}
       {error && <p className="mt-2 text-[11px] text-bad">{error}</p>}
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((sq) => {

@@ -512,6 +512,36 @@ def test_yoy_starter_appears_for_monthly_year_plus_data():
     assert choose_chart(result, plan)["kind"] == "dbar"
 
 
+# ---------- indicator refresh-all + language option ----------
+
+def test_refresh_all_uses_newest_compatible_dataset():
+    r = client.post(f"/api/datasets/{ds_id}/saved-queries", json={
+        "name": "Refreshable total", "plan": {"source": "a1", "steps": [
+            {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"}]}})
+    rec = r.json()
+    # a NEWER compatible file arrives with different numbers
+    df2 = _df()
+    df2["enrollment"] = df2["enrollment"] * 2
+    up2 = client.post("/api/datasets",
+                      files={"file": ("newer.csv", df2.to_csv(index=False).encode(), "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    out = client.post(f"/api/projects/{pid}/indicators/refresh").json()
+    assert any(x["name"] == "Refreshable total" and x["filename"] == "newer.csv"
+               for x in out["refreshed"])
+    got = next(s for s in client.get(f"/api/projects/{pid}/saved-queries").json()["saved_queries"]
+               if s["id"] == rec["id"])
+    assert got["dataset_id"] == up2["dataset_id"]
+    assert got["last_result"]["table"][0]["t"] == rec["last_result"]["table"][0]["t"] * 2
+    client.delete(f"/api/saved-queries/{rec['id']}")
+
+
+def test_explore_lang_param_accepted():
+    r = client.post(f"/api/datasets/{ds_id}/explore?lang=hi")
+    assert r.status_code == 200
+    # heuristic mode: templated English fallback, honestly badged
+    assert r.json()["generated_by"] == "heuristic"
+
+
 # ---------- P2.2: map layer ----------
 
 def test_geo_matching_levels_and_threshold():
