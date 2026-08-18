@@ -521,6 +521,53 @@ def test_brief_pdf_and_markdown_endpoints():
     assert any((e.get("payload") or {}).get("kind") == "query_brief" for e in ev)
 
 
+# ---------- P2.5: saved queries (named indicators) ----------
+
+def test_indicator_save_run_duplicate_delete():
+    r = client.post(f"/api/datasets/{ds_id}/saved-queries", json={
+        "name": "Top districts by enrollment", "question": "top districts",
+        "plan": _BRIEF_PLAN})
+    assert r.status_code == 200, r.text
+    rec = r.json()
+    assert rec["fingerprint"]  # normalized schema key, not a file id
+    assert rec["last_result"]["rows_out"] == 3
+    assert rec["chart_kind"] == "hbar"
+
+    # duplicate name -> plain-language conflict
+    dup = client.post(f"/api/datasets/{ds_id}/saved-queries", json={
+        "name": "top districts by ENROLLMENT", "plan": _BRIEF_PLAN})
+    assert dup.status_code == 409
+
+    # listed on the project
+    lst = client.get(f"/api/projects/{pid}/saved-queries").json()["saved_queries"]
+    assert any(s["id"] == rec["id"] for s in lst)
+
+    # re-run refreshes the stored result deterministically (same data -> same numbers)
+    rerun = client.post(f"/api/saved-queries/{rec['id']}/run", json={})
+    assert rerun.status_code == 200
+    assert rerun.json()["saved_query"]["last_result"]["table"] == rec["last_result"]["table"]
+
+    # delete
+    assert client.delete(f"/api/saved-queries/{rec['id']}").status_code == 200
+    lst2 = client.get(f"/api/projects/{pid}/saved-queries").json()["saved_queries"]
+    assert not any(s["id"] == rec["id"] for s in lst2)
+
+
+def test_indicator_incompatible_dataset_plain_language():
+    r = client.post(f"/api/datasets/{ds_id}/saved-queries", json={
+        "name": "Enrollment total", "plan": {"source": "a1", "steps": [
+            {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"}]}})
+    rec = r.json()
+    other = pd.DataFrame({"village": ["x", "y"] * 10, "wells": range(20)})
+    up2 = client.post("/api/datasets",
+                      files={"file": ("wells.csv", other.to_csv(index=False).encode(), "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    bad = client.post(f"/api/saved-queries/{rec['id']}/run",
+                      json={"dataset_id": up2["dataset_id"]})
+    assert bad.status_code == 400
+    assert "does not fit this indicator" in bad.json()["detail"]
+
+
 def test_path_choice_logged():
     r = client.post(f"/api/datasets/{ds_id}/path-choice", json={"choice": "analytics"})
     assert r.status_code == 200

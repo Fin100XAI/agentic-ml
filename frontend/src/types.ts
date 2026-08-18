@@ -374,6 +374,26 @@ export interface QueryBrief {
   critic: { flagged_claims: number; checked: number };
 }
 
+export interface SavedQuery {
+  id: string;
+  project_id: string | null;
+  dataset_id: string;
+  name: string;
+  question: string;
+  plan: Record<string, unknown>;
+  fingerprint: string;
+  chart_kind: string;
+  created_at: string;
+  last_result: {
+    headline: string;
+    table: Record<string, string | number | null>[];
+    columns: string[];
+    chart_kind: string;
+    rows_out: number;
+  } | null;
+  last_run_at: string | null;
+}
+
 export interface IntakeRule {
   id: string;
   project_id: string;

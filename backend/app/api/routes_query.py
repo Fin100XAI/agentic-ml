@@ -554,6 +554,120 @@ def path_choice(dataset_id: str, req: RouteChoiceRequest) -> dict:
     return {"ok": True}
 
 
+class SaveQueryRequest(BaseModel):
+    name: str
+    plan: dict[str, Any]
+    question: str = ""
+
+
+def _fingerprint(cols: list[str]) -> str:
+    from engine.librarian import _normalize
+    return "|".join(sorted({_normalize(c) for c in cols}))
+
+
+def _indicator_result(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "headline": _template_headline(result["table"], result["columns"]),
+        "table": result["table"][:5],
+        "columns": result["columns"],
+        "chart_kind": chart["kind"],
+        "rows_out": result["row_counts"][-1]["rows"],
+    }
+
+
+@router.post("/datasets/{dataset_id}/saved-queries")
+def save_indicator(dataset_id: str, req: SaveQueryRequest) -> dict:
+    """Save an answer as a named indicator (P2.5). The plan is stored with a
+    normalized schema fingerprint, so next month's file with the same shape
+    can refresh the same number."""
+    import uuid
+    from datetime import datetime, timezone
+
+    ds = _gated_dataset(dataset_id)
+    try:
+        plan = QueryPlan.model_validate(req.plan)
+        resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+        result = execute_plan(resolved, ds.df)
+    except (ColumnResolutionError, QueryExecutionError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    name = req.name.strip()[:80]
+    if not name:
+        raise HTTPException(400, "Give the indicator a name.")
+    if any(sq["name"].lower() == name.lower()
+           for sq in store.list_saved_queries(ds.project_id)):
+        raise HTTPException(409, f"An indicator called '{name}' already exists - "
+                                 f"pick another name or delete the old one.")
+    chart = choose_chart(result, resolved)
+    now = datetime.now(timezone.utc).isoformat()
+    rec = {
+        "id": uuid.uuid4().hex[:12],
+        "project_id": ds.project_id,
+        "dataset_id": ds.id,
+        "name": name,
+        "question": req.question[:300],
+        "plan": resolved.model_dump(),
+        "fingerprint": _fingerprint(plan_columns(resolved)),
+        "chart_kind": chart["kind"],
+        "created_at": now,
+        "last_result": _indicator_result(result, chart),
+        "last_run_at": now,
+    }
+    store.save_saved_query(rec)
+    store.log_event("user", "approval", dataset_id=ds.id,
+                    payload={"gate": "save_indicator", "name": name,
+                             "saved_query_id": rec["id"]})
+    return rec
+
+
+@router.get("/projects/{project_id}/saved-queries")
+def list_indicators(project_id: str) -> dict:
+    return {"saved_queries": store.list_saved_queries(project_id)}
+
+
+@router.post("/saved-queries/{sq_id}/run")
+def run_indicator(sq_id: str, req: dict | None = None) -> dict:
+    """Re-run an indicator - against its origin dataset or any compatible
+    one (same schema fingerprint via column normalization)."""
+    from datetime import datetime, timezone
+
+    try:
+        rec = store.get_saved_query(sq_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    target_id = (req or {}).get("dataset_id") or rec["dataset_id"]
+    ds = _gated_dataset(target_id)
+    try:
+        plan = QueryPlan.model_validate(rec["plan"])
+        resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+        result = execute_plan(resolved, ds.df)
+    except ColumnResolutionError as exc:
+        # Plain-language incompatibility, not a stack trace.
+        raise HTTPException(400, f"'{ds.filename}' does not fit this indicator: {exc}") from exc
+    except QueryExecutionError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    chart = choose_chart(result, resolved)
+    rec["last_result"] = _indicator_result(result, chart)
+    rec["last_run_at"] = datetime.now(timezone.utc).isoformat()
+    rec["dataset_id"] = ds.id
+    store.save_saved_query(rec)
+    store.log_event("Query engine", "query_execute", dataset_id=ds.id, mode="fallback",
+                    payload={"saved_query_id": sq_id, "indicator": rec["name"],
+                             "rows_out": result["row_counts"][-1]["rows"]})
+    return {"saved_query": rec, "result": result, "chart": chart}
+
+
+@router.delete("/saved-queries/{sq_id}")
+def delete_indicator(sq_id: str) -> dict:
+    try:
+        rec = store.get_saved_query(sq_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    store.delete_saved_query(sq_id)
+    store.log_event("user", "decline", dataset_id=rec.get("dataset_id"),
+                    payload={"deleted_indicator": rec["name"], "saved_query_id": sq_id})
+    return {"ok": True}
+
+
 @router.post("/runs/{run_id}/route-choice")
 def route_choice(run_id: str, req: RouteChoiceRequest) -> dict:
     """The direction-stage routing decision is a logged approval."""

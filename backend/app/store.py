@@ -179,6 +179,15 @@ class Store:
             "id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, project_id TEXT, "
             "created_at TEXT NOT NULL, payload TEXT NOT NULL)"
         )
+        # QUERY-PATH EXTENSION (touch point b/c): saved queries = named
+        # indicators, keyed by a schema fingerprint rather than one file.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS saved_queries ("
+            "id TEXT PRIMARY KEY, project_id TEXT, dataset_id TEXT NOT NULL, "
+            "name TEXT NOT NULL, question TEXT, plan TEXT NOT NULL, "
+            "fingerprint TEXT NOT NULL, chart_kind TEXT, created_at TEXT NOT NULL, "
+            "last_result TEXT, last_run_at TEXT)"
+        )
         for ddl in (
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
@@ -885,6 +894,54 @@ class Store:
         if row is None:
             raise KeyError(f"No brief called '{brief_id}'.")
         return json.loads(row[0])
+
+    _SQ_COLS = ("id", "project_id", "dataset_id", "name", "question", "plan",
+                "fingerprint", "chart_kind", "created_at", "last_result",
+                "last_run_at")
+
+    def save_saved_query(self, rec: dict) -> None:
+        with self._lock:
+            self._db.execute(
+                f"INSERT OR REPLACE INTO saved_queries ({', '.join(self._SQ_COLS)}) "
+                f"VALUES ({', '.join('?' * len(self._SQ_COLS))})",
+                tuple(json.dumps(rec[c], default=str)
+                      if c in ("plan", "last_result") and rec.get(c) is not None
+                      else rec.get(c) for c in self._SQ_COLS),
+            )
+            self._db.commit()
+
+    def list_saved_queries(self, project_id: str | None) -> list[dict]:
+        rows = self._db.execute(
+            f"SELECT {', '.join(self._SQ_COLS)} FROM saved_queries "
+            "WHERE project_id IS ? OR project_id = ? ORDER BY created_at DESC",
+            (project_id, project_id),
+        ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(zip(self._SQ_COLS, r))
+            for c in ("plan", "last_result"):
+                if rec.get(c):
+                    rec[c] = json.loads(rec[c])
+            out.append(rec)
+        return out
+
+    def get_saved_query(self, sq_id: str) -> dict:
+        row = self._db.execute(
+            f"SELECT {', '.join(self._SQ_COLS)} FROM saved_queries WHERE id = ?",
+            (sq_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"No saved query called '{sq_id}'.")
+        rec = dict(zip(self._SQ_COLS, row))
+        for c in ("plan", "last_result"):
+            if rec.get(c):
+                rec[c] = json.loads(rec[c])
+        return rec
+
+    def delete_saved_query(self, sq_id: str) -> None:
+        with self._lock:
+            self._db.execute("DELETE FROM saved_queries WHERE id = ?", (sq_id,))
+            self._db.commit()
 
     def log_event(
         self,

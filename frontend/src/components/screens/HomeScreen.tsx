@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { RegistryEntry, RunSummary } from "../../types";
 import { GlossaryManager } from "../GlossaryManager";
+import { IndicatorsPanel } from "../IndicatorsPanel";
 import { IntakePanel } from "../IntakePanel";
 import { ModelsPanel } from "../ModelsPanel";
 import { RunDiffModal } from "../RunDiffModal";
@@ -194,6 +195,9 @@ export function HomeScreen({
       </section>
 
       {/* Project data dictionary */}
+      {/* Saved-query indicators (P2.5) - the project's auto-dashboard */}
+      {projectId && <IndicatorsPanel projectId={projectId} />}
+
       {projectId && <GlossaryManager projectId={projectId} />}
 
       {/* Trained model versions in this project */}

@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -98,6 +98,20 @@ export const api = {
     ),
 
   getQueryBrief: (briefId: string) => request<QueryBrief>(`/query-briefs/${briefId}`),
+
+  saveIndicator: (datasetId: string, name: string, plan: object, question: string) =>
+    request<SavedQuery>(`/datasets/${datasetId}/saved-queries`,
+      json({ name, plan, question })),
+
+  listIndicators: (projectId: string) =>
+    request<{ saved_queries: SavedQuery[] }>(`/projects/${projectId}/saved-queries`),
+
+  runIndicator: (sqId: string, datasetId?: string) =>
+    request<{ saved_query: SavedQuery }>(`/saved-queries/${sqId}/run`,
+      json(datasetId ? { dataset_id: datasetId } : {})),
+
+  deleteIndicator: (sqId: string) =>
+    request<{ ok: boolean }>(`/saved-queries/${sqId}`, { method: "DELETE" }),
 
   queryBriefFile: async (briefId: string, format: "markdown" | "pdf") => {
     const res = await fetch(`${BASE}/query-briefs/${briefId}/${format}`);

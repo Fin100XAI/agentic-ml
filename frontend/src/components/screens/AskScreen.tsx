@@ -64,6 +64,22 @@ export function AskScreen({
   const [included, setIncluded] = useState<Set<number>>(new Set());
   const [briefId, setBriefId] = useState<string | null>(null);
   const [briefBusy, setBriefBusy] = useState(false);
+  // Save-as-indicator (P2.5)
+  const [indicatorName, setIndicatorName] = useState<string | null>(null);
+  const [indicatorSaved, setIndicatorSaved] = useState(false);
+
+  const saveIndicator = async () => {
+    if (!indicatorName?.trim() || !latest) return;
+    setError(null);
+    try {
+      await api.saveIndicator(datasetId, indicatorName.trim(),
+        latest.answer.plan, latest.question);
+      setIndicatorName(null);
+      setIndicatorSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const toggleInclude = (i: number) =>
     setIncluded((s) => {
@@ -451,16 +467,38 @@ export function AskScreen({
                 {answer.result.row_counts.map((rc) => `${rc.step}: ${rc.rows.toLocaleString()}`).join(" → ")}
                 . The plan and row counts are in the activity log.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  const blob = await api.queryExportCsv(datasetId, answer.plan, latest!.question);
-                  saveBlob(blob, "answer.csv");
-                }}
-              >
-                <Download className="h-3.5 w-3.5" /> CSV
-              </Button>
+              <span className="flex items-center gap-2">
+                {indicatorName === null ? (
+                  <Button variant="outline" size="sm"
+                    onClick={() => { setIndicatorName(""); setIndicatorSaved(false); }}>
+                    {indicatorSaved ? "Saved ✓" : "Save as indicator"}
+                  </Button>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      value={indicatorName}
+                      onChange={(e) => setIndicatorName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveIndicator()}
+                      placeholder="Indicator name"
+                      className="w-40 rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
+                    />
+                    <Button size="sm" onClick={saveIndicator} disabled={!indicatorName.trim()}>
+                      Save
+                    </Button>
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const blob = await api.queryExportCsv(datasetId, answer.plan, latest!.question);
+                    saveBlob(blob, "answer.csv");
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" /> CSV
+                </Button>
+              </span>
             </div>
           </CardBody>
         </Card>
