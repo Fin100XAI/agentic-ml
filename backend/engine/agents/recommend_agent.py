@@ -12,6 +12,7 @@ from typing import Any
 
 from engine.catalog import models_for_use_case
 from engine.llm.base import LLMProvider
+from engine.query.routing import classify_route  # QUERY-PATH EXTENSION
 
 USE_CASES = ("classification", "regression", "clustering", "forecasting")
 
@@ -28,6 +29,10 @@ _SYSTEM = (
     "includes a 'health' section listing data-quality issues (imbalance, small "
     "sample, missing data) - factor these into your choice and mention how they "
     "affect it (e.g. prefer robust models on imbalanced data). Also judge "
+    "the route: model_needed for prediction/forecast/pattern questions, "
+    "direct_query for questions answerable by filtering/grouping/counting the "
+    "data as it stands (which/top/how many/compare), both when mixed, "
+    "unanswerable when the data cannot answer it at all. Also judge "
     "alignment: can the user's question actually be answered with the columns in "
     "this dataset? If the question refers to information the data does not "
     "contain (different domain, missing measures), set alignment.aligned=false "
@@ -74,8 +79,20 @@ def _schema(catalog_keys: list[str], column_names: list[str]) -> dict[str, Any]:
                         "type": "string",
                         "description": "If not aligned: one or two plain sentences on why, and what this data CAN answer. Empty string when aligned.",
                     },
+                    # QUERY-PATH EXTENSION: route classification (rule 10 touch point a)
+                    "route": {
+                        "type": "string",
+                        "enum": ["model_needed", "direct_query", "both", "unanswerable"],
+                        "description": "model_needed: prediction/pattern question requiring training. "
+                                       "direct_query: answerable by filtering/grouping the data as-is. "
+                                       "both: mixes the two. unanswerable: the data cannot answer it.",
+                    },
+                    "route_reasoning": {
+                        "type": "string",
+                        "description": "One sentence on why this route.",
+                    },
                 },
-                "required": ["aligned", "note"],
+                "required": ["aligned", "note", "route", "route_reasoning"],
                 "additionalProperties": False,
             },
         },
@@ -151,7 +168,8 @@ def _heuristic(profile: dict[str, Any], question: str) -> dict[str, Any]:
         "ranked_models": ranked,
         "target": target,
         "time_column": time_column,
-        "alignment": {"aligned": True, "note": ""},  # heuristic mode can't judge
+        # QUERY-PATH EXTENSION: heuristic route classification
+        "alignment": {"aligned": True, "note": "", **classify_route(question)},
         "generated_by": "heuristic",
     }
 
@@ -191,7 +209,10 @@ def run_recommend_agent(
             ]
         if result.get("target") not in column_names:
             result["target"] = None if result.get("target") else result.get("target")
+        # QUERY-PATH EXTENSION: guarantee route fields (heuristic default)
         result.setdefault("alignment", {"aligned": True, "note": ""})
+        if not result["alignment"].get("route"):
+            result["alignment"].update(classify_route(question))
         result["generated_by"] = "claude"
         return result
     except Exception:
