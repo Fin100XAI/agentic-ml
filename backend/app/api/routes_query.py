@@ -20,7 +20,7 @@ from engine.query.describe import describe_plan
 from engine.query.diff import diff_plans
 from engine.query.executor import QueryExecutionError, execute_plan
 from engine.query.routing import classify_route
-from engine.query.plan import QueryPlan, plan_columns
+from engine.query.plan import AggregateStep, GroupByStep, QueryPlan, plan_columns
 from engine.query.readiness import caveats_for_columns, readiness_audit
 from engine.query.resolve import ColumnResolutionError, resolve_plan
 from engine.query.signals import finding_signals, plain_meaning, plain_synthesis
@@ -143,6 +143,7 @@ def run_question(dataset_id: str, req: RunRequest) -> dict:
             pct = float(ds.df[col].isna().mean() * 100)
             if pct > 5:
                 caveats.append(f"'{col}' is {pct:.0f}% empty - answers using it cover only the filled rows.")
+    caveats += _small_group_caveats(ds.df, resolved)
 
     headline, generated_by = _headline(req.question, resolved, result)
     store.log_event(
@@ -188,6 +189,26 @@ def _headline(question: str, plan: QueryPlan, result: dict[str, Any]) -> tuple[s
         return text.strip(), "claude"
     except Exception:
         return fallback, "heuristic"
+
+
+def _small_group_caveats(df, resolved: QueryPlan) -> list[str]:
+    """Averages over tiny groups mislead - say so (small-sample honesty)."""
+    group_cols = next((s.columns for s in resolved.steps
+                       if isinstance(s, GroupByStep)), None)
+    has_avg = any(isinstance(s, AggregateStep) and s.fn in ("mean", "median")
+                  for s in resolved.steps)
+    if not group_cols or not has_avg:
+        return []
+    cols = [c for c in group_cols if c in df.columns]
+    if not cols:
+        return []
+    sizes = df.groupby(cols, dropna=False).size()
+    tiny = sizes[sizes < 5]
+    if tiny.empty:
+        return []
+    names = ", ".join(str(k) for k in list(tiny.index)[:4])
+    return [f"{len(tiny)} group(s) have fewer than 5 records ({names}) - "
+            f"their averages can swing on a single row, compare with care."]
 
 
 def _template_headline(table: list[dict], columns: list[str]) -> str:
@@ -236,6 +257,7 @@ def auto_explore(dataset_id: str) -> dict:
             used = plan_columns(resolved)
             caveats = list(result["coverage_notes"])
             caveats += caveats_for_columns(readiness, used)
+            caveats += _small_group_caveats(ds.df, resolved)
             chart = choose_chart(result, resolved)
             findings_raw.append({
                 "question": cand["question"],
@@ -543,6 +565,74 @@ def get_query_brief_pdf(brief_id: str):
     return Response(content=markdown_to_pdf(brief_markdown(brief)),
                     media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="query-brief.pdf"'})
+
+
+@router.get("/datasets/{dataset_id}/place-check")
+def place_check(dataset_id: str) -> dict:
+    """The Place Harmonizer's scan: layered deterministic detection of place
+    names written differently (case, official renames, close spellings,
+    learned project aliases). Proposals only - nothing applies without
+    approval."""
+    from engine.query.places import MAX_LEVELS, detect_place_variants
+
+    ds = _gated_dataset(dataset_id)
+    project_aliases = store.get_place_aliases(ds.project_id)
+    columns_out = []
+    for col in ds.df.columns:
+        s = ds.df[col]
+        if s.dtype != object:
+            continue
+        n_unique = s.nunique(dropna=True)
+        if not 2 <= n_unique <= MAX_LEVELS:
+            continue
+        proposals = detect_place_variants(s, project_aliases)
+        if proposals:
+            columns_out.append({"column": str(col), "proposals": proposals})
+    if columns_out:
+        store.log_event(
+            "Place harmonizer", "profile", dataset_id=ds.id, mode="fallback",
+            payload={"context": "place_check",
+                     "n_proposals": sum(len(c["proposals"]) for c in columns_out)},
+        )
+    return {"columns": columns_out}
+
+
+class HarmonizeRequest(BaseModel):
+    column: str
+    mapping: dict[str, str]  # variant -> canonical
+
+
+@router.post("/datasets/{dataset_id}/harmonize")
+def harmonize_places(dataset_id: str, req: HarmonizeRequest) -> dict:
+    """Apply an APPROVED place-name mapping as a derived artifact (the
+    original never changes) and remember the aliases for future files."""
+    from engine.query.places import apply_place_mapping
+
+    ds = _gated_dataset(dataset_id)
+    if req.column not in ds.df.columns:
+        raise HTTPException(400, f"No column called '{req.column}'.")
+    mapping = {str(k): str(v).strip() for k, v in req.mapping.items()
+               if str(v).strip() and str(k) != str(v).strip()}
+    if not mapping:
+        raise HTTPException(400, "Nothing to merge - the mapping is empty.")
+    harmonized = apply_place_mapping(ds.df, req.column, mapping)
+    art = store.add_derived_artifact(
+        harmonized, [ds.artifact_id] if ds.artifact_id else [],
+        "harmonize_places", {"column": req.column, "mapping": mapping},
+        project_id=ds.project_id,
+    )
+    ds.df = harmonized
+    ds.artifact_id = art.id
+    store.update_dataset(ds)
+    store.save_place_aliases(ds.project_id, mapping)
+    store.log_event("user", "approval", dataset_id=ds.id,
+                    payload={"gate": "harmonize_places", "column": req.column,
+                             "n_merged": len(mapping)})
+    store.log_event("user", "transform", dataset_id=ds.id, artifact_id=art.id,
+                    payload={"action": "harmonize_places", "column": req.column,
+                             "mapping": mapping})
+    return {"ok": True, "artifact_id": art.id,
+            "distinct_after": int(ds.df[req.column].nunique(dropna=True))}
 
 
 @router.post("/datasets/{dataset_id}/path-choice")

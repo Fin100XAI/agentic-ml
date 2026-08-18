@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -85,6 +85,13 @@ export const api = {
 
   datasetOverview: (datasetId: string) =>
     request<DataOverview>(`/datasets/${datasetId}/overview`),
+
+  placeCheck: (datasetId: string) =>
+    request<PlaceCheck>(`/datasets/${datasetId}/place-check`),
+
+  harmonizePlaces: (datasetId: string, column: string, mapping: Record<string, string>) =>
+    request<{ ok: boolean; distinct_after: number }>(
+      `/datasets/${datasetId}/harmonize`, json({ column, mapping })),
 
   createQueryBrief: (
     datasetId: string,

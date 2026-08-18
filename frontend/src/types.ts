@@ -269,6 +269,7 @@ export interface ChartSpec {
   note: string | null;
   facet?: string | null;
   label?: string | null;
+  benchmark?: { value: number; label: string } | null;
 }
 
 export interface PlanChanges {
@@ -372,6 +373,17 @@ export interface QueryBrief {
   trust: { lines: string[]; scope_note: string };
   provenance: { dataset_id: string; artifact_id: string | null; generated_by: string };
   critic: { flagged_claims: number; checked: number };
+}
+
+export interface PlaceProposal {
+  canonical: string;
+  variants: string[];
+  source: string;
+  counts: Record<string, number>;
+}
+
+export interface PlaceCheck {
+  columns: { column: string; proposals: PlaceProposal[] }[];
 }
 
 export interface SavedQuery {

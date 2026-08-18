@@ -103,10 +103,23 @@ def choose_chart(result: dict[str, Any], plan: QueryPlan) -> dict[str, Any]:
         return {"kind": "table", "x": None, "y": [], "threshold": None,
                 "note": f"{len(table)} rows - too many categories to chart honestly."}
 
+    # Benchmark line: the average across the shown groups, so "who is below
+    # average" is visible at a glance. Only drawn with enough groups to make
+    # an average meaningful, and labeled honestly when top-N trimmed the set.
+    benchmark = None
+    vals = [r.get(y) for r in table
+            if isinstance(r.get(y), (int, float)) and not isinstance(r.get(y), bool)]
+    if len(vals) >= 4:
+        has_topn_step = any(isinstance(s, TopNStep) for s in plan.steps)
+        benchmark = {"value": round(sum(vals) / len(vals), 2),
+                     "label": "average of shown" if has_topn_step else "average"}
+
     # top_n / explicit ranking -> ordered horizontal bars.
     has_topn = any(isinstance(s, TopNStep) for s in plan.steps)
     has_sort = any(isinstance(s, SortStep) for s in plan.steps)
     if has_topn or (has_sort and len(table) <= 15):
-        return {"kind": "hbar", "x": x, "y": [y], "threshold": thr, "note": None}
+        return {"kind": "hbar", "x": x, "y": [y], "threshold": thr,
+                "benchmark": benchmark, "note": None}
 
-    return {"kind": "bar", "x": x, "y": [y], "threshold": thr, "note": None}
+    return {"kind": "bar", "x": x, "y": [y], "threshold": thr,
+            "benchmark": benchmark, "note": None}

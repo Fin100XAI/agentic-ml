@@ -17,6 +17,17 @@ MAX_STARTERS = 9
 MAX_CAT_LEVELS = 30
 
 
+def _is_monthly(series: pd.Series) -> bool:
+    """True when the distinct periods parse as dates spaced ~one month."""
+    vals = series.dropna().astype(str).unique()
+    parsed = pd.to_datetime(pd.Series(sorted(vals)), errors="coerce", format="mixed")
+    parsed = parsed.dropna().sort_values()
+    if len(parsed) < 13:
+        return False
+    diffs = parsed.diff().dropna().dt.days
+    return bool(diffs.between(28, 31).mean() > 0.8)
+
+
 def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
     period = _find_period_column(df)
     key = _find_entity_key(df, period)
@@ -98,6 +109,19 @@ def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]
                     {"op": "sort", "column": period, "dir": "asc"},
                     {"op": "delta_vs_period", "column": f"total_{num}",
                      "period_column": period, "lag": 1},
+                ]},
+            })
+        # Seasonal honesty: monthly data spanning a year+ compares each month
+        # with the SAME month a year earlier, not just the month before.
+        if _is_monthly(df[period]) and int(df[period].nunique(dropna=True)) >= 13:
+            out.append({
+                "question": f"How does each {period} compare with the same {period} a year earlier?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [period]},
+                    {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
+                    {"op": "sort", "column": period, "dir": "asc"},
+                    {"op": "delta_vs_period", "column": f"total_{num}",
+                     "period_column": period, "lag": 12},
                 ]},
             })
 

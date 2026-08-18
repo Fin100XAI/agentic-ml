@@ -179,6 +179,13 @@ class Store:
             "id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, project_id TEXT, "
             "created_at TEXT NOT NULL, payload TEXT NOT NULL)"
         )
+        # QUERY-PATH EXTENSION (touch point c): approved place-name aliases,
+        # learned per project so future files harmonize automatically.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS place_aliases ("
+            "project_id TEXT NOT NULL, variant TEXT NOT NULL, "
+            "canonical TEXT NOT NULL, PRIMARY KEY (project_id, variant))"
+        )
         # QUERY-PATH EXTENSION (touch point b/c): saved queries = named
         # indicators, keyed by a schema fingerprint rather than one file.
         self._db.execute(
@@ -894,6 +901,23 @@ class Store:
         if row is None:
             raise KeyError(f"No brief called '{brief_id}'.")
         return json.loads(row[0])
+
+    def save_place_aliases(self, project_id: str | None, mapping: dict[str, str]) -> None:
+        with self._lock:
+            for variant, canonical in mapping.items():
+                self._db.execute(
+                    "INSERT OR REPLACE INTO place_aliases (project_id, variant, canonical) "
+                    "VALUES (?, ?, ?)",
+                    (project_id or "", variant.strip().lower(), canonical),
+                )
+            self._db.commit()
+
+    def get_place_aliases(self, project_id: str | None) -> dict[str, str]:
+        rows = self._db.execute(
+            "SELECT variant, canonical FROM place_aliases WHERE project_id = ?",
+            (project_id or "",),
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
     _SQ_COLS = ("id", "project_id", "dataset_id", "name", "question", "plan",
                 "fingerprint", "chart_kind", "created_at", "last_result",

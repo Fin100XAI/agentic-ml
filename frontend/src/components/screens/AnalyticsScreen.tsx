@@ -16,7 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api/client";
-import type { DataOverview, ExploreFinding, ExploreResponse, OverviewColumn } from "../../types";
+import type { DataOverview, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
 import { QueryChart } from "../QueryChart";
@@ -69,6 +69,47 @@ export function AnalyticsScreen({
     overviewCache.get(datasetId) ?? null,
   );
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Place Harmonizer: proposals reviewed here, applied only on approval.
+  const [placeCheck, setPlaceCheck] = useState<PlaceCheck | null>(null);
+  const [placeDismissed, setPlaceDismissed] = useState(false);
+  const [placeBusy, setPlaceBusy] = useState(false);
+  const [placeTicks, setPlaceTicks] = useState<Set<string>>(new Set());
+
+  const applyPlaces = async () => {
+    if (!placeCheck) return;
+    setPlaceBusy(true);
+    setError(null);
+    try {
+      // Let any in-flight exploration settle first - otherwise its pre-merge
+      // result would land in the cache after the merge and look current.
+      await inFlight.get(datasetId)?.catch(() => {});
+      inFlight.delete(datasetId);
+      for (const col of placeCheck.columns) {
+        const mapping: Record<string, string> = {};
+        for (const p of col.proposals) {
+          if (!placeTicks.has(`${col.column}|${p.canonical}`)) continue;
+          for (const v of p.variants) mapping[v] = p.canonical;
+        }
+        if (Object.keys(mapping).length > 0) {
+          await api.harmonizePlaces(datasetId, col.column, mapping);
+        }
+      }
+      // The data changed: clear caches and explore the merged version.
+      boardCache.delete(datasetId);
+      overviewCache.delete(datasetId);
+      setPlaceCheck(null);
+      setOverview(null);
+      api.datasetOverview(datasetId).then((o) => {
+        overviewCache.set(datasetId, o);
+        setOverview(o);
+      }).catch(() => {});
+      await explore();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPlaceBusy(false);
+    }
+  };
 
   const explore = async () => {
     setBusy(true);
@@ -91,6 +132,17 @@ export function AnalyticsScreen({
   };
 
   useEffect(() => {
+    // Scan for split place spellings once per visit; proposals only.
+    api.placeCheck(datasetId)
+      .then((pc) => {
+        if (pc.columns.length > 0) {
+          setPlaceCheck(pc);
+          // default: everything ticked - one click fixes the common case
+          setPlaceTicks(new Set(pc.columns.flatMap((c) =>
+            c.proposals.map((p) => `${c.column}|${p.canonical}`))));
+        }
+      })
+      .catch(() => {});
     if (!boardCache.has(datasetId)) void explore();
     if (!overviewCache.has(datasetId)) {
       let p = overviewInFlight.get(datasetId);
@@ -227,6 +279,63 @@ export function AnalyticsScreen({
         </Card>
       )}
 
+      {/* Place Harmonizer: split spellings silently split totals - review
+          the proposed merges before any number is trusted. */}
+      {placeCheck && !placeDismissed && (
+        <Card className="border-warn/40">
+          <CardBody>
+            <h3 className="text-sm font-semibold">Same place, different spellings?</h3>
+            <p className="mt-0.5 text-[11px] text-ink-dim">
+              Split spellings split your totals. Untick anything that is genuinely
+              different, then merge - the original file stays untouched, and the
+              approved spellings are remembered for future files.
+            </p>
+            <div className="mt-2 space-y-2">
+              {placeCheck.columns.map((col) =>
+                col.proposals.map((p) => {
+                  const key = `${col.column}|${p.canonical}`;
+                  return (
+                    <label key={key} className="flex items-start gap-2 rounded-lg border border-edge bg-panel-2/60 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={placeTicks.has(key)}
+                        onChange={() =>
+                          setPlaceTicks((s) => {
+                            const next = new Set(s);
+                            if (next.has(key)) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          })
+                        }
+                        className="mt-0.5 accent-[#1d4ed8]"
+                      />
+                      <span className="min-w-0 text-xs leading-relaxed">
+                        In <span className="font-semibold">{col.column}</span>:{" "}
+                        {p.variants.map((v) => `'${v}' (${p.counts[v] ?? 0})`).join(", ")}
+                        {" -> "}
+                        <span className="font-semibold">{p.canonical}</span>
+                        <span className="ml-1.5 rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
+                          {p.source}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                }),
+              )}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPlaceDismissed(true)}>
+                Keep as is
+              </Button>
+              <Button size="sm" onClick={applyPlaces}
+                disabled={placeBusy || placeTicks.size === 0}>
+                {placeBusy ? <Spinner /> : null} Merge & recompute
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
       {/* The analyst's takeaway across all findings */}
       {!busy && resp && resp.synthesis && resp.findings.length > 0 && (
         <Card className="border-accent/30 bg-accent-soft/20">
@@ -266,7 +375,12 @@ export function AnalyticsScreen({
               key={i}
               className={f.chart.kind === "line" || f.chart.kind === "table" ? "lg:col-span-2" : ""}
             >
-              <FindingCard finding={f} generatedBy={resp.generated_by} onAsk={onAsk} />
+              <FindingCard
+                finding={f}
+                generatedBy={resp.generated_by}
+                onAsk={onAsk}
+                numericColumns={prof?.columns.filter((c) => c.role === "numeric").map((c) => c.name) ?? []}
+              />
             </div>
           ))}
         </div>
@@ -376,13 +490,23 @@ function FindingCard({
   finding,
   generatedBy,
   onAsk,
+  numericColumns = [],
 }: {
   finding: ExploreFinding;
   generatedBy: string;
   onAsk: (question?: string) => void;
+  numericColumns?: string[];
 }) {
   const [showTable, setShowTable] = useState(false);
   const f = finding;
+  // Per-denominator quick asks: raw totals flatter big groups; one click
+  // reframes the same ranking per another measure (goes through the normal
+  // interpret-then-run flow, so the plan is still shown before running).
+  const metric = f.chart.y[0] ?? "";
+  const denominators =
+    (f.chart.kind === "hbar" || f.chart.kind === "bar") && f.chart.x
+      ? numericColumns.filter((n) => !metric.toLowerCase().includes(n.toLowerCase()))
+      : [];
   return (
     <Card className="h-full">
       <CardHeader
@@ -410,12 +534,26 @@ function FindingCard({
         <QueryChart spec={f.chart} result={f.result} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
-            onClick={() => setShowTable((s) => !s)}
-            className="text-[11px] text-ink-dim underline-offset-2 hover:text-ink hover:underline"
-          >
-            {showTable ? "Hide numbers" : "Show the numbers"}
-          </button>
+          <span className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowTable((s) => !s)}
+              className="text-[11px] text-ink-dim underline-offset-2 hover:text-ink hover:underline"
+            >
+              {showTable ? "Hide numbers" : "Show the numbers"}
+            </button>
+            {denominators.slice(0, 2).map((den) => (
+              <button
+                key={den}
+                onClick={() =>
+                  onAsk(`${metric.replace(/__/g, " ").replace(/_/g, " ")} per ${den} by ${f.chart.x}`)
+                }
+                title={`Reframe this ranking per ${den} - raw totals can flatter big groups`}
+                className="rounded-full bg-slate-500/8 px-2 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-slate-500/15 hover:text-accent"
+              >
+                per {den}
+              </button>
+            ))}
+          </span>
           <button
             onClick={() => onAsk(f.question)}
             className="text-[11px] text-accent underline-offset-2 hover:underline"

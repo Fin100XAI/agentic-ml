@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -198,7 +199,16 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
             <ReferenceLine x={spec.threshold} stroke="#d97706" strokeDasharray="5 4"
               label={{ value: compact(spec.threshold), fontSize: 10, fill: "#d97706" }} />
           )}
-          <Bar dataKey={y} fill={BLUE} radius={[0, 4, 4, 0]} isAnimationActive={false} name={niceLabel(y)} />
+          {spec.benchmark && (
+            <ReferenceLine x={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
+              label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideBottomRight" }} />
+          )}
+          <Bar dataKey={y} fill={BLUE} radius={[0, 4, 4, 0]} isAnimationActive={false} name={niceLabel(y)}>
+            {/* On-chart callouts: each bar carries its value */}
+            <LabelList dataKey={y} position="right"
+              formatter={(v) => compact(Number(v))}
+              style={{ fontSize: 9, fill: "#334155" }} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     );
@@ -215,7 +225,15 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           <ReferenceLine y={spec.threshold} stroke="#d97706" strokeDasharray="5 4"
             label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "#d97706", position: "insideTopRight" }} />
         )}
-        <Bar dataKey={y} fill={BLUE} radius={[4, 4, 0, 0]} isAnimationActive={false} name={niceLabel(y)} />
+        {spec.benchmark && (
+          <ReferenceLine y={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
+            label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideTopRight" }} />
+        )}
+        <Bar dataKey={y} fill={BLUE} radius={[4, 4, 0, 0]} isAnimationActive={false} name={niceLabel(y)}>
+          <LabelList dataKey={y} position="top"
+            formatter={(v) => compact(Number(v))}
+            style={{ fontSize: 9, fill: "#334155" }} />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );

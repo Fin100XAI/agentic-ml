@@ -462,6 +462,103 @@ def test_overview_endpoint():
     assert any(e["event_type"] == "profile" for e in ev)
 
 
+# ---------- benchmark lines, small-sample flags, YoY starter ----------
+
+def test_benchmark_on_ranked_charts():
+    df = _df()
+    result, plan = _run_plan(df, {"source": "a1", "steps": [
+        {"op": "group_by", "columns": ["district"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "total"},
+        {"op": "sort", "column": "total", "dir": "desc"},
+        {"op": "top_n", "n": 5},
+    ]})
+    spec = choose_chart(result, plan)
+    assert spec["benchmark"] is not None
+    total_avg = sum(r["total"] for r in result["table"]) / len(result["table"])
+    assert abs(spec["benchmark"]["value"] - total_avg) < 0.01
+    assert spec["benchmark"]["label"] == "average of shown"  # top-N honesty
+
+
+def test_small_group_average_gets_caution():
+    df = _df()
+    df.loc[df.index[:57], "district"] = "Pune"  # leaves tiny groups behind
+    csv = df.to_csv(index=False).encode()
+    up2 = client.post("/api/datasets", files={"file": ("tiny.csv", csv, "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    r = client.post(f"/api/datasets/{up2['dataset_id']}/query/run", json={
+        "plan": {"source": "a1", "steps": [
+            {"op": "group_by", "columns": ["district"]},
+            {"op": "aggregate", "column": "enrollment", "fn": "mean", "alias": "avg"}]},
+        "question": "avg by district"})
+    assert r.status_code == 200
+    assert any("fewer than 5 records" in c for c in r.json()["caveats"])
+
+
+def test_yoy_starter_appears_for_monthly_year_plus_data():
+    rng = np.random.default_rng(42)
+    months = pd.date_range("2024-01-01", periods=24, freq="MS").strftime("%Y-%m")
+    df = pd.DataFrame({
+        "month": list(months) * 2,
+        "district": ["Pune"] * 24 + ["Nashik"] * 24,
+        "enrollment": rng.integers(50, 500, 48),
+    })
+    cands = starter_questions(df, "a1")
+    yoy = next((c for c in cands if "a year earlier" in c["question"]), None)
+    assert yoy is not None
+    assert any(s.get("lag") == 12 for s in yoy["plan"]["steps"])
+    plan = resolve_plan(QueryPlan.model_validate(yoy["plan"]),
+                        [str(c) for c in df.columns])
+    result = execute_plan(plan, df)
+    assert choose_chart(result, plan)["kind"] == "dbar"
+
+
+# ---------- Place Harmonizer ----------
+
+def test_place_detect_layers():
+    from engine.query.places import detect_place_variants
+    s = pd.Series(["Pune", "Poona", "PUNE", "Nashik", "Nashick", "Bangalore",
+                   "Bengaluru", "Satara"] * 3)
+    props = detect_place_variants(s)
+    by_canon = {p["canonical"]: p for p in props}
+    assert "Pune" in by_canon or "Bengaluru" in by_canon
+    sources = {p["source"] for p in props}
+    assert "official rename" in sources          # Bangalore -> Bengaluru
+    assert "spelling" in sources or "case/spacing" in sources  # Nashick / PUNE
+
+
+def test_place_check_and_harmonize_flow():
+    df = pd.DataFrame({
+        "district": (["Pune"] * 10 + ["Poona"] * 3 + ["PUNE"] * 2 + ["Nashik"] * 10),
+        "enrollment": range(25),
+    })
+    up2 = client.post("/api/datasets",
+                      files={"file": ("places.csv", df.to_csv(index=False).encode(), "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    did = up2["dataset_id"]
+    chk = client.get(f"/api/datasets/{did}/place-check").json()
+    cols = {c["column"]: c["proposals"] for c in chk["columns"]}
+    assert "district" in cols
+    variants = {v for p in cols["district"] for v in p["variants"]}
+    assert {"Poona", "PUNE"} & variants
+
+    mapping = {v: p["canonical"] for p in cols["district"] for v in p["variants"]}
+    r = client.post(f"/api/datasets/{did}/harmonize",
+                    json={"column": "district", "mapping": mapping})
+    assert r.status_code == 200
+    assert r.json()["distinct_after"] == 2  # Pune + Nashik only
+
+    # aliases learned: a NEW file with the old spelling gets the proposal
+    # immediately from the project-alias layer
+    df2 = pd.DataFrame({"district": ["Poona", "Nashik"] * 8, "x": range(16)})
+    up3 = client.post("/api/datasets",
+                      files={"file": ("places2.csv", df2.to_csv(index=False).encode(), "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    chk2 = client.get(f"/api/datasets/{up3['dataset_id']}/place-check").json()
+    all_props = [p for c in chk2["columns"] for p in c["proposals"]]
+    assert any(p["source"] == "project alias" and p["canonical"] == "Pune"
+               for p in all_props)
+
+
 # ---------- P2.4: query decision brief ----------
 
 _BRIEF_PLAN = {"source": "a1", "steps": [
