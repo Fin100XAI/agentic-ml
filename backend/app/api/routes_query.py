@@ -331,13 +331,19 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     schema and run through the same executor as user questions; ONE batched
     LLM call phrases the findings (templated fallback). Every finding is
     individually logged."""
+    from engine.query.shape import classify_shape
+
     ds = _gated_dataset(dataset_id)
     focus_columns = [c for c in focus.split("|") if c] if focus else None
+    # Shape Scout first: WHAT KIND of dataset is this? The classification is
+    # deterministic, shown on the board, and steers which questions lead.
+    shape = classify_shape(ds.df)
     try:
         findings_raw = []
         readiness = readiness_audit(ds.df)["findings"]
         for cand in starter_questions(ds.df, ds.artifact_id or ds.id,
-                                      focus_columns=focus_columns):
+                                      focus_columns=focus_columns,
+                                      shape=shape):
             try:
                 plan = QueryPlan.model_validate(cand["plan"])
                 resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
@@ -380,6 +386,8 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     )
     return {"findings": findings_raw, "generated_by": generated_by,
             "synthesis": narrative["synthesis"],
+            "shape": {"shape": shape["shape"], "label": shape["label"],
+                      "reasoning": shape["reasoning"]},
             "filename": ds.filename, "artifact_id": ds.artifact_id}
 
 

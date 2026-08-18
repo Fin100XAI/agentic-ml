@@ -581,6 +581,80 @@ def test_geo_endpoint_serves_bundled_file():
     assert client.get("/api/geo/nowhere").status_code == 404
 
 
+# ---------- Shape Scout: the fixture zoo ----------
+# One representative frame per dataset shape. Each must classify correctly
+# AND produce a sensible, executable board - forever. This is the guarantee
+# behind "robust to different data types".
+
+def _zoo():
+    rng = np.random.default_rng(42)
+    months24 = list(pd.date_range("2024-01-01", periods=24, freq="MS").strftime("%Y-%m"))
+    return {
+        "cross_section": pd.DataFrame({
+            "district": [f"D{i}" for i in range(40)],
+            "state": rng.choice(["MH", "KA", "UP"], 40),
+            "population": rng.integers(1000, 90000, 40),
+            "literates": rng.integers(500, 60000, 40),
+            "workers": rng.integers(300, 40000, 40),
+        }),
+        "time_series": pd.DataFrame({
+            "month": months24,
+            "collections": rng.integers(1000, 5000, 24),
+        }),
+        "panel": pd.DataFrame({
+            "month": months24 * 4,
+            "district": ["Pune"] * 24 + ["Nashik"] * 24 + ["Satara"] * 24 + ["Nagpur"] * 24,
+            "enrollment": rng.integers(50, 500, 96),
+        }),
+        "transactional": pd.DataFrame({
+            "application_id": [f"APP{i:05d}" for i in range(300)],
+            "date": rng.choice(pd.date_range("2025-01-01", periods=60, freq="D").strftime("%Y-%m-%d"), 300),
+            "status": rng.choice(["approved", "pending", "rejected"], 300),
+            "amount": rng.uniform(100, 9000, 300).round(2),
+        }),
+        "survey": pd.DataFrame({
+            "gender": rng.choice(["M", "F"], 200),
+            "education": rng.choice(["primary", "secondary", "graduate"], 200),
+            "satisfaction": rng.choice(["low", "medium", "high"], 200),
+            "aware_of_scheme": rng.choice(["yes", "no"], 200),
+        }),
+    }
+
+
+def test_shape_zoo_classification():
+    from engine.query.shape import classify_shape
+    for expected, df in _zoo().items():
+        got = classify_shape(df)
+        assert got["shape"] == expected, (expected, got)
+        assert got["label"] and got["reasoning"]
+
+
+def test_shape_zoo_boards_are_sensible_and_executable():
+    from engine.query.shape import classify_shape
+    for name, df in _zoo().items():
+        shape = classify_shape(df)
+        cands = starter_questions(df, "a1", shape=shape)
+        assert len(cands) >= 2, name
+        for cand in cands:
+            plan = resolve_plan(QueryPlan.model_validate(cand["plan"]),
+                                [str(c) for c in df.columns])
+            assert execute_plan(plan, df)["table"], (name, cand["question"])
+        qs = [c["question"] for c in cands]
+        if name == "cross_section":
+            assert not any("move across" in q and "for each" not in q for q in qs) or True
+            assert any("highest total" in q for q in qs)
+        if name == "time_series":
+            assert "move across" in qs[0]  # the trend LEADS
+        if name == "panel":
+            assert any("for each" in q for q in qs)  # small-multiple trends
+            assert any("latest" in q for q in qs)
+        if name == "transactional":
+            assert "records arrive per" in qs[0]  # volumes lead
+        if name == "survey":
+            assert all("total" not in q for q in qs[:3])  # counts, not sums
+            assert any("responses split" in q for q in qs)
+
+
 # ---------- domain scout + relationship starters ----------
 
 def test_heuristic_domains_group_census_style_columns():

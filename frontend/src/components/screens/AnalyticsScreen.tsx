@@ -252,6 +252,15 @@ export function AnalyticsScreen({
         </div>
       </div>
 
+      {/* Shape Scout: what kind of dataset this reads as - shown, never hidden */}
+      {resp?.shape && (
+        <p className="text-[11px] text-ink-dim" title={resp.shape.reasoning}>
+          Reading this as{" "}
+          <span className="font-semibold text-ink">{resp.shape.label}</span>
+          <span className="text-ink-dim/70"> - the opening questions follow this reading (hover for why).</span>
+        </p>
+      )}
+
       {/* Dataset KPI strip */}
       {prof && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

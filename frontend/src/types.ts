@@ -325,6 +325,7 @@ export interface ExploreResponse {
   findings: ExploreFinding[];
   generated_by: string;
   synthesis: string;
+  shape?: { shape: string; label: string; reasoning: string };
   filename: string;
   artifact_id: string | null;
 }
