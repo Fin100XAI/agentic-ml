@@ -1,10 +1,12 @@
 // Renders a backend-chosen ChartSpec (deterministic, rule 14). The frontend
 // never picks the chart type - it draws exactly what the shape mapper chose.
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   LabelList,
   Legend,
   Line,
@@ -107,9 +109,9 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
         {spec.y.map((col) => {
           const v = rows[0]?.[col];
           return (
-            <div key={col} className="min-w-[140px] flex-1 rounded-xl border border-edge bg-white p-4">
-              <div className="text-[11px] uppercase tracking-wider text-ink-dim">{niceLabel(col)}</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-ink">
+            <div key={col} className="min-w-[140px] flex-1 rounded-xl border border-accent/25 bg-gradient-to-br from-accent-soft/50 via-white to-white p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-accent/80">{niceLabel(col)}</div>
+              <div className="mt-1 text-2xl font-bold tabular-nums text-ink">
                 {typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v ?? "-")}
               </div>
             </div>
@@ -204,10 +206,17 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
     const withTrend = spec.trend
       ? data.map((r, i) => ({ ...r, __trend: spec.trend!.values[i] }))
       : data;
+    const gid = `grad-${y.replace(/[^a-zA-Z0-9]/g, "")}`;
     return (
       <div>
         <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={withTrend} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <ComposedChart data={withTrend} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+            <defs>
+              <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={BLUE} stopOpacity={0.22} />
+                <stop offset="100%" stopColor={BLUE} stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke={GRID} />
             <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} minTickGap={30} />
             <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
@@ -216,12 +225,14 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
               <ReferenceLine y={spec.threshold} stroke="#d97706" strokeDasharray="5 4"
                 label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "#d97706", position: "insideTopRight" }} />
             )}
-            <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
+            <Area type="monotone" dataKey={y} stroke="none" fill={`url(#${gid})`}
+              isAnimationActive={false} legendType="none" tooltipType="none" />
+            <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2.2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
             {spec.trend && (
               <Line type="linear" dataKey="__trend" stroke="#64748b" strokeWidth={1.5}
                 strokeDasharray="6 4" dot={false} isAnimationActive={false} name="trend" />
             )}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
         {spec.trend && (
           <p className="mt-0.5 text-[10px] text-ink-dim">
@@ -271,7 +282,11 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
             <ReferenceLine x={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
               label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideBottomRight" }} />
           )}
-          <Bar dataKey={y} fill={BLUE} radius={[0, 4, 4, 0]} isAnimationActive={false} name={niceLabel(y)}>
+          <Bar dataKey={y} radius={[0, 4, 4, 0]} isAnimationActive={false} name={niceLabel(y)}>
+            {/* Color = category identity (colorblind-safe; amber/red reserved) */}
+            {data.map((_, i) => (
+              <Cell key={i} fill={PALETTE[i % PALETTE.length]} fillOpacity={0.88} />
+            ))}
             {/* On-chart callouts: each bar carries its value */}
             <LabelList dataKey={y} position="right"
               formatter={(v) => compact(Number(v))}
@@ -297,7 +312,10 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           <ReferenceLine y={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
             label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideTopRight" }} />
         )}
-        <Bar dataKey={y} fill={BLUE} radius={[4, 4, 0, 0]} isAnimationActive={false} name={niceLabel(y)}>
+        <Bar dataKey={y} radius={[4, 4, 0, 0]} isAnimationActive={false} name={niceLabel(y)}>
+          {data.map((_, i) => (
+            <Cell key={i} fill={PALETTE[i % PALETTE.length]} fillOpacity={0.88} />
+          ))}
           <LabelList dataKey={y} position="top"
             formatter={(v) => compact(Number(v))}
             style={{ fontSize: 9, fill: "#334155" }} />
