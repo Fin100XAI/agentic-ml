@@ -173,6 +173,12 @@ class Store:
             "status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, "
             "resolved_at TEXT, results TEXT)"
         )
+        # QUERY-PATH EXTENSION (touch point c): stored query briefs.
+        self._db.execute(
+            "CREATE TABLE IF NOT EXISTS query_briefs ("
+            "id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, project_id TEXT, "
+            "created_at TEXT NOT NULL, payload TEXT NOT NULL)"
+        )
         for ddl in (
             "ALTER TABLE datasets ADD COLUMN artifact_id TEXT",
             "ALTER TABLE datasets ADD COLUMN pii TEXT",
@@ -859,6 +865,27 @@ class Store:
         return out
 
     # -- activity log ----------------------------------------------------------
+    # QUERY-PATH EXTENSION (touch point c): query brief persistence.
+    def save_query_brief(self, brief_id: str, dataset_id: str,
+                         project_id: str | None, created_at: str,
+                         payload: dict) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO query_briefs (id, dataset_id, project_id, "
+                "created_at, payload) VALUES (?, ?, ?, ?, ?)",
+                (brief_id, dataset_id, project_id, created_at,
+                 json.dumps(payload, default=str)),
+            )
+            self._db.commit()
+
+    def get_query_brief(self, brief_id: str) -> dict:
+        row = self._db.execute(
+            "SELECT payload FROM query_briefs WHERE id = ?", (brief_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"No brief called '{brief_id}'.")
+        return json.loads(row[0])
+
     def log_event(
         self,
         actor: str,

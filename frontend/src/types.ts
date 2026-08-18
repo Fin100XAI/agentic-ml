@@ -348,6 +348,32 @@ export interface DataOverview {
   filename: string;
 }
 
+export interface QueryBriefItem {
+  question: string;
+  headline: string;
+  meaning: string;
+  sentences: string[];
+  table: Record<string, string | number | null>[];
+  columns: string[];
+  chart: ChartSpec;
+  caveats: string[];
+  review: { verified: boolean; unmatched_numbers: number[] };
+  row_counts: { step: string; rows: number }[];
+}
+
+export interface QueryBrief {
+  id: string;
+  title: string;
+  dataset_id: string;
+  filename: string;
+  created_at: string;
+  takeaway: string;
+  items: QueryBriefItem[];
+  trust: { lines: string[]; scope_note: string };
+  provenance: { dataset_id: string; artifact_id: string | null; generated_by: string };
+  critic: { flagged_claims: number; checked: number };
+}
+
 export interface IntakeRule {
   id: string;
   project_id: string;

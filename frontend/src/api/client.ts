@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -85,6 +85,25 @@ export const api = {
 
   datasetOverview: (datasetId: string) =>
     request<DataOverview>(`/datasets/${datasetId}/overview`),
+
+  createQueryBrief: (
+    datasetId: string,
+    items: { question: string; plan: object; headline?: string; meaning?: string }[],
+    takeaway = "",
+    title = "",
+  ) =>
+    request<{ brief_id: string; brief: QueryBrief; markdown: string }>(
+      `/datasets/${datasetId}/query/brief`,
+      json({ items, takeaway, title }),
+    ),
+
+  getQueryBrief: (briefId: string) => request<QueryBrief>(`/query-briefs/${briefId}`),
+
+  queryBriefFile: async (briefId: string, format: "markdown" | "pdf") => {
+    const res = await fetch(`${BASE}/query-briefs/${briefId}/${format}`);
+    if (!res.ok) throw new Error(res.statusText);
+    return res.blob();
+  },
 
   pathChoice: (datasetId: string, choice: "analytics" | "model") =>
     request<{ ok: boolean }>(`/datasets/${datasetId}/path-choice`, json({ choice })),

@@ -395,6 +395,156 @@ def export_board(dataset_id: str, req: BoardExportRequest):
     )
 
 
+class BriefRequest(BaseModel):
+    items: list[dict[str, Any]]  # {question, plan, headline?, meaning?}
+    takeaway: str = ""
+    title: str = ""
+
+
+@router.post("/datasets/{dataset_id}/query/brief")
+def create_query_brief(dataset_id: str, req: BriefRequest) -> dict:
+    """Build a Query Decision Brief (P2.4): re-execute every included plan,
+    verify every phrased claim with the deterministic critic, attach the
+    data-trust panel, store, and log. No stability tier - nothing was modeled."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from engine.query.brief import brief_markdown, verify_claim
+
+    ds = _gated_dataset(dataset_id)
+    readiness = readiness_audit(ds.df)["findings"]
+    items_out: list[dict[str, Any]] = []
+    flagged = 0
+    used_all: list[str] = []
+    for raw in req.items[:12]:
+        try:
+            plan = QueryPlan.model_validate(raw["plan"])
+            resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+            result = execute_plan(resolved, ds.df)
+        except (KeyError, ColumnResolutionError, QueryExecutionError) as exc:
+            raise HTTPException(400, f"A brief item failed to recompute: {exc}") from exc
+        chart = choose_chart(result, resolved)
+        signals = finding_signals(result, chart)
+        used = plan_columns(resolved)
+        used_all += used
+        caveats = list(result["coverage_notes"]) + caveats_for_columns(readiness, used)
+        headline = str(raw.get("headline") or "")
+        review = verify_claim(headline, result["table"], signals,
+                              result["row_counts"]) if headline else {"verified": False,
+                                                                      "unmatched_numbers": []}
+        if not headline or not review["verified"]:
+            # The critic wins: unverifiable phrasing is replaced by a
+            # computed restatement.
+            headline = _template_headline(result["table"], result["columns"])
+            if raw.get("headline"):
+                flagged += 1
+        meaning = str(raw.get("meaning") or "")
+        if meaning and not verify_claim(meaning, result["table"], signals,
+                                        result["row_counts"])["verified"]:
+            meaning = plain_meaning(signals)
+        items_out.append({
+            "question": str(raw.get("question", ""))[:300],
+            "plan": resolved.model_dump(),
+            "headline": headline,
+            "meaning": meaning or plain_meaning(signals),
+            "sentences": describe_plan(resolved, dataset_name=f"'{ds.filename}'")["sentences"],
+            "table": result["table"][:50],
+            "columns": result["columns"],
+            "chart": chart,
+            "caveats": caveats,
+            "signals": signals,
+            "review": review,
+            "row_counts": result["row_counts"],
+        })
+
+    trust_lines = [
+        f"Source rows: {len(ds.df):,} in {ds.filename}.",
+    ]
+    for col in dict.fromkeys(used_all):
+        if col in ds.df.columns:
+            pct = float(ds.df[col].isna().mean() * 100)
+            if pct > 0:
+                trust_lines.append(f"'{col}' is {pct:.0f}% empty - answers using it "
+                                   f"cover only the filled rows.")
+    for f in readiness[:5]:
+        trust_lines.append(f.get("message") or str(f.get("kind")))
+    if len(trust_lines) == 1:
+        trust_lines.append("No missing-data or readiness issues touch the columns used.")
+
+    takeaway = str(req.takeaway or "")
+    brief_id = uuid.uuid4().hex[:12]
+    brief = {
+        "id": brief_id,
+        "title": (req.title or f"Data findings - {ds.filename}")[:120],
+        "dataset_id": ds.id,
+        "filename": ds.filename,
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "takeaway": takeaway,
+        "items": items_out,
+        "trust": {
+            "lines": trust_lines,
+            "scope_note": "This panel covers data quality only. No model was "
+                          "trained for these answers, so no stability or "
+                          "model-trust tier applies - and none is implied.",
+        },
+        "provenance": {
+            "dataset_id": ds.id,
+            "artifact_id": ds.artifact_id,
+            "generated_by": "claude" if instrumented_provider() is not None else "heuristic",
+        },
+        "critic": {"flagged_claims": flagged, "checked": len(items_out)},
+    }
+    store.save_query_brief(brief_id, ds.id, ds.project_id, brief["created_at"], brief)
+    store.log_event("Critic", "query_execute", dataset_id=ds.id, mode="fallback",
+                    payload={"query_brief": brief_id, "claims_checked": len(items_out),
+                             "claims_flagged": flagged})
+    store.log_event("user", "export", dataset_id=ds.id,
+                    payload={"format": "brief", "kind": "query_brief",
+                             "brief_id": brief_id, "n_items": len(items_out)})
+    return {"brief_id": brief_id, "brief": brief,
+            "markdown": brief_markdown(brief)}
+
+
+@router.get("/query-briefs/{brief_id}")
+def get_query_brief(brief_id: str) -> dict:
+    try:
+        return store.get_query_brief(brief_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/query-briefs/{brief_id}/markdown")
+def get_query_brief_markdown(brief_id: str):
+    from fastapi.responses import Response
+
+    from engine.query.brief import brief_markdown
+    try:
+        brief = store.get_query_brief(brief_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return Response(content=brief_markdown(brief).encode("utf-8"),
+                    media_type="text/markdown",
+                    headers={"Content-Disposition": 'attachment; filename="query-brief.md"'})
+
+
+@router.get("/query-briefs/{brief_id}/pdf")
+def get_query_brief_pdf(brief_id: str):
+    from fastapi.responses import Response
+
+    from app.pdf_report import markdown_to_pdf
+    from engine.query.brief import brief_markdown
+    try:
+        brief = store.get_query_brief(brief_id)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    store.log_event("user", "export", dataset_id=brief.get("dataset_id"),
+                    payload={"format": "pdf", "kind": "query_brief",
+                             "brief_id": brief_id})
+    return Response(content=markdown_to_pdf(brief_markdown(brief)),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="query-brief.pdf"'})
+
+
 @router.post("/datasets/{dataset_id}/path-choice")
 def path_choice(dataset_id: str, req: RouteChoiceRequest) -> dict:
     """The post-upload fork decision is a logged approval."""

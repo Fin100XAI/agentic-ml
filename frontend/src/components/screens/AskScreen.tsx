@@ -4,7 +4,7 @@
 // are the classic wrong-answer risk and render in amber. The thread persists
 // per dataset across reloads; Start over resets it.
 import { useState } from "react";
-import { ArrowLeft, BrainCircuit, CircleHelp, Download, MessageSquareText, Play, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CircleHelp, Download, FileText, MessageSquareText, Play, RotateCcw, Sparkles } from "lucide-react";
 import { api } from "../../api/client";
 import type { QueryAnswer, QueryPlanCandidate, QueryPlanResponse } from "../../types";
 import { genLabel } from "../../lib/labels";
@@ -60,6 +60,36 @@ export function AskScreen({
   const [busy, setBusy] = useState<"plan" | "run" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+  // Brief building (P2.4): tick answers, then compile the critic-checked brief.
+  const [included, setIncluded] = useState<Set<number>>(new Set());
+  const [briefId, setBriefId] = useState<string | null>(null);
+  const [briefBusy, setBriefBusy] = useState(false);
+
+  const toggleInclude = (i: number) =>
+    setIncluded((s) => {
+      const next = new Set(s);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+
+  const createBrief = async () => {
+    setBriefBusy(true);
+    setError(null);
+    try {
+      const items = [...included].sort((a, b) => a - b).map((i) => ({
+        question: thread[i].question,
+        plan: thread[i].answer.plan,
+        headline: thread[i].answer.headline,
+      }));
+      const r = await api.createQueryBrief(datasetId, items);
+      setBriefId(r.brief_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBriefBusy(false);
+    }
+  };
 
   const latest = thread.length > 0 ? thread[thread.length - 1] : null;
   const priorPlan = latest?.answer.plan;
@@ -136,12 +166,45 @@ export function AskScreen({
         </div>
       </div>
 
+      {/* Brief bar: tick answers below, compile the critic-checked document */}
+      {thread.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-panel-2/60 px-4 py-2">
+          <p className="text-[11px] text-ink-dim">
+            Tick the answers to keep, then compile a decision brief - every number is
+            recomputed and every claim checked before it lands in the document.
+          </p>
+          <div className="flex items-center gap-2">
+            {briefId && (
+              <button
+                onClick={() => window.open(`#/qbrief/${briefId}`, "_blank")}
+                className="text-[11px] font-medium text-accent underline-offset-2 hover:underline"
+              >
+                Open the brief
+              </button>
+            )}
+            <Button size="sm" onClick={createBrief} disabled={included.size === 0 || briefBusy}>
+              {briefBusy ? <Spinner /> : <FileText className="h-3.5 w-3.5" />}
+              Create brief{included.size > 0 ? ` (${included.size})` : ""}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Earlier turns of the conversation, compact */}
       {thread.length > 1 &&
         thread.slice(0, -1).map((pair, i) => (
-          <div key={i} className="rounded-xl border border-edge/70 bg-panel-2/50 px-4 py-2.5">
-            <p className="text-xs font-medium text-ink-dim">{pair.question}</p>
-            <p className="mt-0.5 text-xs leading-relaxed">{pair.answer.headline}</p>
+          <div key={i} className="flex items-start gap-2.5 rounded-xl border border-edge/70 bg-panel-2/50 px-4 py-2.5">
+            <input
+              type="checkbox"
+              checked={included.has(i)}
+              onChange={() => toggleInclude(i)}
+              className="mt-0.5 accent-[#1d4ed8]"
+              title="Include in the brief"
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-ink-dim">{pair.question}</p>
+              <p className="mt-0.5 text-xs leading-relaxed">{pair.answer.headline}</p>
+            </div>
           </div>
         ))}
 
@@ -312,7 +375,20 @@ export function AskScreen({
                 <Sparkles className="h-4 w-4 text-accent" /> {latest!.question}
               </span>
             }
-            right={<Badge tone={answer.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(answer.generated_by)}</Badge>}
+            right={
+              <span className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+                  <input
+                    type="checkbox"
+                    checked={included.has(thread.length - 1)}
+                    onChange={() => toggleInclude(thread.length - 1)}
+                    className="accent-[#1d4ed8]"
+                  />
+                  In brief
+                </label>
+                <Badge tone={answer.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(answer.generated_by)}</Badge>
+              </span>
+            }
           />
           <CardBody className="space-y-3">
             <p className="text-sm font-medium leading-relaxed">{answer.headline}</p>

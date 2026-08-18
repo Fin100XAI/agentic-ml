@@ -21,6 +21,7 @@ import { Button, Card, CardBody } from "./components/ui";
 import { AssemblyModal } from "./components/AssemblyModal";
 import { ColumnReviewModal } from "./components/ColumnReviewModal";
 import { BriefingView } from "./components/screens/BriefingView";
+import { QueryBriefView } from "./components/screens/QueryBriefView";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
@@ -90,6 +91,9 @@ export default function Root() {
   }, []);
   const briefMatch = hash.match(/^#\/brief\/([A-Za-z0-9]+)/);
   if (briefMatch) return <BriefingView runId={briefMatch[1]} />;
+  // Read-only query brief route (P2.4) - no analyst chrome, prints clean.
+  const qbriefMatch = hash.match(/^#\/qbrief\/([A-Za-z0-9]+)/);
+  if (qbriefMatch) return <QueryBriefView briefId={qbriefMatch[1]} />;
   return <App />;
 }
 

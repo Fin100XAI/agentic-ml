@@ -462,6 +462,65 @@ def test_overview_endpoint():
     assert any(e["event_type"] == "profile" for e in ev)
 
 
+# ---------- P2.4: query decision brief ----------
+
+_BRIEF_PLAN = {"source": "a1", "steps": [
+    {"op": "group_by", "columns": ["district"]},
+    {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "total"},
+    {"op": "sort", "column": "total", "dir": "desc"},
+    {"op": "top_n", "n": 3},
+]}
+
+
+def test_brief_numbers_match_and_stored():
+    r = client.post(f"/api/datasets/{ds_id}/query/brief", json={"items": [
+        {"question": "Top districts?", "plan": _BRIEF_PLAN},
+        {"question": "Overall total?", "plan": {"source": "a1", "steps": [
+            {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"}]}},
+    ], "takeaway": "Totals concentrate in a few districts."})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    brief = body["brief"]
+    assert len(brief["items"]) == 2
+    # every headline number exists in that item's computed table (critic-true)
+    from engine.query.brief import verify_claim
+    for item in brief["items"]:
+        v = verify_claim(item["headline"], item["table"], item["signals"],
+                         item["row_counts"])
+        assert v["verified"], (item["headline"], v)
+    assert "no stability" in brief["trust"]["scope_note"].lower().replace("-", " ") or \
+           "no model" in brief["trust"]["scope_note"].lower()
+    assert "## Data trust panel" in body["markdown"]
+    # stored + retrievable
+    got = client.get(f"/api/query-briefs/{body['brief_id']}")
+    assert got.status_code == 200 and got.json()["id"] == body["brief_id"]
+
+
+def test_brief_critic_catches_injected_overclaim():
+    r = client.post(f"/api/datasets/{ds_id}/query/brief", json={"items": [
+        {"question": "Top districts?", "plan": _BRIEF_PLAN,
+         "headline": "Enrollment reached 99,999,999 in the top district."},
+    ]})
+    body = r.json()
+    item = body["brief"]["items"][0]
+    assert not item["review"]["verified"]
+    assert 99999999.0 in item["review"]["unmatched_numbers"]
+    assert "99,999,999" not in item["headline"]  # replaced by computed restatement
+    assert body["brief"]["critic"]["flagged_claims"] == 1
+
+
+def test_brief_pdf_and_markdown_endpoints():
+    r = client.post(f"/api/datasets/{ds_id}/query/brief", json={"items": [
+        {"question": "Top districts?", "plan": _BRIEF_PLAN}]})
+    bid = r.json()["brief_id"]
+    md = client.get(f"/api/query-briefs/{bid}/markdown")
+    assert md.status_code == 200 and "## Findings" in md.text
+    pdf = client.get(f"/api/query-briefs/{bid}/pdf")
+    assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"
+    ev = client.get(f"/api/activity?project_id={pid}&event_type=export&limit=30").json()["events"]
+    assert any((e.get("payload") or {}).get("kind") == "query_brief" for e in ev)
+
+
 def test_path_choice_logged():
     r = client.post(f"/api/datasets/{ds_id}/path-choice", json={"choice": "analytics"})
     assert r.status_code == 200

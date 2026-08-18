@@ -73,7 +73,12 @@ def _flush_table(pdf: _BriefPdf, rows: list[list[str]]) -> None:
 
 
 def build_report_pdf(run: Run) -> bytes:
-    md = build_report(run)
+    return markdown_to_pdf(build_report(run))
+
+
+# QUERY-PATH EXTENSION (touch point c): the same renderer serves any
+# markdown source, so query briefs and ML briefs can never drift apart.
+def markdown_to_pdf(md: str) -> bytes:
     pdf = _BriefPdf()
     pdf.add_page()
 
