@@ -205,8 +205,22 @@ def _attach_map(chart: dict[str, Any], result: dict[str, Any],
     m = match_level(keys)
     if not m:
         return
+    # Coloring mode, decided deterministically from the result:
+    # - mixed signs (a change metric) -> diverging around zero
+    # - a below-threshold selection -> judgment (flagged areas in amber)
+    # - otherwise -> sequential intensity with quantile classes
+    y = (chart.get("y") or [None])[0]
+    vals = [r.get(y) for r in result["table"]
+            if isinstance(r.get(y), (int, float)) and not isinstance(r.get(y), bool)]
+    if vals and min(vals) < 0 < max(vals):
+        mode = "diverging"
+    elif chart.get("threshold") is not None and chart.get("threshold_dir") == "below":
+        mode = "judgment"
+    else:
+        mode = "sequential"
     chart["map"] = {"level": m["level"], "match_pct": m["match_pct"],
-                    "matches": m["matches"], "unmatched": m["unmatched"]}
+                    "matches": m["matches"], "unmatched": m["unmatched"],
+                    "mode": mode}
     if m["unmatched"]:
         names = ", ".join(m["unmatched"][:3])
         caveats.append(f"{len(m['unmatched'])} area(s) could not be matched to "

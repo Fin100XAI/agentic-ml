@@ -90,6 +90,8 @@ export function QueryChartWithMap({ spec, result }: { spec: ChartSpec; result: Q
           matches={spec.map.matches}
           values={values}
           metricLabel={niceLabel(y)}
+          mode={spec.map.mode ?? "sequential"}
+          threshold={spec.threshold}
         />
       )}
     </div>
@@ -198,20 +200,36 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
   }
 
   if (spec.kind === "line") {
+    // Descriptive least-squares trend, computed on the backend.
+    const withTrend = spec.trend
+      ? data.map((r, i) => ({ ...r, __trend: spec.trend!.values[i] }))
+      : data;
     return (
-      <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid stroke={GRID} />
-          <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} minTickGap={30} />
-          <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} />
-          {spec.threshold != null && (
-            <ReferenceLine y={spec.threshold} stroke="#d97706" strokeDasharray="5 4"
-              label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "#d97706", position: "insideTopRight" }} />
-          )}
-          <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
-        </LineChart>
-      </ResponsiveContainer>
+      <div>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={withTrend} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+            <CartesianGrid stroke={GRID} />
+            <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} minTickGap={30} />
+            <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            {spec.threshold != null && (
+              <ReferenceLine y={spec.threshold} stroke="#d97706" strokeDasharray="5 4"
+                label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "#d97706", position: "insideTopRight" }} />
+            )}
+            <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
+            {spec.trend && (
+              <Line type="linear" dataKey="__trend" stroke="#64748b" strokeWidth={1.5}
+                strokeDasharray="6 4" dot={false} isAnimationActive={false} name="trend" />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+        {spec.trend && (
+          <p className="mt-0.5 text-[10px] text-ink-dim">
+            Dashed line = the overall straight-line trend across the shown periods
+            ({spec.trend.direction}) - a description of direction, not a forecast.
+          </p>
+        )}
+      </div>
     );
   }
 

@@ -581,6 +581,60 @@ def test_geo_endpoint_serves_bundled_file():
     assert client.get("/api/geo/nowhere").status_code == 404
 
 
+# ---------- map modes + trend lines ----------
+
+def test_line_chart_carries_descriptive_trend():
+    df = pd.DataFrame({
+        "month": [f"2025-{m:02d}" for m in range(1, 13)],
+        "enrollment": [100 + 10 * m for m in range(12)],  # clean rise
+    })
+    result, plan = _run_plan(df, {"source": "a1", "steps": [
+        {"op": "group_by", "columns": ["month"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+        {"op": "sort", "column": "month", "dir": "asc"},
+    ]})
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "line"
+    assert spec["trend"]["direction"] == "rising"
+    assert len(spec["trend"]["values"]) == 12
+    # fitted endpoints track the data (linear input -> near-exact fit)
+    assert abs(spec["trend"]["values"][0] - 100) < 1
+    assert abs(spec["trend"]["values"][-1] - 210) < 1
+
+
+def test_map_mode_judgment_for_below_threshold():
+    from app.api.routes_query import _attach_map
+    chart = {"kind": "hbar", "x": "district", "y": ["total"],
+             "threshold": 3000.0, "threshold_dir": "below"}
+    result = {"table": [{"district": "Pune", "total": 2000},
+                        {"district": "Nashik", "total": 1500}]}
+    caveats: list[str] = []
+    _attach_map(chart, result, caveats)
+    assert chart["map"]["mode"] == "judgment"
+
+
+def test_map_mode_diverging_for_mixed_signs():
+    from app.api.routes_query import _attach_map
+    chart = {"kind": "bar", "x": "district", "y": ["t__delta"],
+             "threshold": None, "threshold_dir": None}
+    result = {"table": [{"district": "Pune", "t__delta": 120},
+                        {"district": "Nashik", "t__delta": -80}]}
+    caveats: list[str] = []
+    _attach_map(chart, result, caveats)
+    assert chart["map"]["mode"] == "diverging"
+
+
+def test_map_mode_sequential_default():
+    from app.api.routes_query import _attach_map
+    chart = {"kind": "hbar", "x": "district", "y": ["total"],
+             "threshold": None, "threshold_dir": None}
+    result = {"table": [{"district": "Pune", "total": 2000},
+                        {"district": "Nashik", "total": 1500}]}
+    caveats: list[str] = []
+    _attach_map(chart, result, caveats)
+    assert chart["map"]["mode"] == "sequential"
+
+
 # ---------- Place Harmonizer ----------
 
 def test_place_detect_layers():

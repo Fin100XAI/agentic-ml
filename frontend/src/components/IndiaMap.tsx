@@ -11,12 +11,36 @@ interface GeoFeature {
 
 const geoCache = new Map<string, GeoFeature[]>();
 
-function ramp(t: number): string {
-  // #dbeafe -> #1d4ed8
-  const a = [219, 234, 254];
-  const b = [29, 78, 216];
+function mix(a: number[], b: number[], t: number): string {
   const c = a.map((av, i) => Math.round(av + (b[i] - av) * t));
   return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+const BLUE_LO = [219, 234, 254]; // #dbeafe
+const BLUE_HI = [29, 78, 216]; // #1d4ed8
+const ORANGE_LO = [255, 237, 213]; // #ffedd5
+const ORANGE_HI = [234, 88, 12]; // #ea580c
+const AMBER = "#d97706";
+
+function ramp(t: number): string {
+  return mix(BLUE_LO, BLUE_HI, t);
+}
+
+// Quantile class breaks (5 classes): robust to one giant value washing out
+// the rest - each class holds roughly a fifth of the areas.
+function quantileBreaks(vals: number[], classes = 5): number[] {
+  const sorted = [...vals].sort((a, b) => a - b);
+  const breaks: number[] = [];
+  for (let i = 1; i < classes; i++) {
+    breaks.push(sorted[Math.min(sorted.length - 1, Math.floor((i * sorted.length) / classes))]);
+  }
+  return breaks;
+}
+
+function classOf(v: number, breaks: number[]): number {
+  let c = 0;
+  for (const b of breaks) if (v >= b) c++;
+  return c; // 0..breaks.length
 }
 
 function compact(v: number): string {
@@ -31,11 +55,15 @@ export function IndiaMap({
   matches,
   values,
   metricLabel,
+  mode = "sequential",
+  threshold = null,
 }: {
   level: string;
   matches: Record<string, string>; // result key -> boundary name
   values: Record<string, number>; // result key -> metric value
   metricLabel: string;
+  mode?: "sequential" | "diverging" | "judgment";
+  threshold?: number | null;
 }) {
   const [features, setFeatures] = useState<GeoFeature[] | null>(
     geoCache.get(level) ?? null,
@@ -107,7 +135,19 @@ export function IndiaMap({
   const vals = Object.values(valueByBoundary);
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
-  const span = hi - lo || 1;
+  const breaks = quantileBreaks(vals);
+  const maxAbs = Math.max(Math.abs(lo), Math.abs(hi)) || 1;
+
+  const fillFor = (v: number): string => {
+    if (mode === "judgment") return AMBER; // the selected areas ARE the flagged set
+    if (mode === "diverging") {
+      // zero-centered: rises in blue, falls in orange
+      const t = Math.min(1, Math.abs(v) / maxAbs);
+      return v >= 0 ? mix(BLUE_LO, BLUE_HI, t) : mix(ORANGE_LO, ORANGE_HI, t);
+    }
+    // sequential: 5 quantile classes - robust to one giant value
+    return ramp(breaks.length ? classOf(v, breaks) / breaks.length : 1);
+  };
 
   return (
     <div>
@@ -120,7 +160,7 @@ export function IndiaMap({
             <path
               key={p.name}
               d={p.d}
-              fill={isColored ? ramp((v - lo) / span) : "#e2e8f0"}
+              fill={isColored ? fillFor(v) : "#e2e8f0"}
               stroke="#ffffff"
               strokeWidth={0.6}
               opacity={hover && hover !== p.name ? 0.55 : 1}
@@ -134,17 +174,41 @@ export function IndiaMap({
           );
         })}
       </svg>
-      {/* Legend: always shown */}
-      <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
-        <span className="tabular-nums">{compact(lo)}</span>
-        <div className="h-2 w-28 rounded-full"
-          style={{ background: `linear-gradient(to right, ${ramp(0)}, ${ramp(1)})` }} />
-        <span className="tabular-nums">{compact(hi)}</span>
-        <span className="ml-2">{metricLabel}</span>
-        <span className="ml-auto flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> no data
-        </span>
-      </div>
+      {/* Legend: always shown, matched to the coloring mode */}
+      {mode === "judgment" ? (
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: AMBER }} />
+          flagged by your question{threshold != null ? ` (below ${compact(threshold)})` : ""}
+          <span className="ml-auto flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> not in this result
+          </span>
+        </div>
+      ) : mode === "diverging" ? (
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
+          <span className="tabular-nums">{compact(-maxAbs)}</span>
+          <div className="h-2 w-28 rounded-full"
+            style={{ background: `linear-gradient(to right, ${mix(ORANGE_LO, ORANGE_HI, 1)}, ${mix(ORANGE_LO, ORANGE_HI, 0.1)}, ${mix(BLUE_LO, BLUE_HI, 0.1)}, ${mix(BLUE_LO, BLUE_HI, 1)})` }} />
+          <span className="tabular-nums">+{compact(maxAbs)}</span>
+          <span className="ml-2">{metricLabel} (fell / rose)</span>
+          <span className="ml-auto flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> no data
+          </span>
+        </div>
+      ) : (
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
+          <span className="tabular-nums">{compact(lo)}</span>
+          <div className="flex h-2 w-28 overflow-hidden rounded-full">
+            {[0, 1, 2, 3, 4].map((c) => (
+              <div key={c} className="h-full flex-1" style={{ background: ramp(c / 4) }} />
+            ))}
+          </div>
+          <span className="tabular-nums">{compact(hi)}</span>
+          <span className="ml-2">{metricLabel} - darker fifth = higher fifth</span>
+          <span className="ml-auto flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> no data
+          </span>
+        </div>
+      )}
       {hover && (
         <p className="mt-0.5 text-[11px] font-medium">
           {hover}

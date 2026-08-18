@@ -270,11 +270,14 @@ export interface ChartSpec {
   facet?: string | null;
   label?: string | null;
   benchmark?: { value: number; label: string } | null;
+  threshold_dir?: "below" | "above" | null;
+  trend?: { values: number[]; direction: string };
   map?: {
     level: string;
     match_pct: number;
     matches: Record<string, string>;
     unmatched: string[];
+    mode?: "sequential" | "diverging" | "judgment";
   };
 }
 
