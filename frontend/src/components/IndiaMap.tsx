@@ -107,8 +107,9 @@ export function IndiaMap({
     }
     const pad = Math.max(maxX - minX, maxY - minY) * 0.06 + 0.1;
     minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+    // Same footprint as the other chart tiles - the map must not dominate.
     const W = 460;
-    const H = Math.max(240, Math.min(460, (W * (maxY - minY)) / (maxX - minX)));
+    const H = Math.max(200, Math.min(280, (W * (maxY - minY)) / (maxX - minX)));
     const sx = W / (maxX - minX);
     const sy = H / (maxY - minY);
     const s = Math.min(sx, sy);

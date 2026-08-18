@@ -81,7 +81,7 @@ def test_starters_cover_both_ends_and_second_measure():
     assert any("highest total" in q for q in qs)
     assert any("lowest total" in q for q in qs)  # lagging groups matter
     # two numerics in the fixture -> a second-measure ranking appears
-    joined = " ".join(qs)
+    joined = " ".join(qs).lower()
     assert "enrollment" in joined and "budget" in joined
 
 
@@ -679,9 +679,9 @@ def test_scout_selections_validated_and_capped():
     qs = [b["question"] for b in built]
     assert not any("gdp_growth" in q for q in qs)
     assert not any("each month" in q for q in qs)  # month is the period, not a group
-    enrollment_metric_qs = [q for q in qs if "total enrollment" in q or "average enrollment" in q]
+    enrollment_metric_qs = [q for q in qs if "total enrollment" in q.lower() or "average enrollment" in q.lower()]
     assert len(enrollment_metric_qs) == 2  # cap enforced
-    assert any("responses" not in q and "scheme" in q for q in qs)
+    assert any("responses" not in q.lower() and "scheme" in q.lower() for q in qs)
     # every survivor executes
     for b in built:
         plan = resolve_plan(QueryPlan.model_validate(b["plan"]),
@@ -788,7 +788,7 @@ def test_heuristic_domains_group_census_style_columns():
 def test_starters_respect_focus_columns():
     df = _df()
     cands = starter_questions(df, "a1", focus_columns=["budget"])
-    metrics = " ".join(c["question"] for c in cands)
+    metrics = " ".join(c["question"] for c in cands).lower()
     assert "budget" in metrics
     # enrollment only appears as a grouping topic, never as the ranked metric
     assert not any("total enrollment" in c["question"] for c in cands)
@@ -818,7 +818,7 @@ def test_domains_endpoint_heuristic_and_focused_explore():
     # focused explore restricts the measures
     rf = client.post(f"/api/datasets/{ds_id}/explore?focus=budget")
     assert rf.status_code == 200
-    qs = " ".join(f["question"] for f in rf.json()["findings"])
+    qs = " ".join(f["question"] for f in rf.json()["findings"]).lower()
     assert "budget" in qs and "total enrollment" not in qs
 
 

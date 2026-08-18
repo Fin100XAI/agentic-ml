@@ -387,7 +387,7 @@ export function AnalyticsScreen({
 
       {/* Domain focus: the scout groups a wide file into topics; the user
           chooses where to dig, or stays with the general overview. */}
-      {domains && domains.domains.length >= 2 && (
+      {domains && domains.domains.length >= 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
             Focus
@@ -570,7 +570,11 @@ export function AnalyticsScreen({
           {resp.findings.map((f, i) => (
             <div
               key={i}
-              className={f.chart.kind === "line" || f.chart.kind === "table" ? "lg:col-span-2" : ""}
+              className={
+                f.chart.kind === "line" || (f.chart.kind === "table" && !f.chart.map)
+                  ? "lg:col-span-2"
+                  : ""
+              }
             >
               <FindingCard
                 finding={f}
@@ -695,6 +699,7 @@ function FindingCard({
   numericColumns?: string[];
 }) {
   const [showTable, setShowTable] = useState(false);
+  const [showMethod, setShowMethod] = useState(false);
   const f = finding;
   // Per-denominator quick asks: raw totals flatter big groups; one click
   // reframes the same ranking per another measure (goes through the normal
@@ -737,6 +742,12 @@ function FindingCard({
               className="text-[11px] text-ink-dim underline-offset-2 hover:text-ink hover:underline"
             >
               {showTable ? "Hide numbers" : "Show the numbers"}
+            </button>
+            <button
+              onClick={() => setShowMethod((s) => !s)}
+              className="text-[11px] text-ink-dim underline-offset-2 hover:text-ink hover:underline"
+            >
+              {showMethod ? "Hide method" : "How this was computed"}
             </button>
             {denominators.slice(0, 2).map((den) => (
               <button
@@ -784,11 +795,13 @@ function FindingCard({
           </div>
         )}
 
-        <p className="text-[10px] leading-relaxed text-ink-dim">
-          {f.sentences.join(" ")}{" "}
-          {f.result.row_counts.length > 0 &&
-            `(${f.result.row_counts.map((rc) => `${rc.step}: ${rc.rows.toLocaleString()}`).join(" → ")})`}
-        </p>
+        {showMethod && (
+          <p className="rounded-lg border border-edge bg-panel-2/60 px-3 py-2 text-[10px] leading-relaxed text-ink-dim">
+            {f.sentences.join(" ")}{" "}
+            {f.result.row_counts.length > 0 &&
+              `(${f.result.row_counts.map((rc) => `${rc.step}: ${rc.rows.toLocaleString()}`).join(" → ")})`}
+          </p>
+        )}
       </CardBody>
     </Card>
   );

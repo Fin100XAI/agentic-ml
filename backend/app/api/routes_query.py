@@ -51,6 +51,11 @@ def _gated_dataset(dataset_id: str):
         raise HTTPException(404, str(exc)) from exc
     if ds.pii and ds.pii.get("status") == "pending":
         raise HTTPException(409, "PII review pending on this dataset - approve its privacy screen first.")
+    # Attach the dataset context so every LLM call in this request logs its
+    # token counts AGAINST THIS PROJECT - without this, analytics-path agent
+    # calls were orphaned and invisible in the project activity log.
+    from app.telemetry import current_dataset_id
+    current_dataset_id.set(ds.id)
     return ds
 
 
@@ -436,7 +441,10 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
             "at most 2 selections per metric, at least 4 distinct metrics "
             "from DIFFERENT topics when available. Prefer headline measures "
             "an administrator cares about over obscure ones. Use exact "
-            "column names only.",
+            "column names in the column fields; in 'question' write the "
+            "question as a government officer would naturally ask it - plain "
+            "words, no raw column names, must mean exactly what the template "
+            "computes.",
             f"Dataset shape: {shape['label']}\n"
             f"Topic groups: {_json.dumps([{d['name']: d['columns'][:6]} for d in domains])}\n"
             f"Columns: {_json.dumps(cols_ctx)}",
@@ -445,11 +453,13 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
                     "template": {"type": "string"},
                     "metric": {"type": "string"},
                     "group": {"type": "string"},
-                    "second_metric": {"type": "string"}},
-                    "required": ["template", "metric", "group", "second_metric"],
+                    "second_metric": {"type": "string"},
+                    "question": {"type": "string"}},
+                    "required": ["template", "metric", "group",
+                                 "second_metric", "question"],
                     "additionalProperties": False}}},
              "required": ["selections"], "additionalProperties": False},
-            max_tokens=2000,
+            max_tokens=2500,
         )
         built = starters_from_selections(raw.get("selections", []), ds.df, source)
         # Too thin a result means the scout misfired - fall back honestly.

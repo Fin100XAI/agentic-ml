@@ -11,6 +11,8 @@ from typing import Any
 
 import pandas as pd
 
+from engine.profiler import friendly_name as _lbl
+
 from .readiness import _find_entity_key, _find_period_column
 
 MAX_STARTERS = 9
@@ -99,51 +101,51 @@ def _build_from_selection(template: str, source: str, df: pd.DataFrame,
     hand-written starters use. Returns None when inapplicable."""
     if template == "top_groups" and metric and group:
         n = min(10, int(df[group].nunique(dropna=True)))
-        return {"question": f"Which {group} values have the highest total {metric}?",
+        return {"question": f"Which {_lbl(group)} has the highest total {_lbl(metric)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "sort", "column": f"total_{metric}", "dir": "desc"},
                     {"op": "top_n", "n": n}]}}
     if template == "bottom_groups" and metric and group:
-        return {"question": f"Which {group} values have the lowest total {metric}?",
+        return {"question": f"Which {_lbl(group)} has the lowest total {_lbl(metric)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "sort", "column": f"total_{metric}", "dir": "asc"},
                     {"op": "top_n", "n": 5}]}}
     if template == "avg_per_group" and metric and group:
-        return {"question": f"What is the average {metric} per {group}?",
+        return {"question": f"What is the average {_lbl(metric)} per {_lbl(group)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": metric, "fn": "mean", "alias": f"avg_{metric}"},
                     {"op": "sort", "column": f"avg_{metric}", "dir": "desc"}]}}
     if template == "relationship" and metric and second_metric and group:
-        return {"question": f"How do {metric} and {second_metric} move together across {group}?",
+        return {"question": f"How do {_lbl(metric)} and {_lbl(second_metric)} move together across {_lbl(group)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "aggregate", "column": second_metric, "fn": "sum", "alias": f"total_{second_metric}"}]}}
     if template == "split" and metric and group:
-        return {"question": f"How does total {metric} split across {group}?",
+        return {"question": f"How does total {_lbl(metric)} split across {_lbl(group)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "sort", "column": f"total_{metric}", "dir": "desc"}]}}
     if template == "count" and group:
-        return {"question": f"How many rows fall under each {group}?",
+        return {"question": f"How many rows fall under each {_lbl(group)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [group]},
                     {"op": "aggregate", "column": group, "fn": "count", "alias": "count"},
                     {"op": "sort", "column": "count", "dir": "desc"}]}}
     if template == "trend" and metric and period:
-        return {"question": f"How does total {metric} move across {period}?",
+        return {"question": f"How does total {_lbl(metric)} move across {_lbl(period)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [period]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "sort", "column": period, "dir": "asc"}]}}
     if template == "kpi" and metric:
-        return {"question": f"What are the overall total and average of {metric}?",
+        return {"question": f"What are the overall total and average of {_lbl(metric)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "aggregate", "column": metric, "fn": "mean", "alias": f"avg_{metric}"}]}}
@@ -180,6 +182,11 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
             continue
         cand = _build_from_selection(template, source, df, metric, group,
                                      second, period)
+        # The scout may phrase the question naturally (its proper role);
+        # the PLAN stays exactly what the template built.
+        natural = str(sel.get("question") or "").strip()
+        if cand and 10 <= len(natural) <= 160:
+            cand["question"] = natural
         if cand and cand["question"] not in seen:
             seen.add(cand["question"])
             out.append(cand)
@@ -203,7 +210,7 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
         ent = shape["panel_entity"]
         if 2 <= int(df[ent].nunique(dropna=True)) <= 9:
             leads.append({
-                "question": f"How does total {num} move across {period} for each {ent}?",
+                "question": f"How does total {_lbl(num)} move across {_lbl(period)} for each {_lbl(ent)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [period, ent]},
                     {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -211,7 +218,7 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
                 ]},
             })
         leads.append({
-            "question": f"Which {ent} values lead in the latest {period}?",
+            "question": f"Which {_lbl(ent)} leads in the latest {_lbl(period)}?",
             "plan": {"source": source, "steps": [
                 {"op": "time_window", "column": period, "last_n": 1},
                 {"op": "group_by", "columns": [ent]},
@@ -223,7 +230,7 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
 
     elif kind == "transactional" and period:
         leads.append({
-            "question": f"How many records arrive per {period}?",
+            "question": f"How many records arrive per {_lbl(period)}?",
             "plan": {"source": source, "steps": [
                 {"op": "group_by", "columns": [period]},
                 {"op": "aggregate", "column": period, "fn": "count", "alias": "records"},
@@ -232,7 +239,7 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
         })
         if cats:
             leads.append({
-                "question": f"How do records split across {cats[0]}?",
+                "question": f"How do records split across {_lbl(cats[0])}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [cats[0]]},
                     {"op": "aggregate", "column": cats[0], "fn": "count", "alias": "records"},
@@ -245,7 +252,7 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
         # of codes.
         for cat in cats[:3]:
             leads.append({
-                "question": f"How do responses split across {cat}?",
+                "question": f"How do responses split across {_lbl(cat)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [cat]},
                     {"op": "aggregate", "column": cat, "fn": "count", "alias": "responses"},
@@ -289,7 +296,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         cat, num = cats[0], numerics[0]
         n = min(10, int(df[cat].nunique(dropna=True)))
         out.append({
-            "question": f"Which {cat} values have the highest total {num}?",
+            "question": f"Which {_lbl(cat)} has the highest total {_lbl(num)}?",
             "plan": {"source": source, "steps": [
                 {"op": "group_by", "columns": [cat]},
                 {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -300,7 +307,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         # The lagging end matters as much as the leaders for policy work.
         if int(df[cat].nunique(dropna=True)) > 3:
             out.append({
-                "question": f"Which {cat} values have the lowest total {num}?",
+                "question": f"Which {_lbl(cat)} has the lowest total {_lbl(num)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [cat]},
                     {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -312,7 +319,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         if len(numerics) > 1:
             num2 = numerics[1]
             out.append({
-                "question": f"How do {num} and {num2} move together across {cat}?",
+                "question": f"How do {_lbl(num)} and {_lbl(num2)} move together across {_lbl(cat)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [cat]},
                     {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -324,7 +331,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         avg_cat = cats[1] if len(cats) > 1 else cats[0]
         avg_num = numerics[2] if len(numerics) > 2 else num
         out.append({
-            "question": f"What is the average {avg_num} per {avg_cat}?",
+            "question": f"What is the average {_lbl(avg_num)} per {_lbl(avg_cat)}?",
             "plan": {"source": source, "steps": [
                 {"op": "group_by", "columns": [avg_cat]},
                 {"op": "aggregate", "column": avg_num, "fn": "mean", "alias": f"avg_{avg_num}"},
@@ -345,7 +352,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         # The comparison view: period-over-period change (diverging bars).
         if int(df[period].nunique(dropna=True)) >= 3:
             out.append({
-                "question": f"How did total {num} change from one {period} to the next?",
+                "question": f"How did total {_lbl(num)} change from one {_lbl(period)} to the next?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [period]},
                     {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -358,7 +365,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         # with the SAME month a year earlier, not just the month before.
         if _is_monthly(df[period]) and int(df[period].nunique(dropna=True)) >= 13:
             out.append({
-                "question": f"How does each {period} compare with the same {period} a year earlier?",
+                "question": f"How does each {_lbl(period)} compare with the same {_lbl(period)} a year earlier?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [period]},
                     {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
@@ -384,7 +391,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
     if cats and len(numerics) > 1:
         cat, num2 = cats[0], numerics[1]
         out.append({
-            "question": f"Which {cat} values have the highest total {num2}?",
+            "question": f"Which {_lbl(cat)} has the highest total {_lbl(num2)}?",
             "plan": {"source": source, "steps": [
                 {"op": "group_by", "columns": [cat]},
                 {"op": "aggregate", "column": num2, "fn": "sum", "alias": f"total_{num2}"},
@@ -407,7 +414,7 @@ def starter_questions(df: pd.DataFrame, source: str = "",
     if numerics:
         num = numerics[0]
         out.append({
-            "question": f"What are the overall total and average of {num}?",
+            "question": f"What are the overall total and average of {_lbl(num)}?",
             "plan": {"source": source, "steps": [
                 {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
                 {"op": "aggregate", "column": num, "fn": "mean", "alias": f"avg_{num}"},
