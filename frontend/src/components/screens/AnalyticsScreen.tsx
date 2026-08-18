@@ -4,14 +4,20 @@
 // an expandable data description. From here the user takes over with their
 // own questions; the whole board downloads as a briefing file.
 import { useEffect, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardCheck,
   Compass,
   Database,
   Download,
+  Hash,
   Lightbulb,
+  MapPin,
   MessageSquareText,
   RefreshCw,
 } from "lucide-react";
@@ -48,6 +54,48 @@ function fmt(v: number | null | undefined): string {
   if (abs >= 10_000) return `${(v / 1_000).toFixed(0)}k`;
   if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
   return `${Math.round(v * 100) / 100}`;
+}
+
+// One row of the data checkup: a status line (scanning / needs a decision /
+// clean) that expands into the decision UI only when there is one to make.
+function CheckItem({
+  icon: Icon,
+  title,
+  state,
+  decideLabel,
+  cleanLabel,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  state: "scanning" | "decide" | "clean";
+  decideLabel?: string;
+  cleanLabel: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-4 py-3 ${
+        state === "decide" ? "border-warn/40 bg-warn/[0.04]" : "border-edge bg-panel-2/50"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {state === "scanning" ? (
+          <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-edge border-t-accent" />
+        ) : state === "decide" ? (
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warn" />
+        ) : (
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-good" />
+        )}
+        <Icon className="h-3.5 w-3.5 shrink-0 text-ink-dim" />
+        <span className="text-xs font-semibold">{title}</span>
+        <span className={`text-[11px] ${state === "decide" ? "font-medium text-warn" : "text-ink-dim"}`}>
+          {state === "scanning" ? "checking..." : state === "decide" ? decideLabel : cleanLabel}
+        </span>
+      </div>
+      {state === "decide" && children && <div className="mt-2.5">{children}</div>}
+    </div>
+  );
 }
 
 export function AnalyticsScreen({
@@ -91,6 +139,9 @@ export function AnalyticsScreen({
   // user has decided on any proposals - otherwise the agents explore the
   // unfixed data and everything runs twice.
   const [checksReady, setChecksReady] = useState(false);
+  // What happened in the checkup, for the summary line once exploring starts.
+  const [numOutcome, setNumOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
+  const [placeOutcome, setPlaceOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
 
   const applyNumbers = async () => {
     if (!numCheck) return;
@@ -119,7 +170,10 @@ export function AnalyticsScreen({
         domainsCache.set(datasetId, d);
         setDomains(d);
       }).catch(() => {});
-      await explore();
+      setNumOutcome({ kind: "fixed", n: cols.length });
+      // Explore only if this was the LAST open decision - otherwise wait for
+      // the place decision so the agents explore the fully clean version once.
+      if (!(placeCheck && !placeDismissed)) await explore();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -163,7 +217,10 @@ export function AnalyticsScreen({
         overviewCache.set(datasetId, o);
         setOverview(o);
       }).catch(() => {});
-      await explore();
+      setPlaceOutcome({ kind: "fixed", n: placeTicks.size });
+      // Explore only if this was the LAST open decision - otherwise wait for
+      // the number decision so the agents explore the fully clean version once.
+      if (!(numCheck && !numDismissed)) await explore();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -197,6 +254,8 @@ export function AnalyticsScreen({
     setChecksReady(false);
     setNumDismissed(false);
     setPlaceDismissed(false);
+    setNumOutcome(null);
+    setPlaceOutcome(null);
     Promise.allSettled([api.numberCheck(datasetId), api.placeCheck(datasetId)])
       .then(([n, p]) => {
         if (n.status === "fulfilled" && n.value.columns.length > 0) {
@@ -281,6 +340,14 @@ export function AnalyticsScreen({
   const prof = overview?.profile;
   const nNumeric = prof?.columns.filter((c) => c.role === "numeric").length ?? null;
   const nCategory = prof?.columns.filter((c) => c.role === "categorical" || c.role === "boolean").length ?? null;
+
+  // One line of checkup history for the exploring card.
+  const checkupBits: string[] = [];
+  if (numOutcome?.kind === "fixed") checkupBits.push(`${numOutcome.n} column${numOutcome.n > 1 ? "s" : ""} converted to numbers`);
+  if (numOutcome?.kind === "kept") checkupBits.push("text-number columns kept as is");
+  if (placeOutcome?.kind === "fixed") checkupBits.push(`${placeOutcome.n} spelling merge${placeOutcome.n > 1 ? "s" : ""} applied`);
+  if (placeOutcome?.kind === "kept") checkupBits.push("spellings kept as is");
+  const checkupSummary = checkupBits.length > 0 ? checkupBits.join(", ") : "no fixes needed";
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -379,26 +446,199 @@ export function AnalyticsScreen({
         </Card>
       )}
 
-      {repairsPending && (
-        <Card>
-          <CardBody className="py-6">
-            <p className="text-sm text-ink-dim">
-              Decide on the data fixes above first - the agents will explore the CLEAN
-              version once, instead of exploring twice. Or skip straight to asking.
-            </p>
+      {/* Step 1 - Data checkup: every cleaning decision happens HERE, before
+          the exploring agents see a single row. */}
+      {(!checksReady || repairsPending) && (
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-panel-2/60 px-5 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-lg bg-accent-soft p-2">
+                <ClipboardCheck className="h-4 w-4 text-accent" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold">Data checkup</h3>
+                <p className="text-[11px] text-ink-dim">
+                  Cleaning decisions happen first - the agents then explore the clean version, once.
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-edge bg-panel px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+              Step 1 · before exploring
+            </span>
+          </div>
+          <CardBody className="space-y-3">
+            <CheckItem
+              icon={Hash}
+              title="Numbers stored as text"
+              state={!checksReady ? "scanning" : numCheck && !numDismissed ? "decide" : "clean"}
+              decideLabel={
+                numCheck
+                  ? `${numCheck.length} column${numCheck.length > 1 ? "s" : ""} need${numCheck.length > 1 ? "" : "s"} a decision`
+                  : ""
+              }
+              cleanLabel="every measure column reads as numbers"
+            >
+              <p className="text-[11px] leading-relaxed text-ink-dim">
+                These columns look like numbers wearing a text costume - until converted they
+                cannot be ranked, trended, mapped or related. The original file stays untouched;
+                blanks like '-' become missing values, counted honestly.
+              </p>
+              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                {numCheck?.map((p) => (
+                  <label key={p.column} className="flex items-start gap-2 rounded-lg border border-edge bg-panel px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={numTicks.has(p.column)}
+                      onChange={() =>
+                        setNumTicks((s) => {
+                          const next = new Set(s);
+                          if (next.has(p.column)) next.delete(p.column);
+                          else next.add(p.column);
+                          return next;
+                        })
+                      }
+                      className="mt-0.5 accent-[#4338ca]"
+                    />
+                    <span className="min-w-0 text-xs leading-relaxed">
+                      <span className="font-semibold">{p.column}</span>
+                      <span className="text-ink-dim">
+                        {" "}- {p.parse_pct}% numeric
+                        {p.n_blank > 0 ? `, ${p.n_blank} blank` : ""}
+                      </span>
+                      {p.samples[0] && (
+                        <span className="mt-0.5 block font-mono text-[10px] text-ink-dim">
+                          '{p.samples[0].from}' <span className="font-sans text-accent">→</span>{" "}
+                          {p.samples[0].to.toLocaleString()}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setNumDismissed(true);
+                    setNumOutcome({ kind: "kept" });
+                  }}
+                >
+                  Keep as is
+                </Button>
+                <Button size="sm" onClick={applyNumbers} disabled={numBusy || numTicks.size === 0}>
+                  {numBusy ? <Spinner /> : null} Convert & recompute
+                </Button>
+              </div>
+            </CheckItem>
+
+            <CheckItem
+              icon={MapPin}
+              title="Place-name spellings"
+              state={!checksReady ? "scanning" : placeCheck && !placeDismissed ? "decide" : "clean"}
+              decideLabel={
+                placeCheck
+                  ? `${placeCheck.columns.reduce((n, c) => n + c.proposals.length, 0)} likely merge${
+                      placeCheck.columns.reduce((n, c) => n + c.proposals.length, 0) > 1 ? "s" : ""
+                    } to review`
+                  : ""
+              }
+              cleanLabel="no split spellings found"
+            >
+              <p className="text-[11px] leading-relaxed text-ink-dim">
+                Split spellings split your totals. Untick anything that is genuinely different,
+                then merge - the original file stays untouched, and the approved spellings are
+                remembered for future files.
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {placeCheck?.columns.map((col) =>
+                  col.proposals.map((p) => {
+                    const key = `${col.column}|${p.canonical}`;
+                    return (
+                      <label key={key} className="flex items-start gap-2 rounded-lg border border-edge bg-panel px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={placeTicks.has(key)}
+                          onChange={() =>
+                            setPlaceTicks((s) => {
+                              const next = new Set(s);
+                              if (next.has(key)) next.delete(key);
+                              else next.add(key);
+                              return next;
+                            })
+                          }
+                          className="mt-0.5 accent-[#4338ca]"
+                        />
+                        <span className="min-w-0 text-xs leading-relaxed">
+                          <span className="text-ink-dim">In </span>
+                          <span className="font-semibold">{col.column}</span>
+                          <span className="mt-1 flex flex-wrap items-center gap-1">
+                            {p.variants.map((v) => (
+                              <span key={v} className="rounded-md bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] ring-1 ring-inset ring-edge">
+                                {v} <span className="text-ink-dim">({p.counts[v] ?? 0})</span>
+                              </span>
+                            ))}
+                            <span className="text-accent">→</span>
+                            <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-accent ring-1 ring-inset ring-accent/20">
+                              {p.canonical}
+                            </span>
+                            <span className="rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
+                              {p.source}
+                            </span>
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  }),
+                )}
+              </div>
+              <div className="mt-3 flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPlaceDismissed(true);
+                    setPlaceOutcome({ kind: "kept" });
+                  }}
+                >
+                  Keep as is
+                </Button>
+                <Button size="sm" onClick={applyPlaces} disabled={placeBusy || placeTicks.size === 0}>
+                  {placeBusy ? <Spinner /> : null} Merge & recompute
+                </Button>
+              </div>
+            </CheckItem>
           </CardBody>
         </Card>
       )}
 
-      {busy && !repairsPending && (
+      {/* The exploration slot, visibly waiting on the checkup decision */}
+      {checksReady && repairsPending && (
+        <div className="rounded-2xl border-2 border-dashed border-edge bg-panel-2/40 px-6 py-10 text-center">
+          <Compass className="mx-auto h-6 w-6 text-ink-dim/40" />
+          <p className="mt-2 text-sm font-medium">The exploring agents are ready</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-ink-dim">
+            They start the moment the checkup above is decided, and explore the clean
+            version once. In a hurry? "Ask a question" works right away.
+          </p>
+        </div>
+      )}
+
+      {busy && checksReady && !repairsPending && (
         <Card>
-          <CardBody className="flex items-center gap-3 py-8">
-            <Spinner />
-            <p className="text-sm text-ink-dim">
-              {checksReady
-                ? "The exploring agents are asking the first questions and computing every answer from the data - or skip straight to asking your own."
-                : "Checking the data for repairs worth making first..."}
+          <CardBody className="space-y-2.5 py-6">
+            <p className="flex flex-wrap items-center gap-1.5 text-xs">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-good" />
+              <span className="font-semibold text-good">Checkup complete</span>
+              <span className="text-ink-dim">· {checkupSummary}</span>
             </p>
+            <div className="flex items-center gap-3">
+              <Spinner />
+              <p className="text-sm text-ink-dim">
+                The exploring agents are asking the first questions and computing every answer
+                from the data - or skip straight to asking your own.
+              </p>
+            </div>
           </CardBody>
         </Card>
       )}
@@ -415,8 +655,9 @@ export function AnalyticsScreen({
       )}
 
       {/* Domain focus: the scout groups a wide file into topics; the user
-          chooses where to dig, or stays with the general overview. */}
-      {domains && domains.domains.length >= 1 && (
+          chooses where to dig, or stays with the general overview. Appears
+          once the checkup is decided - it steers the exploration. */}
+      {checksReady && !repairsPending && domains && domains.domains.length >= 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
             Focus
@@ -451,115 +692,6 @@ export function AnalyticsScreen({
             </button>
           ))}
         </div>
-      )}
-
-      {/* Number repair: text-costumed numbers are invisible as measures -
-          convert them (approved, derived artifact) and the whole board can
-          use them. */}
-      {numCheck && !numDismissed && (
-        <Card className="border-warn/40">
-          <CardBody>
-            <h3 className="text-sm font-semibold">Numbers stored as text?</h3>
-            <p className="mt-0.5 text-[11px] text-ink-dim">
-              These columns look like numbers wearing a text costume - until converted they
-              cannot be ranked, trended, mapped or related. The original file stays
-              untouched; blanks like '-' become missing values, counted honestly.
-            </p>
-            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-              {numCheck.map((p) => (
-                <label key={p.column} className="flex items-start gap-2 rounded-lg border border-edge bg-panel-2/60 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={numTicks.has(p.column)}
-                    onChange={() =>
-                      setNumTicks((s) => {
-                        const next = new Set(s);
-                        if (next.has(p.column)) next.delete(p.column);
-                        else next.add(p.column);
-                        return next;
-                      })
-                    }
-                    className="mt-0.5 accent-[#4338ca]"
-                  />
-                  <span className="min-w-0 text-xs leading-relaxed">
-                    <span className="font-semibold">{p.column}</span>
-                    <span className="text-ink-dim">
-                      {" "}- {p.parse_pct}% numeric
-                      {p.n_blank > 0 ? `, ${p.n_blank} blank` : ""}
-                      {p.samples[0] ? ` (e.g. '${p.samples[0].from}' -> ${p.samples[0].to.toLocaleString()})` : ""}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setNumDismissed(true)}>
-                Keep as is
-              </Button>
-              <Button size="sm" onClick={applyNumbers}
-                disabled={numBusy || numTicks.size === 0}>
-                {numBusy ? <Spinner /> : null} Convert & recompute
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* Place Harmonizer: split spellings silently split totals - review
-          the proposed merges before any number is trusted. */}
-      {placeCheck && !placeDismissed && (
-        <Card className="border-warn/40">
-          <CardBody>
-            <h3 className="text-sm font-semibold">Same place, different spellings?</h3>
-            <p className="mt-0.5 text-[11px] text-ink-dim">
-              Split spellings split your totals. Untick anything that is genuinely
-              different, then merge - the original file stays untouched, and the
-              approved spellings are remembered for future files.
-            </p>
-            <div className="mt-2 space-y-2">
-              {placeCheck.columns.map((col) =>
-                col.proposals.map((p) => {
-                  const key = `${col.column}|${p.canonical}`;
-                  return (
-                    <label key={key} className="flex items-start gap-2 rounded-lg border border-edge bg-panel-2/60 px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={placeTicks.has(key)}
-                        onChange={() =>
-                          setPlaceTicks((s) => {
-                            const next = new Set(s);
-                            if (next.has(key)) next.delete(key);
-                            else next.add(key);
-                            return next;
-                          })
-                        }
-                        className="mt-0.5 accent-[#4338ca]"
-                      />
-                      <span className="min-w-0 text-xs leading-relaxed">
-                        In <span className="font-semibold">{col.column}</span>:{" "}
-                        {p.variants.map((v) => `'${v}' (${p.counts[v] ?? 0})`).join(", ")}
-                        {" -> "}
-                        <span className="font-semibold">{p.canonical}</span>
-                        <span className="ml-1.5 rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
-                          {p.source}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                }),
-              )}
-            </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPlaceDismissed(true)}>
-                Keep as is
-              </Button>
-              <Button size="sm" onClick={applyPlaces}
-                disabled={placeBusy || placeTicks.size === 0}>
-                {placeBusy ? <Spinner /> : null} Merge & recompute
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
       )}
 
       {/* The analyst's takeaway across all findings */}
