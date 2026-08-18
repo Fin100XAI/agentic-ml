@@ -638,28 +638,44 @@ function App() {
               nothing on narrow screens - it never fights the toolbars. */}
           {screen !== "home" && screen !== "projects" && screen !== "about" && screen !== "activity" && (
             <nav className="hidden shrink-0 items-center gap-1 lg:flex">
-              {navSteps.map((s, i) => (
-                <div key={s.key} className="flex items-center gap-1">
-                  {i > 0 && <div className="h-px w-3 bg-edge xl:w-5" />}
-                  <div
-                    className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs xl:px-2.5 ${
-                      i === stepIndex
-                        ? "bg-accent-soft font-medium text-accent"
-                        : i < stepIndex
-                          ? "text-good"
-                          : "text-ink-dim"
-                    }`}
-                    title={s.label}
-                  >
-                    {i < stepIndex ? (
-                      <Check className="h-3 w-3" />
-                    ) : (
-                      <span className="text-[10px]">{i + 1}</span>
-                    )}
-                    <span className="hidden xl:inline">{s.label}</span>
+              {navSteps.map((s, i) => {
+                // Steps you have already reached are clickable - the stepper
+                // is navigation, not just a progress display. On the analytics
+                // path, Ask is always reachable from the board's context.
+                const askViaBoard = s.key === "ask" && askCtx === null && analyticsCtx !== null;
+                const clickable = i !== stepIndex && (canShow(s.key) || askViaBoard);
+                return (
+                  <div key={s.key} className="flex items-center gap-1">
+                    {i > 0 && <div className="h-px w-3 bg-edge xl:w-5" />}
+                    <button
+                      onClick={() => {
+                        if (!clickable) return;
+                        if (askViaBoard && analyticsCtx) {
+                          setAskCtx({ datasetId: analyticsCtx.datasetId,
+                                      filename: analyticsCtx.filename, from: "analytics" });
+                        }
+                        setScreen(s.key);
+                      }}
+                      disabled={!clickable}
+                      className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors xl:px-2.5 ${
+                        i === stepIndex
+                          ? "bg-accent-soft font-medium text-accent"
+                          : i < stepIndex
+                            ? "text-good"
+                            : "text-ink-dim"
+                      } ${clickable ? "cursor-pointer hover:bg-accent-soft/50 hover:text-accent" : "cursor-default"}`}
+                      title={clickable ? `Go to ${s.label}` : s.label}
+                    >
+                      {i < stepIndex ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <span className="text-[10px]">{i + 1}</span>
+                      )}
+                      <span className="hidden xl:inline">{s.label}</span>
+                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </nav>
           )}
 
@@ -789,6 +805,14 @@ function App() {
             onResume={handleResume}
             onRetrain={handleRetrain}
             onOpenRetrainRun={handleOpenRetrainRun}
+            onExploreDataset={(datasetId, filename) => {
+              setAnalyticsCtx({ datasetId, filename });
+              setScreen("analytics");
+            }}
+            onAskDataset={(datasetId, filename) => {
+              setAskCtx({ datasetId, filename });
+              setScreen("ask");
+            }}
           />
         )}
 

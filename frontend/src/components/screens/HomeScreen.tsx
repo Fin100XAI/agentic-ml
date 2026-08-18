@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import type { RegistryEntry, RunSummary } from "../../types";
+import { DatasetsPanel } from "../DatasetsPanel";
 import { GlossaryManager } from "../GlossaryManager";
 import { IndicatorsPanel } from "../IndicatorsPanel";
 import { IntakePanel } from "../IntakePanel";
@@ -88,6 +89,8 @@ export function HomeScreen({
   onResume,
   onRetrain,
   onOpenRetrainRun,
+  onExploreDataset,
+  onAskDataset,
 }: {
   recentRuns: RunSummary[];
   projectName?: string;
@@ -96,6 +99,8 @@ export function HomeScreen({
   onResume: (id: string) => void;
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
   onOpenRetrainRun?: (runId: string, prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null }) => void;
+  onExploreDataset?: (datasetId: string, filename: string) => void;
+  onAskDataset?: (datasetId: string, filename: string) => void;
 }) {
   const completedRuns = recentRuns.filter((r) => r.stage === "interpret" || r.stage === "compare");
   const [diffA, setDiffA] = useState("");
@@ -198,6 +203,15 @@ export function HomeScreen({
       </section>
 
       {/* Project data dictionary */}
+      {/* Your data: direct re-entry into any file's board or Ask thread */}
+      {projectId && onExploreDataset && onAskDataset && (
+        <DatasetsPanel
+          projectId={projectId}
+          onExplore={onExploreDataset}
+          onAsk={onAskDataset}
+        />
+      )}
+
       {/* Saved-query indicators (P2.5) - the project's auto-dashboard */}
       {projectId && <IndicatorsPanel projectId={projectId} />}
 
