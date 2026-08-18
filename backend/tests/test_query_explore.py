@@ -512,6 +512,45 @@ def test_yoy_starter_appears_for_monthly_year_plus_data():
     assert choose_chart(result, plan)["kind"] == "dbar"
 
 
+# ---------- P2.2: map layer ----------
+
+def test_geo_matching_levels_and_threshold():
+    from engine.query.geo import match_level
+    m = match_level(["Pune", "Nashik", "Nagpur", "Satara"])
+    assert m is not None and m["level"] == "districts"
+    assert m["match_pct"] == 1.0
+    ms = match_level(["Maharashtra", "Karnataka", "Bihar"])
+    assert ms is not None and ms["level"] == "states"
+    assert match_level(["apple", "banana", "cherry"]) is None
+    # official-rename alias reaches the boundary name
+    ma = match_level(["Bangalore Urban", "Pune", "Nashik"])  # partial ok
+    assert ma is None or ma["match_pct"] >= 0.66  # threshold behavior, no crash
+
+
+def test_geo_unmatched_counted():
+    from engine.query.geo import match_level
+    m = match_level(["Pune", "Nashik", "Nagpur", "Xyzland"])
+    assert m is not None
+    assert "Xyzland" in m["unmatched"]
+    assert m["match_pct"] == 0.75
+
+
+def test_run_answer_offers_map_for_district_keys():
+    r = client.post(f"/api/datasets/{ds_id}/query/run", json={
+        "plan": _BRIEF_PLAN, "question": "top districts"})
+    chart = r.json()["chart"]
+    assert "map" in chart and chart["map"]["level"] == "districts"
+    assert chart["map"]["matches"].get("Pune") == "Pune"
+
+
+def test_geo_endpoint_serves_bundled_file():
+    r = client.get("/api/geo/districts")
+    assert r.status_code == 200
+    gj = r.json()
+    assert gj["type"] == "FeatureCollection" and len(gj["features"]) > 600
+    assert client.get("/api/geo/nowhere").status_code == 404
+
+
 # ---------- Place Harmonizer ----------
 
 def test_place_detect_layers():

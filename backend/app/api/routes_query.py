@@ -144,6 +144,8 @@ def run_question(dataset_id: str, req: RunRequest) -> dict:
             if pct > 5:
                 caveats.append(f"'{col}' is {pct:.0f}% empty - answers using it cover only the filled rows.")
     caveats += _small_group_caveats(ds.df, resolved)
+    chart_spec = choose_chart(result, resolved)
+    _attach_map(chart_spec, result, caveats)
 
     headline, generated_by = _headline(req.question, resolved, result)
     store.log_event(
@@ -161,7 +163,7 @@ def run_question(dataset_id: str, req: RunRequest) -> dict:
         "caveats": caveats,
         "sentences": sentences,
         # Chart chosen deterministically from the result shape (rule 14).
-        "chart": choose_chart(result, resolved),
+        "chart": chart_spec,
         "plan": resolved.model_dump(),
         "artifact_id": ds.artifact_id,
         "filename": ds.filename,
@@ -189,6 +191,27 @@ def _headline(question: str, plan: QueryPlan, result: dict[str, Any]) -> tuple[s
         return text.strip(), "claude"
     except Exception:
         return fallback, "heuristic"
+
+
+def _attach_map(chart: dict[str, Any], result: dict[str, Any],
+                caveats: list[str]) -> None:
+    """Offer a map view when the keys match a bundled boundary set (rule 14:
+    deterministic offer, chart stays the default). Unmatched names are
+    counted honestly in the caveats."""
+    if chart.get("kind") not in ("hbar", "bar") or not chart.get("x"):
+        return
+    from engine.query.geo import match_level
+    keys = [str(r.get(chart["x"])) for r in result["table"]]
+    m = match_level(keys)
+    if not m:
+        return
+    chart["map"] = {"level": m["level"], "match_pct": m["match_pct"],
+                    "matches": m["matches"], "unmatched": m["unmatched"]}
+    if m["unmatched"]:
+        names = ", ".join(m["unmatched"][:3])
+        caveats.append(f"{len(m['unmatched'])} area(s) could not be matched to "
+                       f"the map ({names}) - they appear in the chart and table "
+                       f"but not on the map.")
 
 
 def _small_group_caveats(df, resolved: QueryPlan) -> list[str]:
@@ -259,6 +282,7 @@ def auto_explore(dataset_id: str) -> dict:
             caveats += caveats_for_columns(readiness, used)
             caveats += _small_group_caveats(ds.df, resolved)
             chart = choose_chart(result, resolved)
+            _attach_map(chart, result, caveats)
             findings_raw.append({
                 "question": cand["question"],
                 "plan": resolved.model_dump(),
@@ -565,6 +589,20 @@ def get_query_brief_pdf(brief_id: str):
     return Response(content=markdown_to_pdf(brief_markdown(brief)),
                     media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="query-brief.pdf"'})
+
+
+@router.get("/geo/{level}")
+def get_boundaries(level: str):
+    """Serve the bundled boundary file (Datameet community maps, CC-BY 4.0,
+    simplified). Local file - the air-gap rule holds."""
+    from fastapi.responses import FileResponse
+
+    from engine.query.geo import geojson_path
+    path = geojson_path(level)
+    if path is None:
+        raise HTTPException(404, f"No bundled boundary set called '{level}'.")
+    return FileResponse(path, media_type="application/geo+json",
+                        headers={"Cache-Control": "max-age=86400"})
 
 
 @router.get("/datasets/{dataset_id}/place-check")

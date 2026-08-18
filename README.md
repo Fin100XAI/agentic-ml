@@ -178,6 +178,14 @@ with which reasoning, in how many ms) and on the run's decision trail.
   reference lines), never by the AI; bars always start at zero.
 - **Answer downloads** - any answer exports as CSV, the findings board as a
   markdown briefing; every export is a logged event.
+- **Map view** - when a ranking's keys match India's states or districts
+  (>= 70%, via the same alias-aware normalization as the Place Harmonizer),
+  a choropleth is offered as a toggle beside the chart. Unmatched areas
+  render grey and are counted honestly. Boundary files are bundled locally
+  (no network fetch): simplified from the Datameet community maps
+  (github.com/datameet/maps, CC-BY 4.0). Note: matching is by name, so
+  same-named districts in different states (e.g. Aurangabad in Maharashtra
+  and Bihar) can both color until state-qualified matching lands.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback
   used when no API key is set or a call fails; the UI badges each output as
   `AI` or `heuristic`, and an unreachable provider raises a visible banner -

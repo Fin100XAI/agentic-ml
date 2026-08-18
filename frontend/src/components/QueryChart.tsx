@@ -17,7 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useState } from "react";
 import type { ChartSpec, QueryResult } from "../types";
+import { IndiaMap } from "./IndiaMap";
 
 const AXIS = { stroke: "#64748b", fontSize: 11 };
 const GRID = "#dde3ee";
@@ -44,6 +46,54 @@ function compact(v: number): string {
 
 function niceLabel(col: string): string {
   return col.replace(/__/g, " ").replace(/_/g, " ");
+}
+
+// Chart with an optional map toggle - offered only when the backend matched
+// the keys to a bundled boundary set (>= 70%). The chart stays the default.
+export function QueryChartWithMap({ spec, result }: { spec: ChartSpec; result: QueryResult }) {
+  const [view, setView] = useState<"chart" | "map">("chart");
+  if (!spec.map) return <QueryChart spec={spec} result={result} />;
+  const x = spec.x ?? "";
+  const y = spec.y[0] ?? "";
+  const values: Record<string, number> = {};
+  for (const r of result.table) {
+    const k = String(r[x] ?? "");
+    if (typeof r[y] === "number") values[k] = r[y] as number;
+  }
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center gap-1">
+        {(["chart", "map"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
+              view === v
+                ? "border-accent/40 bg-accent-soft text-accent"
+                : "border-edge bg-panel-2 text-ink-dim hover:text-accent"
+            }`}
+          >
+            {v === "chart" ? "Chart" : "Map"}
+          </button>
+        ))}
+        {view === "map" && (
+          <span className="ml-1 text-[10px] text-ink-dim">
+            {Math.round(spec.map.match_pct * 100)}% of areas matched
+          </span>
+        )}
+      </div>
+      {view === "chart" ? (
+        <QueryChart spec={spec} result={result} />
+      ) : (
+        <IndiaMap
+          level={spec.map.level}
+          matches={spec.map.matches}
+          values={values}
+          metricLabel={niceLabel(y)}
+        />
+      )}
+    </div>
+  );
 }
 
 export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryResult }) {

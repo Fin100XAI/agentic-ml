@@ -9,7 +9,7 @@ import { api } from "../../api/client";
 import type { QueryAnswer, QueryPlanCandidate, QueryPlanResponse } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
-import { QueryChart } from "../QueryChart";
+import { QueryChartWithMap } from "../QueryChart";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
 const EXAMPLES = [
@@ -419,7 +419,7 @@ export function AskScreen({
 
             {/* Chart chosen from the result shape on the backend (rule 14). */}
             {answer.chart && answer.chart.kind !== "table" && (
-              <QueryChart spec={answer.chart} result={answer.result} />
+              <QueryChartWithMap spec={answer.chart} result={answer.result} />
             )}
 
             <div className="overflow-x-auto rounded-lg border border-edge">

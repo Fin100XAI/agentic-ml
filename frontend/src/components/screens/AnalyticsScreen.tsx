@@ -19,7 +19,7 @@ import { api } from "../../api/client";
 import type { DataOverview, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
-import { QueryChart } from "../QueryChart";
+import { QueryChartWithMap } from "../QueryChart";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
 // Boards survive leaving the screen (e.g. into Ask and back) so returning is
@@ -531,7 +531,7 @@ function FindingCard({
           </div>
         )}
 
-        <QueryChart spec={f.chart} result={f.result} />
+        <QueryChartWithMap spec={f.chart} result={f.result} />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="flex flex-wrap items-center gap-2">
