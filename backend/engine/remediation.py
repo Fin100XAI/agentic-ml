@@ -109,6 +109,29 @@ def propose_fixes(df: pd.DataFrame) -> list[dict[str, Any]]:
                         "recommended": False,
                     })
 
+    # QUERY-PATH EXTENSION: near-duplicate spellings found by the readiness
+    # audit become ordinary tick-box fixes (rule 10 touch point c).
+    try:
+        from .query.readiness import readiness_audit
+
+        for f in readiness_audit(df)["findings"]:
+            fix = f.get("fix") or {}
+            if f.get("fixable") and fix.get("kind") == "harmonize_values":
+                mapping = fix["mapping"]
+                proposals.append({
+                    "id": f"harmonize:{fix['column']}",
+                    "kind": "harmonize_values",
+                    "column": fix["column"],
+                    "mapping": mapping,
+                    "description": f"Merge spellings in '{fix['column']}' ("
+                                   + ", ".join(f"'{v}' -> '{c}'" for v, c in mapping.items()) + ")",
+                    "reasoning": "The same thing spelled differently splits groups and undercounts totals.",
+                    "affected_rows": int(df[fix["column"]].astype(str).isin(list(mapping)).sum()),
+                    "recommended": True,
+                })
+    except Exception:
+        pass
+
     return proposals
 
 
@@ -163,6 +186,11 @@ def fit_apply_fixes(
             work[col] = vals.clip(lower=lo, upper=hi)
             fitted[p["id"]] = {"kind": kind, "column": col,
                                "lo": float(lo), "hi": float(hi)}
+        elif kind == "harmonize_values":
+            # Row-wise: the mapping travels on the proposal itself.
+            mapping = p.get("mapping") or {}
+            work[col] = work[col].replace(mapping)
+            fitted[p["id"]] = {"kind": kind, "column": col, "mapping": mapping}
 
     return work, fitted
 
@@ -232,5 +260,10 @@ def replay_fixes(
             else:
                 notes.append(f"cap '{col}': training bounds not stored - re-derived from this file")
                 work[col] = vals.clip(lower=vals.quantile(0.01), upper=vals.quantile(0.99))
+        elif kind == "harmonize_values":
+            # Row-wise: replay the mapping recorded on the proposal/params.
+            mapping = params.get("mapping") or p.get("mapping") or {}
+            if mapping:
+                work[col] = work[col].replace(mapping)
 
     return work, notes

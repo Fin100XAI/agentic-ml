@@ -129,4 +129,14 @@ def assess_health(df: pd.DataFrame, profile: dict[str, Any]) -> dict[str, Any]:
     else:
         score = "good"
 
-    return {"score": score, "issues": issues}
+    # QUERY-PATH EXTENSION (rule 10 touch point c): fitness-for-questioning
+    # findings render as a separate health section and become caveats on
+    # any query answer touching the affected columns.
+    try:
+        from .query.readiness import readiness_audit
+
+        query_readiness = readiness_audit(df)["findings"]
+    except Exception:
+        query_readiness = []
+
+    return {"score": score, "issues": issues, "query_readiness": query_readiness}
