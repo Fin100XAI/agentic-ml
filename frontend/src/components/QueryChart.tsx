@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ReferenceLine,
@@ -82,6 +83,27 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           )}
           <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
         </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  if (spec.kind === "dbar") {
+    // Diverging bars around zero: rises in blue, drops in orange (the
+    // judgment amber/red stay reserved for warnings).
+    return (
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} interval={0} angle={data.length > 8 ? -30 : 0} textAnchor={data.length > 8 ? "end" : "middle"} height={data.length > 8 ? 55 : 30} />
+          <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+          <ReferenceLine y={0} stroke="#64748b" />
+          <Bar dataKey={y} isAnimationActive={false} name={niceLabel(y)} radius={[3, 3, 0, 0]}>
+            {data.map((r, i) => (
+              <Cell key={i} fill={Number(r[y]) >= 0 ? BLUE : "#ea580c"} />
+            ))}
+          </Bar>
+        </BarChart>
       </ResponsiveContainer>
     );
   }

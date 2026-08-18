@@ -30,6 +30,7 @@ for mod in (rd, ri, rq, rr, rruns, rp, ra, tel):
 from fastapi.testclient import TestClient
 from app.main import app
 
+from engine.query.diff import diff_plans
 from engine.query.executor import execute_plan
 from engine.query.plan import QueryPlan
 from engine.query.resolve import resolve_plan
@@ -67,7 +68,7 @@ ds_id = up["dataset_id"]
 def test_starters_generate_and_execute():
     df = _df()
     cands = starter_questions(df, "a1")
-    assert 1 <= len(cands) <= 8
+    assert 1 <= len(cands) <= 9
     for cand in cands:
         plan = resolve_plan(QueryPlan.model_validate(cand["plan"]),
                             [str(c) for c in df.columns])
@@ -182,6 +183,107 @@ def test_chart_too_many_categories_falls_back_to_table():
     assert "80" in (spec["note"] or "")
 
 
+# ---------- follow-up plan diff (P2.3): silent drops must surface ----------
+
+def _plan_of(*steps):
+    return {"source": "a1", "steps": list(steps)}
+
+
+def test_diff_dropped_filter_is_surfaced():
+    prior = _plan_of(
+        {"op": "filter", "column": "scheme", "operator": "==", "value": "A"},
+        {"op": "group_by", "columns": ["district"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+    )
+    new = _plan_of(
+        {"op": "group_by", "columns": ["district"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+    )
+    d = diff_plans(prior, new)
+    assert d["removed"] == ["filter: scheme == A"]  # the wrong-answer risk
+    assert d["added"] == [] and d["changed"] == []
+    assert d["unchanged_count"] == 2
+
+
+def test_diff_added_and_changed():
+    prior = _plan_of(
+        {"op": "group_by", "columns": ["district"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+        {"op": "sort", "column": "t", "dir": "desc"},
+    )
+    new = _plan_of(
+        {"op": "filter", "column": "scheme", "operator": "==", "value": "A"},
+        {"op": "group_by", "columns": ["month"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+        {"op": "sort", "column": "t", "dir": "desc"},
+    )
+    d = diff_plans(prior, new)
+    assert any("scheme == A" in a for a in d["added"])
+    assert any("grouping" in c and "month" in c for c in d["changed"])
+    assert d["removed"] == []
+
+
+def test_plan_endpoint_attaches_changes_and_route():
+    r = client.post(f"/api/datasets/{ds_id}/query/plan",
+                    json={"question": "top 3 district by enrollment"})
+    cand = r.json()["plans"][0]
+    assert "changes" not in cand  # first question: nothing to diff
+    r2 = client.post(f"/api/datasets/{ds_id}/query/plan",
+                     json={"question": "top 3 district by budget",
+                           "prior_plan": cand["plan"]})
+    body = r2.json()
+    assert "route" in body
+    cand2 = body["plans"][0]
+    assert "changes" in cand2
+    total = (len(cand2["changes"]["added"]) + len(cand2["changes"]["removed"])
+             + len(cand2["changes"]["changed"]))
+    assert total >= 1  # the metric changed
+
+
+def test_prediction_question_gets_model_route():
+    r = client.post(f"/api/datasets/{ds_id}/query/plan",
+                    json={"question": "predict next month's enrollment"})
+    assert r.json()["route"] in ("model_needed", "both")
+
+
+# ---------- comparison finding: period-over-period delta ----------
+
+def test_delta_starter_runs_and_maps_to_diverging_bars():
+    df = _df()
+    cands = starter_questions(df, "a1")
+    delta = next((c for c in cands if "change from one" in c["question"]), None)
+    assert delta is not None
+    plan = resolve_plan(QueryPlan.model_validate(delta["plan"]),
+                        [str(c) for c in df.columns])
+    result = execute_plan(plan, df)
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "dbar"
+    assert spec["y"][0].endswith("__delta")
+    sig = finding_signals(result, spec)
+    assert sig["kind"] == "delta"
+    assert sig["rises"] + sig["falls"] >= 1
+    assert "rose" in plain_meaning(sig)
+
+
+# ---------- anomaly scout: IQR outliers inside signals ----------
+
+def test_outlier_flagged_and_mentioned():
+    table = [{"g": c, "t": v} for c, v in
+             [("a", 100), ("b", 110), ("c", 95), ("d", 105), ("e", 102), ("f", 990)]]
+    result = {"table": table, "columns": ["g", "t"], "dtypes": {"t": "int64"}}
+    chart = {"kind": "bar", "x": "g", "y": ["t"], "threshold": None, "note": None}
+    sig = finding_signals(result, chart)
+    assert any(o["label"] == "f" and o["direction"] == "high" for o in sig["outliers"])
+    assert "anomaly scout" in plain_meaning(sig).lower()
+
+
+def test_no_outliers_on_flat_data():
+    table = [{"g": c, "t": 100 + i} for i, c in enumerate("abcdef")]
+    result = {"table": table, "columns": ["g", "t"], "dtypes": {"t": "int64"}}
+    chart = {"kind": "bar", "x": "g", "y": ["t"], "threshold": None, "note": None}
+    assert finding_signals(result, chart)["outliers"] == []
+
+
 # ---------- analyst signals (computed in Python, phrased by the agent) ----------
 
 def test_signals_ranked_and_meaning():
@@ -233,7 +335,7 @@ def test_explore_endpoint_heuristic():
     for f in body["findings"]:
         assert f["headline"]
         assert f["meaning"]  # every finding explained in plain language
-        assert f["chart"]["kind"] in {"kpi", "bar", "hbar", "line", "table"}
+        assert f["chart"]["kind"] in {"kpi", "bar", "hbar", "line", "dbar", "table"}
         assert f["sentences"]
         assert f["result"]["table"]
     ev = client.get(f"/api/activity?project_id={pid}&limit=100").json()["events"]

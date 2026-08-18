@@ -17,7 +17,9 @@ from app.store import store
 from app.telemetry import instrumented_provider
 from engine.agents.query_planner import run_query_planner
 from engine.query.describe import describe_plan
+from engine.query.diff import diff_plans
 from engine.query.executor import QueryExecutionError, execute_plan
+from engine.query.routing import classify_route
 from engine.query.plan import QueryPlan, plan_columns
 from engine.query.readiness import caveats_for_columns, readiness_audit
 from engine.query.resolve import ColumnResolutionError, resolve_plan
@@ -83,6 +85,19 @@ def plan_question(dataset_id: str, req: PlanRequest) -> dict:
         desc = describe_plan(plan, dataset_name=f"'{ds.filename}'")
         cand["sentences"] = desc["sentences"]
         cand["term_glossary"] = desc["glossary"]
+        # Follow-up: what changed vs the prior plan, computed deterministically.
+        # Silent drops (a lost filter) are the main wrong-answer risk.
+        if req.prior_plan:
+            cand["changes"] = diff_plans(req.prior_plan, cand["plan"])
+    # A follow-up that is really a prediction question gets the honest
+    # route suggestion - phrased as good news, not an error. Only a POSITIVE
+    # prediction signal counts here: a terse phrase like "only scheme A"
+    # matching nothing must not read as "needs a model".
+    route_info = classify_route(req.question)
+    if route_info["route"] == "model_needed" and not route_info.get("model_signal"):
+        route_info = {"route": "direct_query", "route_reasoning": ""}
+    result["route"] = route_info["route"]
+    result["route_reasoning"] = route_info["route_reasoning"]
     store.log_event(
         "Query planner", "query_plan", dataset_id=ds.id,
         mode="llm" if result["generated_by"] == "claude" else "fallback",

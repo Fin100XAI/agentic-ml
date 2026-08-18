@@ -28,8 +28,11 @@ _QUERY_WEAK = [
 ]
 
 
-def classify_route(question: str) -> dict[str, str]:
-    """-> {route: model_needed | direct_query | both, route_reasoning}."""
+def classify_route(question: str) -> dict:
+    """-> {route: model_needed | direct_query | both, route_reasoning,
+    model_signal}. model_signal is True only when a prediction verb actually
+    matched - model_needed WITHOUT it is just the direction-stage default,
+    not a positive finding."""
     q = (question or "").lower()
     model_hit = any(re.search(p, q) for p in _MODEL_PATTERNS)
     strong_hit = any(re.search(p, q) for p in _QUERY_STRONG)
@@ -40,15 +43,18 @@ def classify_route(question: str) -> dict[str, str]:
             "route": "both",
             "route_reasoning": "The question mixes a lookup you can answer directly from "
                          "the data with a prediction that needs a trained model.",
+            "model_signal": True,
         }
     if query_hit and not model_hit:
         return {
             "route": "direct_query",
             "route_reasoning": "This asks about what the data already contains - it can be "
                          "answered directly, no model training needed.",
+            "model_signal": False,
         }
     return {
         "route": "model_needed",
         "route_reasoning": "This asks about outcomes or patterns beyond a direct lookup - "
                      "a trained model is the right tool.",
+        "model_signal": model_hit,
     }

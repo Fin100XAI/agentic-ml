@@ -1,9 +1,10 @@
-// Ask your data: question -> visible interpretation -> run -> answer.
-// The interpretation card is the contract (rule 12): nothing executes
-// until the user runs exactly the sentences shown. Every answer carries
-// its caveats (rule 13) and a deterministically chosen chart (rule 14).
+// Ask your data: a conversation. Each question -> visible interpretation ->
+// run -> answer; follow-ups modify the prior plan and the card shows EXACTLY
+// what changed (computed in the backend, rule 12) - silently dropped filters
+// are the classic wrong-answer risk and render in amber. The thread persists
+// per dataset across reloads; Start over resets it.
 import { useState } from "react";
-import { ArrowLeft, CircleHelp, Download, MessageSquareText, Play, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CircleHelp, Download, MessageSquareText, Play, RotateCcw, Sparkles } from "lucide-react";
 import { api } from "../../api/client";
 import type { QueryAnswer, QueryPlanCandidate, QueryPlanResponse } from "../../types";
 import { genLabel } from "../../lib/labels";
@@ -18,33 +19,61 @@ const EXAMPLES = [
   "... below 40",
 ];
 
+interface ThreadPair {
+  question: string;
+  answer: QueryAnswer;
+}
+
+function loadThread(datasetId: string): ThreadPair[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(`ask-thread-${datasetId}`) ?? "[]") as ThreadPair[];
+  } catch {
+    return [];
+  }
+}
+
+function saveThread(datasetId: string, thread: ThreadPair[]) {
+  try {
+    sessionStorage.setItem(`ask-thread-${datasetId}`, JSON.stringify(thread.slice(-12)));
+  } catch {
+    /* storage full - the thread is a convenience, not a record; the log has everything */
+  }
+}
+
 export function AskScreen({
   datasetId,
   filename,
   initialQuestion,
   onBack,
+  onModelPath,
 }: {
   datasetId: string;
   filename: string;
   initialQuestion?: string;
   onBack: () => void;
+  onModelPath?: (question: string) => void;
 }) {
+  const [thread, setThread] = useState<ThreadPair[]>(() => loadThread(datasetId));
   const [question, setQuestion] = useState(initialQuestion ?? "");
+  const [askedQuestion, setAskedQuestion] = useState("");
   const [planResp, setPlanResp] = useState<QueryPlanResponse | null>(null);
-  const [answer, setAnswer] = useState<QueryAnswer | null>(null);
   const [busy, setBusy] = useState<"plan" | "run" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<{ col: string; dir: 1 | -1 } | null>(null);
+
+  const latest = thread.length > 0 ? thread[thread.length - 1] : null;
+  const priorPlan = latest?.answer.plan;
+  const answer = latest?.answer ?? null;
 
   const interpret = async (q?: string) => {
     const text = (q ?? question).trim();
     if (!text) return;
     setBusy("plan");
     setError(null);
-    setAnswer(null);
     setPlanResp(null);
     try {
-      setPlanResp(await api.queryPlan(datasetId, text));
+      setAskedQuestion(text);
+      setPlanResp(await api.queryPlan(datasetId, text, priorPlan));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -56,13 +85,26 @@ export function AskScreen({
     setBusy("run");
     setError(null);
     try {
-      setAnswer(await api.queryRun(datasetId, cand.plan, question));
+      const a = await api.queryRun(datasetId, cand.plan, askedQuestion);
+      const next = [...thread, { question: askedQuestion, answer: a }];
+      setThread(next);
+      saveThread(datasetId, next);
+      setPlanResp(null);
+      setQuestion("");
       setSortBy(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
     }
+  };
+
+  const startOver = () => {
+    setThread([]);
+    saveThread(datasetId, []);
+    setPlanResp(null);
+    setQuestion("");
+    setError(null);
   };
 
   const rows = answer
@@ -82,46 +124,99 @@ export function AskScreen({
         <h2 className="flex items-center gap-2 text-lg font-bold">
           <MessageSquareText className="h-5 w-5 text-accent" /> Ask your data
         </h2>
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </Button>
+        <div className="flex items-center gap-2">
+          {thread.length > 0 && (
+            <Button variant="outline" size="sm" onClick={startOver}>
+              <RotateCcw className="h-3.5 w-3.5" /> Start over
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </Button>
+        </div>
       </div>
+
+      {/* Earlier turns of the conversation, compact */}
+      {thread.length > 1 &&
+        thread.slice(0, -1).map((pair, i) => (
+          <div key={i} className="rounded-xl border border-edge/70 bg-panel-2/50 px-4 py-2.5">
+            <p className="text-xs font-medium text-ink-dim">{pair.question}</p>
+            <p className="mt-0.5 text-xs leading-relaxed">{pair.answer.headline}</p>
+          </div>
+        ))}
 
       {/* Question input */}
       <Card>
         <CardBody>
           <p className="mb-2 text-xs text-ink-dim">
-            Asking about <span className="font-semibold text-ink">{filename}</span> - a direct
-            answer from the data, no model training.
+            {latest ? (
+              <>
+                Following up on <span className="font-semibold text-ink">{latest.question}</span> -
+                ask to narrow, re-slice or compare; the next card shows exactly what changes.
+              </>
+            ) : (
+              <>
+                Asking about <span className="font-semibold text-ink">{filename}</span> - a direct
+                answer from the data, no model training.
+              </>
+            )}
           </p>
           <div className="flex gap-2">
             <input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && interpret()}
-              placeholder="e.g. top 5 districts by enrollment, or: which rows are below 40"
+              placeholder={
+                latest
+                  ? "e.g. only scheme A, or: same but by month"
+                  : "e.g. top 5 districts by enrollment, or: which rows are below 40"
+              }
               className="min-w-0 flex-1 rounded-lg border border-edge bg-panel-2 px-3.5 py-2 text-sm outline-none placeholder:text-ink-dim/60 focus:border-accent"
             />
             <Button onClick={() => interpret()} disabled={busy !== null || !question.trim()}>
               {busy === "plan" ? <Spinner /> : "Interpret"}
             </Button>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                onClick={() => setQuestion(ex)}
-                className="rounded-full bg-slate-500/8 px-2.5 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-slate-500/15 hover:text-ink"
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
+          {!latest && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  onClick={() => setQuestion(ex)}
+                  className="rounded-full bg-slate-500/8 px-2.5 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-slate-500/15 hover:text-ink"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          )}
         </CardBody>
       </Card>
 
       {error && (
         <p className="rounded-lg border border-bad/30 bg-bad/5 px-3 py-2 text-xs text-bad">{error}</p>
+      )}
+
+      {/* A prediction question is good news for the ML path, not an error */}
+      {planResp && (planResp.route === "model_needed" || planResp.route === "both") && (
+        <Card className="border-accent/40">
+          <CardBody className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <BrainCircuit className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <p className="text-xs leading-relaxed">
+                {planResp.route === "both"
+                  ? "Part of this is a prediction - a trained model can answer it properly. The direct part is interpreted below."
+                  : "This looks like a prediction question - the direct path can only show what already happened. A trained model can answer it properly."}
+                {planResp.route_reasoning ? ` (${planResp.route_reasoning})` : ""}
+              </p>
+            </div>
+            {onModelPath && (
+              <Button size="sm" onClick={() => onModelPath(askedQuestion)}>
+                Train a model with this question
+              </Button>
+            )}
+          </CardBody>
+        </Card>
       )}
 
       {/* Clarify */}
@@ -153,6 +248,29 @@ export function AskScreen({
               right={<Badge tone={planResp.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(planResp.generated_by)}</Badge>}
             />
             <CardBody>
+              {/* Follow-up: only what changed, with drops called out loud */}
+              {cand.changes && (
+                <div className="mb-3 space-y-1 rounded-lg border border-edge bg-panel-2/60 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+                    What changes vs the previous question
+                  </p>
+                  {cand.changes.removed.map((c, j) => (
+                    <p key={`r${j}`} className="text-xs font-medium text-warn">- Removed {c}</p>
+                  ))}
+                  {cand.changes.added.map((c, j) => (
+                    <p key={`a${j}`} className="text-xs text-accent">+ Added {c}</p>
+                  ))}
+                  {cand.changes.changed.map((c, j) => (
+                    <p key={`c${j}`} className="text-xs text-ink">~ {c}</p>
+                  ))}
+                  {cand.changes.added.length + cand.changes.removed.length + cand.changes.changed.length === 0 && (
+                    <p className="text-xs text-ink-dim">No change - this runs the same plan again.</p>
+                  )}
+                  <p className="text-[10px] text-ink-dim">
+                    {cand.changes.unchanged_count} step(s) kept from the previous plan.
+                  </p>
+                </div>
+              )}
               <ol className="list-decimal space-y-1 pl-5 text-sm">
                 {cand.sentences.map((s, j) => (
                   <li key={j} className="leading-relaxed">
@@ -185,13 +303,13 @@ export function AskScreen({
           </Card>
         ))}
 
-      {/* Answer */}
+      {/* Latest answer, in full */}
       {answer && (
         <Card>
           <CardHeader
             title={
               <span className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" /> Answer
+                <Sparkles className="h-4 w-4 text-accent" /> {latest!.question}
               </span>
             }
             right={<Badge tone={answer.generated_by === "claude" ? "accent" : "neutral"}>{genLabel(answer.generated_by)}</Badge>}
@@ -261,7 +379,7 @@ export function AskScreen({
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  const blob = await api.queryExportCsv(datasetId, answer.plan, question);
+                  const blob = await api.queryExportCsv(datasetId, answer.plan, latest!.question);
                   saveBlob(blob, "answer.csv");
                 }}
               >

@@ -13,7 +13,7 @@ import pandas as pd
 
 from .readiness import _find_entity_key, _find_period_column
 
-MAX_STARTERS = 8
+MAX_STARTERS = 9
 MAX_CAT_LEVELS = 30
 
 
@@ -88,6 +88,18 @@ def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]
                 {"op": "sort", "column": period, "dir": "asc"},
             ]},
         })
+        # The comparison view: period-over-period change (diverging bars).
+        if int(df[period].nunique(dropna=True)) >= 3:
+            out.append({
+                "question": f"How did total {num} change from one {period} to the next?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [period]},
+                    {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
+                    {"op": "sort", "column": period, "dir": "asc"},
+                    {"op": "delta_vs_period", "column": f"total_{num}",
+                     "period_column": period, "lag": 1},
+                ]},
+            })
 
     # A second lens: how the metric splits across the OTHER grouping column.
     if len(cats) > 1 and numerics:

@@ -14,6 +14,24 @@ def _num(v: Any) -> float | None:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+def _iqr_outliers(pairs: list[tuple[str, float]]) -> list[dict[str, Any]]:
+    """The anomaly scout's rule: values beyond 1.5x IQR of the shown set.
+    Deterministic, no AI - the agent only phrases what this finds."""
+    if len(pairs) < 5:
+        return []
+    vals = sorted(v for _, v in pairs)
+    n = len(vals)
+    q1 = vals[int(0.25 * (n - 1))]
+    q3 = vals[int(0.75 * (n - 1))]
+    iqr = q3 - q1
+    if iqr <= 0:
+        return []
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    return [{"label": label, "value": round(v, 2),
+             "direction": "high" if v > hi else "low"}
+            for label, v in pairs if v > hi or v < lo]
+
+
 def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, Any]:
     """-> a small dict of computed facts about one finding's result."""
     table = result.get("table") or []
@@ -23,6 +41,26 @@ def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, 
     x = chart.get("x")
     ys = chart.get("y") or []
     y = ys[0] if ys else None
+
+    if kind == "dbar" and x and y:
+        pts = [(str(r.get(x)), _num(r.get(y))) for r in table]
+        pts = [(n, v) for n, v in pts if v is not None]
+        if not pts:
+            return {"kind": "empty"}
+        rises = [(n, v) for n, v in pts if v > 0]
+        falls = [(n, v) for n, v in pts if v < 0]
+        big_rise = max(rises, key=lambda t: t[1]) if rises else None
+        big_fall = min(falls, key=lambda t: t[1]) if falls else None
+        return {
+            "kind": "delta",
+            "periods": len(pts),
+            "rises": len(rises),
+            "falls": len(falls),
+            "biggest_rise_period": big_rise[0] if big_rise else None,
+            "biggest_rise": round(big_rise[1], 2) if big_rise else None,
+            "biggest_fall_period": big_fall[0] if big_fall else None,
+            "biggest_fall": round(big_fall[1], 2) if big_fall else None,
+        }
 
     if kind in ("hbar", "bar") and x and y:
         vals = [(str(r.get(x)), _num(r.get(y))) for r in table]
@@ -41,6 +79,7 @@ def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, 
             "bottom_value": round(low_val, 2),
             "top_share_pct": round(top_val / total * 100, 1) if total else None,
             "top_vs_bottom_ratio": round(top_val / low_val, 1) if low_val else None,
+            "outliers": _iqr_outliers(vals),
         }
 
     if kind == "line" and x and y:
@@ -64,6 +103,7 @@ def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, 
             "peak_value": round(peak, 2),
             "trough_period": trough_label,
             "trough_value": round(trough, 2),
+            "outliers": _iqr_outliers(pts),
         }
 
     if kind == "kpi":
@@ -75,24 +115,46 @@ def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, 
     return {"kind": "table", "rows": len(table)}
 
 
+def _outlier_note(sig: dict[str, Any]) -> str:
+    outs = sig.get("outliers") or []
+    if not outs:
+        return ""
+    names = ", ".join(f"{o['label']} (unusually {o['direction']})" for o in outs[:3])
+    return (f" The anomaly scout flags {names} - values that far from the "
+            f"rest usually mean either a real event or a data entry issue.")
+
+
 def plain_meaning(sig: dict[str, Any]) -> str:
     """Templated fallback: what a finding suggests, from its signals only."""
     kind = sig.get("kind")
+    if kind == "delta":
+        rises, falls = sig.get("rises", 0), sig.get("falls", 0)
+        out = (f"{rises} period(s) rose and {falls} fell vs the one before.")
+        if sig.get("biggest_rise_period"):
+            out += (f" The sharpest rise came in {sig['biggest_rise_period']} "
+                    f"(+{sig['biggest_rise']})")
+            if sig.get("biggest_fall_period"):
+                out += (f" and the sharpest drop in {sig['biggest_fall_period']} "
+                        f"({sig['biggest_fall']})")
+            out += "."
+        out += (" Swings this direction-to-direction usually reflect timing "
+                "or seasonality - look for what happened in the extreme periods.")
+        return out
     if kind == "ranked":
         share = sig.get("top_share_pct")
         ratio = sig.get("top_vs_bottom_ratio")
         if ratio is not None and ratio >= 3:
             return (f"{sig['top']} is about {ratio}x {sig['bottom']} - a gap this "
                     f"wide usually has a reason worth checking (size, funding, "
-                    f"reporting differences).")
+                    f"reporting differences)." + _outlier_note(sig))
         if ratio is not None and ratio >= 1.5:
             return (f"{sig['top']} leads clearly"
                     + (f" with roughly {share}% of the shown total" if share else "")
                     + f", while {sig['bottom']} trails - worth asking what "
-                    f"separates them.")
+                    f"separates them." + _outlier_note(sig))
         return (f"The {sig.get('groups_shown', '')} groups shown sit close "
                 f"together - no single one dominates, so differences here are "
-                f"unlikely to be the main story.")
+                f"unlikely to be the main story." + _outlier_note(sig))
     if kind == "trend":
         chg = sig.get("change_pct")
         direction = ("held roughly steady" if chg is None or abs(chg) < 10
@@ -103,7 +165,7 @@ def plain_meaning(sig: dict[str, Any]) -> str:
         out += (f"; the peak came in {sig['peak_period']} and the low point in "
                 f"{sig['trough_period']}. One-off spikes and dips are worth a "
                 f"closer look before reading them as a trend.")
-        return out
+        return out + _outlier_note(sig)
     if kind == "kpi":
         return ("Treat these as the baseline figures for this file - every "
                 "comparison you ask for next is judged against them.")

@@ -845,6 +845,12 @@ function App() {
                 ? () => setScreen("analytics")
                 : goHome
             }
+            onModelPath={(q) => {
+              // Prediction follow-up: hand the dataset + question to the ML
+              // path (profile -> EDA -> direction prefilled), logged as usual.
+              api.pathChoice(askCtx.datasetId, "model").catch(() => {});
+              void guard("Analyzing…", () => runAnalysis(askCtx.datasetId, q));
+            }}
           />
         )}
 

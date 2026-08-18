@@ -247,6 +247,7 @@ export interface QueryPlanCandidate {
   note: string;
   sentences: string[];
   term_glossary: Record<string, string>;
+  changes?: PlanChanges;
 }
 
 export interface QueryPlanResponse {
@@ -256,14 +257,23 @@ export interface QueryPlanResponse {
   confidence: number;
   unresolved_terms: string[];
   generated_by: string;
+  route?: string;
+  route_reasoning?: string;
 }
 
 export interface ChartSpec {
-  kind: "kpi" | "bar" | "hbar" | "line" | "table";
+  kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "table";
   x: string | null;
   y: string[];
   threshold: number | null;
   note: string | null;
+}
+
+export interface PlanChanges {
+  added: string[];
+  removed: string[];
+  changed: string[];
+  unchanged_count: number;
 }
 
 export interface QueryResult {

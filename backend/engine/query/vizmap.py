@@ -16,9 +16,11 @@ from typing import Any
 
 import pandas as pd
 
-from .plan import FilterStep, QueryPlan, SortStep, TopNStep
+from .plan import DeltaVsPeriodStep, FilterStep, QueryPlan, SortStep, TopNStep
 
 MAX_BAR_CATEGORIES = 30
+# Thin diverging bars stay readable much further than labeled category bars.
+MAX_DELTA_BARS = 120
 
 
 def _is_timeish(values: list[Any]) -> bool:
@@ -57,6 +59,16 @@ def choose_chart(result: dict[str, Any], plan: QueryPlan) -> dict[str, Any]:
 
     x = non_numeric[0]
     y = numeric_cols[0]
+
+    # delta_vs_period -> diverging bars around zero on the change column.
+    if any(isinstance(s, DeltaVsPeriodStep) for s in plan.steps):
+        delta_cols = [c for c in numeric_cols if c.endswith("__delta")]
+        if delta_cols and len(table) <= MAX_DELTA_BARS:
+            return {"kind": "dbar", "x": x, "y": [delta_cols[0]],
+                    "threshold": None, "note": None}
+        if delta_cols:
+            return {"kind": "table", "x": None, "y": [], "threshold": None,
+                    "note": f"{len(table)} periods - too many to chart the changes honestly."}
     thr = threshold["value"] if threshold and threshold["column"] in (y, x) else None
 
     # Time on the key axis -> line.
