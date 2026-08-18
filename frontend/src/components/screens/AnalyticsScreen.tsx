@@ -11,6 +11,7 @@ import {
   Compass,
   Database,
   Download,
+  Lightbulb,
   MessageSquareText,
   RefreshCw,
 } from "lucide-react";
@@ -116,9 +117,11 @@ export function AnalyticsScreen({
         resp.findings.map((f) => ({
           question: f.question,
           headline: f.headline,
+          meaning: f.meaning,
           sentences: f.sentences,
           table: f.result.table.slice(0, 50),
         })),
+        resp.synthesis,
       );
       saveBlob(blob, "initial-findings.md");
     } finally {
@@ -220,6 +223,26 @@ export function AnalyticsScreen({
             <Button variant="outline" size="sm" onClick={explore}>
               <RefreshCw className="h-3.5 w-3.5" /> Try again
             </Button>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* The analyst's takeaway across all findings */}
+      {!busy && resp && resp.synthesis && resp.findings.length > 0 && (
+        <Card className="border-accent/30 bg-accent-soft/20">
+          <CardBody className="flex items-start gap-3">
+            <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+                  What to take away
+                </span>
+                <Badge tone={resp.generated_by === "claude" ? "accent" : "neutral"}>
+                  {genLabel(resp.generated_by)}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm leading-relaxed">{resp.synthesis}</p>
+            </div>
           </CardBody>
         </Card>
       )}
@@ -368,6 +391,13 @@ function FindingCard({
       />
       <CardBody className="space-y-3">
         <p className="text-sm font-medium leading-relaxed">{f.headline}</p>
+
+        {f.meaning && (
+          <div className="flex items-start gap-2 rounded-lg border border-accent/20 bg-accent-soft/20 px-3 py-2">
+            <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+            <p className="text-xs leading-relaxed text-ink">{f.meaning}</p>
+          </div>
+        )}
 
         {f.caveats.length > 0 && (
           <div className="space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2">

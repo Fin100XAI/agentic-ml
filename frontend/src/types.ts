@@ -295,11 +295,14 @@ export interface ExploreFinding {
   chart: ChartSpec;
   caveats: string[];
   headline: string;
+  meaning: string;
+  signals: Record<string, unknown>;
 }
 
 export interface ExploreResponse {
   findings: ExploreFinding[];
   generated_by: string;
+  synthesis: string;
   filename: string;
   artifact_id: string | null;
 }

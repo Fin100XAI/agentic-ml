@@ -33,6 +33,7 @@ from app.main import app
 from engine.query.executor import execute_plan
 from engine.query.plan import QueryPlan
 from engine.query.resolve import resolve_plan
+from engine.query.signals import finding_signals, plain_meaning, plain_synthesis
 from engine.query.starter import starter_questions
 from engine.query.vizmap import choose_chart
 
@@ -181,6 +182,45 @@ def test_chart_too_many_categories_falls_back_to_table():
     assert "80" in (spec["note"] or "")
 
 
+# ---------- analyst signals (computed in Python, phrased by the agent) ----------
+
+def test_signals_ranked_and_meaning():
+    result = {"table": [{"district": "Nagpur", "total": 4000},
+                        {"district": "Pune", "total": 1000}],
+              "columns": ["district", "total"], "dtypes": {"total": "int64"}}
+    chart = {"kind": "hbar", "x": "district", "y": ["total"], "threshold": None, "note": None}
+    sig = finding_signals(result, chart)
+    assert sig["kind"] == "ranked"
+    assert sig["top"] == "Nagpur" and sig["bottom"] == "Pune"
+    assert sig["top_vs_bottom_ratio"] == 4.0
+    assert sig["top_share_pct"] == 80.0
+    meaning = plain_meaning(sig)
+    assert "Nagpur" in meaning and "4" in meaning  # states the gap, no new math
+
+
+def test_signals_trend():
+    table = [{"m": f"2025-0{i+1}", "t": v} for i, v in enumerate([100, 120, 90, 150])]
+    result = {"table": table, "columns": ["m", "t"], "dtypes": {"t": "int64"}}
+    chart = {"kind": "line", "x": "m", "y": ["t"], "threshold": None, "note": None}
+    sig = finding_signals(result, chart)
+    assert sig["kind"] == "trend"
+    assert sig["change_pct"] == 50.0
+    assert sig["peak_period"] == "2025-04" and sig["trough_period"] == "2025-03"
+    assert "risen" in plain_meaning(sig)
+
+
+def test_synthesis_fallback_mentions_extremes():
+    findings = [{"signals": {"kind": "ranked", "top": "Nagpur", "bottom": "Pune",
+                             "top_value": 4000, "bottom_value": 1000,
+                             "groups_shown": 2, "top_share_pct": 80.0,
+                             "top_vs_bottom_ratio": 4.0}},
+                {"signals": {"kind": "trend", "periods": 4, "change_pct": 50.0,
+                             "first_period": "a", "last_period": "b",
+                             "peak_period": "x", "trough_period": "y"}}]
+    syn = plain_synthesis(findings)
+    assert "Nagpur" in syn and "Pune" in syn and "+50%" in syn
+
+
 # ---------- API: explore / export / path-choice ----------
 
 def test_explore_endpoint_heuristic():
@@ -189,8 +229,10 @@ def test_explore_endpoint_heuristic():
     body = r.json()
     assert body["generated_by"] == "heuristic"
     assert len(body["findings"]) >= 3
+    assert body["synthesis"]  # the analyst's takeaway is always present
     for f in body["findings"]:
         assert f["headline"]
+        assert f["meaning"]  # every finding explained in plain language
         assert f["chart"]["kind"] in {"kpi", "bar", "hbar", "line", "table"}
         assert f["sentences"]
         assert f["result"]["table"]

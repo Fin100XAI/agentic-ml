@@ -99,10 +99,11 @@ export const api = {
 
   exploreExportMd: async (
     datasetId: string,
-    items: { question: string; headline: string; sentences: string[]; table: object[] }[],
+    items: { question: string; headline: string; meaning: string; sentences: string[]; table: object[] }[],
+    synthesis: string,
   ) => {
     const res = await fetch(`${BASE}/datasets/${datasetId}/explore/export`,
-      json({ items }));
+      json({ items, synthesis }));
     if (!res.ok) throw new Error(res.statusText);
     return res.blob();
   },

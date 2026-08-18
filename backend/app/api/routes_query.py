@@ -21,6 +21,7 @@ from engine.query.executor import QueryExecutionError, execute_plan
 from engine.query.plan import QueryPlan, plan_columns
 from engine.query.readiness import caveats_for_columns, readiness_audit
 from engine.query.resolve import ColumnResolutionError, resolve_plan
+from engine.query.signals import finding_signals, plain_meaning, plain_synthesis
 from engine.query.starter import starter_questions
 from engine.query.vizmap import choose_chart
 
@@ -220,13 +221,16 @@ def auto_explore(dataset_id: str) -> dict:
             used = plan_columns(resolved)
             caveats = list(result["coverage_notes"])
             caveats += caveats_for_columns(readiness, used)
+            chart = choose_chart(result, resolved)
             findings_raw.append({
                 "question": cand["question"],
                 "plan": resolved.model_dump(),
                 "sentences": describe_plan(resolved, dataset_name=f"'{ds.filename}'")["sentences"],
                 "result": result,
-                "chart": choose_chart(result, resolved),
+                "chart": chart,
                 "caveats": caveats,
+                # Facts for the analyst agent - computed here, never by the LLM.
+                "signals": finding_signals(result, chart),
             })
             store.log_event(
                 "Explorer agents", "query_plan", dataset_id=ds.id, mode="fallback",
@@ -236,47 +240,74 @@ def auto_explore(dataset_id: str) -> dict:
     except QueryExecutionError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    headlines, generated_by = _batch_headlines(findings_raw)
-    for f, h in zip(findings_raw, headlines):
+    narrative = _batch_narrative(findings_raw)
+    for f, h, m in zip(findings_raw, narrative["headlines"], narrative["meanings"]):
         f["headline"] = h
+        f["meaning"] = m
+    generated_by = narrative["generated_by"]
     store.log_event(
         "Explorer agents", "query_execute", dataset_id=ds.id,
         mode="llm" if generated_by == "claude" else "fallback",
         payload={"auto_explore": True, "n_findings": len(findings_raw)},
     )
     return {"findings": findings_raw, "generated_by": generated_by,
+            "synthesis": narrative["synthesis"],
             "filename": ds.filename, "artifact_id": ds.artifact_id}
 
 
-def _batch_headlines(findings: list[dict[str, Any]]) -> tuple[list[str], str]:
-    """ONE phrasing call for the whole board - never one per finding."""
-    fallbacks = [_template_headline(f["result"]["table"], f["result"]["columns"])
-                 for f in findings]
+def _batch_narrative(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    """The analyst agent: ONE call for the whole board covering headlines,
+    per-finding meanings, and the overall takeaway. Every number it may use
+    is precomputed (tables + signals); templated fallbacks use the same."""
+    fb_headlines = [_template_headline(f["result"]["table"], f["result"]["columns"])
+                    for f in findings]
+    fb_meanings = [plain_meaning(f.get("signals", {})) for f in findings]
+    fb_synthesis = plain_synthesis(findings)
+    fallback = {"headlines": fb_headlines, "meanings": fb_meanings,
+                "synthesis": fb_synthesis, "generated_by": "heuristic"}
     provider = instrumented_provider()
     if provider is None or not findings:
-        return fallbacks, "heuristic"
+        return fallback
     try:
         import json as _json
 
         compact = [{"i": i, "question": f["question"],
-                    "table": f["result"]["table"][:8]}
+                    "table": f["result"]["table"][:8],
+                    "signals": f.get("signals", {})}
                    for i, f in enumerate(findings)]
         raw = provider.complete_json(
-            "You phrase data findings for a government officer. For each item, "
-            "write ONE plain sentence using ONLY the numbers in its table - "
-            "never compute or invent. Style: plain hyphens only.",
+            "You are a data analyst explaining findings to a government "
+            "officer with no statistics background. For each item: 'text' is "
+            "ONE plain sentence stating the finding, and 'meaning' is 1-2 "
+            "sentences on what to infer or check next. Use ONLY numbers "
+            "present in the item's table or signals - NEVER compute new ones. "
+            "Note honest limits (a gap is not proof of cause). 'synthesis' is "
+            "2-3 sentences: the overall story across all items plus ONE "
+            "suggested next question. Style: plain hyphens only, no jargon.",
             f"Items: {_json.dumps(compact)}",
-            {"type": "object", "properties": {"headlines": {
-                "type": "array", "items": {"type": "object", "properties": {
-                    "i": {"type": "integer"}, "text": {"type": "string"}},
-                    "required": ["i", "text"], "additionalProperties": False}}},
-             "required": ["headlines"], "additionalProperties": False},
-            max_tokens=1500,
+            {"type": "object", "properties": {
+                "headlines": {"type": "array", "items": {
+                    "type": "object", "properties": {
+                        "i": {"type": "integer"}, "text": {"type": "string"},
+                        "meaning": {"type": "string"}},
+                    "required": ["i", "text", "meaning"],
+                    "additionalProperties": False}},
+                "synthesis": {"type": "string"}},
+             "required": ["headlines", "synthesis"],
+             "additionalProperties": False},
+            max_tokens=3000,
         )
-        by_i = {h["i"]: h["text"] for h in raw.get("headlines", [])}
-        return [by_i.get(i) or fb for i, fb in enumerate(fallbacks)], "claude"
+        by_i = {h["i"]: h for h in raw.get("headlines", [])}
+        return {
+            "headlines": [by_i.get(i, {}).get("text") or fb
+                          for i, fb in enumerate(fb_headlines)],
+            "meanings": [by_i.get(i, {}).get("meaning") or fb
+                         for i, fb in enumerate(fb_meanings)],
+            "synthesis": raw.get("synthesis") or fb_synthesis,
+            "generated_by": "claude",
+        }
     except Exception:
-        return fallbacks, "heuristic"
+        return fallback
 
 
 @router.post("/datasets/{dataset_id}/query/export")
@@ -306,7 +337,8 @@ def export_answer(dataset_id: str, req: RunRequest):
 
 
 class BoardExportRequest(BaseModel):
-    items: list[dict[str, Any]]  # {question, headline, sentences, table}
+    items: list[dict[str, Any]]  # {question, headline, meaning, sentences, table}
+    synthesis: str = ""
 
 
 @router.post("/datasets/{dataset_id}/explore/export")
@@ -316,10 +348,14 @@ def export_board(dataset_id: str, req: BoardExportRequest):
 
     ds = _gated_dataset(dataset_id)
     lines = [f"# Initial findings - {ds.filename}", ""]
+    if req.synthesis:
+        lines += ["## What to take away", str(req.synthesis)[:800], ""]
     for item in req.items[:12]:
         lines.append(f"## {str(item.get('question', ''))[:200]}")
         if item.get("headline"):
             lines.append(f"**{str(item['headline'])[:400]}**")
+        if item.get("meaning"):
+            lines.append(f"_{str(item['meaning'])[:500]}_")
         lines.append("")
         for s in (item.get("sentences") or [])[:12]:
             lines.append(f"- {str(s)[:200]}")

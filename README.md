@@ -168,7 +168,11 @@ with which reasoning, in how many ms) and on the run's decision trail.
   only. A dataset KPI strip (rows, columns, missing data) and an expandable
   "About this data" panel with per-column distributions sit on top, and the
   analytics road has its own visible workflow stepper (Upload - Findings -
-  Ask), mirroring the ML path.
+  Ask), mirroring the ML path. An **analyst agent** explains what each
+  finding means in plain language and writes a whole-board takeaway with a
+  suggested next question - reasoning ONLY over shares, ratios and trend
+  changes precomputed in Python (a templated fallback uses the same
+  signals when no AI is available).
 - **Deterministic charts** - the chart type is chosen from the result shape
   by rules (KPI cards, bars, ranked horizontal bars, time lines, threshold
   reference lines), never by the AI; bars always start at zero.
