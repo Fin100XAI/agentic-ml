@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -69,6 +69,16 @@ export const api = {
     request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
       `/projects/${projectId}`,
     ),
+
+  queryPlan: (datasetId: string, question: string, priorPlan?: object) =>
+    request<QueryPlanResponse>(`/datasets/${datasetId}/query/plan`,
+      json({ question, prior_plan: priorPlan ?? null })),
+
+  queryRun: (datasetId: string, plan: object, question: string) =>
+    request<QueryAnswer>(`/datasets/${datasetId}/query/run`, json({ plan, question })),
+
+  routeChoice: (runId: string, choice: "direct_query" | "model") =>
+    request<{ ok: boolean }>(`/runs/${runId}/route-choice`, json({ choice })),
 
   getIntake: (projectId: string) =>
     request<{ rules: IntakeRule[]; items: IntakeItem[] }>(`/projects/${projectId}/intake`),

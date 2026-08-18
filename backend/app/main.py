@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes_activity import router as activity_router
 from app.api.routes_datasets import router as datasets_router
 from app.api.routes_intake import router as intake_router
+from app.api.routes_query import router as query_router
 from app.api.routes_projects import router as projects_router
 from app.api.routes_registry import router as registry_router
 from app.api.routes_runs import router as runs_router
@@ -28,6 +29,7 @@ app.include_router(datasets_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 app.include_router(activity_router, prefix="/api")
 app.include_router(intake_router, prefix="/api")
+app.include_router(query_router, prefix="/api")
 
 
 @app.on_event("startup")

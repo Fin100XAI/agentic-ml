@@ -113,32 +113,35 @@ def _expand_compact_steps(
     for s in steps:
         s = {k: v for k, v in dict(s).items() if v is not None}
         op = s.get("op")
+        # Tolerant of BOTH notations: the LLM writes compact fields, the
+        # fallback planner writes full ones - neither must be clobbered.
         if op == "time_window":
             e: dict[str, Any] = {"op": op, "column": s.get("column")}
-            if s.get("n") is not None:
-                e["last_n"] = s["n"]
-            if s.get("left"):
-                e["start"] = s["left"]
-            if s.get("right"):
-                e["end"] = s["right"]
+            if s.get("last_n") is not None or s.get("n") is not None:
+                e["last_n"] = s.get("last_n") if s.get("last_n") is not None else s.get("n")
+            if s.get("start") or s.get("left"):
+                e["start"] = s.get("start") or s.get("left")
+            if s.get("end") or s.get("right"):
+                e["end"] = s.get("end") or s.get("right")
             out.append(e)
         elif op == "derive":
             out.append({"op": op, "name": s.get("name"),
-                        "kind": s.get("fn") or _infer_derive_kind(s, steps),
+                        "kind": s.get("kind") or s.get("fn") or _infer_derive_kind(s, steps),
                         "left": s.get("left"), "right": s.get("right")})
         elif op == "aggregate":
             out.append({"op": op, "column": s.get("column"), "fn": s.get("fn"),
-                        "alias": s.get("name")})
+                        "alias": s.get("alias") or s.get("name")})
         elif op == "pivot":
-            values = s.get("column")
+            values = s.get("values") or s.get("column")
             if not values and numeric_columns:
-                used = {s.get("left"), s.get("right")}
+                used = {s.get("index") or s.get("left"), s.get("columns") or s.get("right")}
                 values = next((c for c in numeric_columns if c not in used), None)
-            out.append({"op": op, "index": s.get("left"), "columns": s.get("right"),
-                        "values": values})
+            out.append({"op": op, "index": s.get("index") or s.get("left"),
+                        "columns": s.get("columns") or s.get("right"), "values": values})
         elif op == "delta_vs_period":
             out.append({"op": op, "column": s.get("column"),
-                        "period_column": s.get("right"), "lag": s.get("n") or 1})
+                        "period_column": s.get("period_column") or s.get("right"),
+                        "lag": s.get("lag") or s.get("n") or 1})
         else:  # filter, group_by, sort, top_n pass through
             out.append(s)
     return out

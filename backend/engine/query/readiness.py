@@ -62,8 +62,10 @@ def readiness_audit(df: pd.DataFrame) -> dict[str, Any]:
         periods = pd.Series(sorted(ts.unique()))
         if len(periods) >= 3:
             diffs = periods.diff().dropna()
-            med = diffs.median()
-            gaps = int((diffs > med * 1.8).sum())
+            # The smallest spacing is the true frequency - gaps only ever
+            # make spacings LARGER, so min is robust where median is not.
+            base = diffs.min()
+            gaps = int((diffs > base * 1.8).sum())
             if gaps:
                 findings.append({
                     "id": f"gap:{period_col}",

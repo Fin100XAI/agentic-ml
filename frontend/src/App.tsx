@@ -12,6 +12,7 @@ import { HomeScreen } from "./components/screens/HomeScreen";
 import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ReportScreen } from "./components/screens/ReportScreen";
 import { AboutScreen } from "./components/screens/AboutScreen";
+import { AskScreen } from "./components/screens/AskScreen";
 import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
@@ -24,7 +25,7 @@ import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about";
+type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -47,6 +48,7 @@ const GUIDE: Record<Screen, string> = {
   report: "The full report - print it, save it as PDF, or download the markdown.",
   activity: "Every action in order - uploads, agent calls, approvals, training and exports.",
   about: "",
+  ask: "Ask a direct question - the interpretation is shown before anything runs, and every answer carries its caveats.",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -107,6 +109,12 @@ function App() {
   // (retrying is futile - change the model or setup); "transient" = worth
   // one more attempt before changing anything.
   const [runFailure, setRunFailure] = useState<{ message: string; kind: "data" | "transient" } | null>(null);
+  // Ask-your-data context + the direction-stage route offer (QUERY-PATH)
+  const [askCtx, setAskCtx] = useState<{ datasetId: string; filename: string; question?: string } | null>(null);
+  const [routeOffer, setRouteOffer] = useState<{
+    runId: string; datasetId: string; filename: string; question: string;
+    route: "direct_query" | "both"; reasoning: string;
+  } | null>(null);
   const [sheetChoice, setSheetChoice] = useState<{
     file: File;
     question: string;
@@ -298,11 +306,43 @@ function App() {
         setError(r.error);
         return;
       }
+      // QUERY-PATH: a direct question gets the honest offer BEFORE model
+      // training; model_needed behaves exactly as before.
+      const align = r.recommendation?.alignment as
+        | { aligned: boolean; note: string; route?: string; route_reasoning?: string }
+        | undefined;
+      if (align?.route === "direct_query" || align?.route === "both") {
+        setRouteOffer({
+          runId: r.id,
+          datasetId: r.dataset_id,
+          filename: r.filename,
+          question: comment || r.question || "",
+          route: align.route,
+          reasoning: align.route_reasoning || "",
+        });
+        return;
+      }
       setScreen("configure");
       // Agent flags questions the data cannot actually answer.
-      const align = r.recommendation?.alignment;
       if (align && !align.aligned) setMisalignNote(align.note || "The question may not match this dataset.");
     });
+
+  const chooseRoute = (choice: "direct_query" | "model") => {
+    if (!routeOffer) return;
+    const offer = routeOffer;
+    setRouteOffer(null);
+    api.routeChoice(offer.runId, choice).catch(() => {});
+    if (choice === "direct_query") {
+      setAskCtx({
+        datasetId: offer.datasetId,
+        filename: offer.filename,
+        question: offer.question || run?.question || "",
+      });
+      setScreen("ask");
+    } else {
+      setScreen("configure");
+    }
+  };
 
   // Data-shape errors carry these plain-language markers from the engine;
   // anything else is treated as re-attemptable.
@@ -422,6 +462,7 @@ function App() {
       return run !== null;
     }
     if (s === "home") return project !== null;
+    if (s === "ask") return askCtx !== null;
     return true;
   };
   const goBack = () => {
@@ -761,6 +802,15 @@ function App() {
 
         {screen === "about" && <AboutScreen onStart={project ? startOver : undefined} />}
 
+        {screen === "ask" && askCtx && (
+          <AskScreen
+            datasetId={askCtx.datasetId}
+            filename={askCtx.filename}
+            initialQuestion={askCtx.question}
+            onBack={goHome}
+          />
+        )}
+
         {screen === "results" &&
           run?.result &&
           (run.insights ? (
@@ -825,6 +875,38 @@ function App() {
       />
 
       {/* Question/data misalignment warning */}
+      {/* QUERY-PATH: the direction-stage route offer (rule 10 touch point a) */}
+      {routeOffer && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
+            <Card className="border-accent/40 bg-white/95">
+              <CardBody>
+                <h3 className="text-sm font-semibold">
+                  {routeOffer.route === "both"
+                    ? "Part of this can be answered right now"
+                    : "This question doesn't need AI model training"}
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-ink-dim">
+                  {routeOffer.route === "both"
+                    ? "The lookup part can be answered directly from your data this minute; the prediction part needs a trained model. You can do both - starting with the direct answer."
+                    : "It can be answered directly from your data - no waiting for training, and the interpretation is shown before anything runs."}
+                  {routeOffer.reasoning ? ` (${routeOffer.reasoning})` : ""}
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => chooseRoute("model")}>
+                    {routeOffer.route === "both" ? "Train the model instead" : "Train a model anyway"}
+                  </Button>
+                  <Button size="sm" onClick={() => chooseRoute("direct_query")}>
+                    Answer directly (no model training)
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+
       {/* Model-run failure: retry for transient problems, change the model
           when the data itself does not fit the chosen method. */}
       {runFailure && (

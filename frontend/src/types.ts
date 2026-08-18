@@ -242,6 +242,39 @@ export interface UploadResponse {
   intake?: { item_id: string; rule_name: string; action: string; coverage: number } | null;
 }
 
+export interface QueryPlanCandidate {
+  plan: Record<string, unknown>;
+  note: string;
+  sentences: string[];
+  term_glossary: Record<string, string>;
+}
+
+export interface QueryPlanResponse {
+  mode: "plan" | "ambiguous" | "clarify";
+  plans: QueryPlanCandidate[];
+  clarify_question: string | null;
+  confidence: number;
+  unresolved_terms: string[];
+  generated_by: string;
+}
+
+export interface QueryAnswer {
+  result: {
+    table: Record<string, string | number | null>[];
+    columns: string[];
+    dtypes: Record<string, string>;
+    row_counts: { step: string; rows: number }[];
+    excluded_null_rows: Record<string, number>;
+    coverage_notes: string[];
+  };
+  headline: string;
+  generated_by: string;
+  caveats: string[];
+  sentences: string[];
+  artifact_id: string | null;
+  filename: string;
+}
+
 export interface IntakeRule {
   id: string;
   project_id: string;
