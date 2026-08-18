@@ -413,7 +413,7 @@ def test_explore_endpoint_heuristic():
     for f in body["findings"]:
         assert f["headline"]
         assert f["meaning"]  # every finding explained in plain language
-        assert f["chart"]["kind"] in {"kpi", "bar", "hbar", "line", "dbar", "table"}
+        assert f["chart"]["kind"] in VALID_KINDS
         assert f["sentences"]
         assert f["result"]["table"]
     ev = client.get(f"/api/activity?project_id={pid}&limit=100").json()["events"]
@@ -579,6 +579,60 @@ def test_geo_endpoint_serves_bundled_file():
     gj = r.json()
     assert gj["type"] == "FeatureCollection" and len(gj["features"]) > 600
     assert client.get("/api/geo/nowhere").status_code == 404
+
+
+# ---------- domain scout + relationship starters ----------
+
+def test_heuristic_domains_group_census_style_columns():
+    from engine.query.domains import heuristic_domains, suggest_domain
+    cols = ["State", "District", "Persons.literate", "Males.Literate",
+            "Females.Literate", "Persons.literacy.rate", "Total.workers",
+            "Main.workers", "Marginal.workers", "Electricity.domestic",
+            "Electricity.Agriculture", "Sex.ratio"]
+    domains = heuristic_domains(cols)
+    names = {d["name"].lower() for d in domains}
+    assert any("literacy" in n or "literate" in n for n in names)
+    assert any("worker" in n for n in names)
+    assert any("electricity" in n for n in names)
+    for d in domains:
+        assert len(d["columns"]) >= 2
+
+
+def test_starters_respect_focus_columns():
+    df = _df()
+    cands = starter_questions(df, "a1", focus_columns=["budget"])
+    metrics = " ".join(c["question"] for c in cands)
+    assert "budget" in metrics
+    # enrollment only appears as a grouping topic, never as the ranked metric
+    assert not any("total enrollment" in c["question"] for c in cands)
+
+
+def test_relationship_starter_and_correlation_signal():
+    df = _df()
+    cands = starter_questions(df, "a1")
+    rel = next((c for c in cands if "move together" in c["question"]), None)
+    assert rel is not None
+    plan = resolve_plan(QueryPlan.model_validate(rel["plan"]),
+                        [str(c) for c in df.columns])
+    result = execute_plan(plan, df)
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "scatter"
+    sig = finding_signals(result, spec)
+    assert sig["kind"] == "relationship"
+    assert -1.0 <= sig["correlation"] <= 1.0
+    assert "not proof one causes the other" in plain_meaning(sig)
+
+
+def test_domains_endpoint_heuristic_and_focused_explore():
+    r = client.get(f"/api/datasets/{ds_id}/domains")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["generated_by"] == "heuristic"
+    # focused explore restricts the measures
+    rf = client.post(f"/api/datasets/{ds_id}/explore?focus=budget")
+    assert rf.status_code == 200
+    qs = " ".join(f["question"] for f in rf.json()["findings"])
+    assert "budget" in qs and "total enrollment" not in qs
 
 
 # ---------- map modes + trend lines ----------

@@ -112,6 +112,22 @@ def finding_signals(result: dict[str, Any], chart: dict[str, Any]) -> dict[str, 
             "values": {c: table[0].get(c) for c in ys if c in table[0]},
         }
 
+    if kind == "scatter" and len(ys) >= 2:
+        a = [_num(r.get(ys[0])) for r in table]
+        b = [_num(r.get(ys[1])) for r in table]
+        pairs = [(x, z) for x, z in zip(a, b) if x is not None and z is not None]
+        if len(pairs) >= 4:
+            n = len(pairs)
+            mx = sum(p[0] for p in pairs) / n
+            my = sum(p[1] for p in pairs) / n
+            sxy = sum((p[0] - mx) * (p[1] - my) for p in pairs)
+            sx = sum((p[0] - mx) ** 2 for p in pairs) ** 0.5
+            sy = sum((p[1] - my) ** 2 for p in pairs) ** 0.5
+            r = sxy / (sx * sy) if sx and sy else 0.0
+            return {"kind": "relationship", "points": n,
+                    "correlation": round(r, 2), "x_metric": ys[0], "y_metric": ys[1]}
+        return {"kind": "empty"}
+
     return {"kind": "table", "rows": len(table)}
 
 
@@ -166,6 +182,15 @@ def plain_meaning(sig: dict[str, Any]) -> str:
                 f"{sig['trough_period']}. One-off spikes and dips are worth a "
                 f"closer look before reading them as a trend.")
         return out + _outlier_note(sig)
+    if kind == "relationship":
+        r = sig.get("correlation") or 0.0
+        strength = ("strongly" if abs(r) >= 0.7 else
+                    "moderately" if abs(r) >= 0.4 else "only weakly")
+        direction = "together" if r >= 0 else "in opposite directions"
+        return (f"Across {sig['points']} groups these two measures move "
+                f"{strength} {direction} (correlation {r:+.2f}). Moving "
+                f"together is not proof one causes the other - a third factor "
+                f"(like size) often drives both.")
     if kind == "kpi":
         return ("Treat these as the baseline figures for this file - every "
                 "comparison you ask for next is judged against them.")

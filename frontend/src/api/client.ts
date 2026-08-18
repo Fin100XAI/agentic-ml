@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -80,10 +80,14 @@ export const api = {
   routeChoice: (runId: string, choice: "direct_query" | "model") =>
     request<{ ok: boolean }>(`/runs/${runId}/route-choice`, json({ choice })),
 
-  explore: (datasetId: string, lang = "en") =>
+  explore: (datasetId: string, lang = "en", focusColumns?: string[]) =>
     request<ExploreResponse>(
-      `/datasets/${datasetId}/explore?lang=${encodeURIComponent(lang)}`,
+      `/datasets/${datasetId}/explore?lang=${encodeURIComponent(lang)}` +
+      (focusColumns?.length ? `&focus=${encodeURIComponent(focusColumns.join("|"))}` : ""),
       { method: "POST" }),
+
+  getDomains: (datasetId: string) =>
+    request<DomainsResponse>(`/datasets/${datasetId}/domains`),
 
   refreshAllIndicators: (projectId: string) =>
     request<{ refreshed: { name: string; filename: string }[]; skipped: string[] }>(

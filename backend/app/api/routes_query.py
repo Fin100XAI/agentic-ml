@@ -273,18 +273,71 @@ def dataset_overview(dataset_id: str) -> dict:
     return {"profile": prof, "filename": ds.filename}
 
 
+@router.get("/datasets/{dataset_id}/domains")
+def dataset_domains(dataset_id: str) -> dict:
+    """Domain scout: group a wide file's columns into topics the user can
+    choose between ("literacy", "workers", "amenities"). The LLM judges the
+    grouping (its proper role); the token heuristic is the fallback; either
+    way only real column names survive validation, and the suggested focus
+    is computed deterministically from variability."""
+    from engine.query.domains import (heuristic_domains, suggest_domain,
+                                      validate_domains)
+
+    ds = _gated_dataset(dataset_id)
+    columns = [str(c) for c in ds.df.columns]
+    domains = heuristic_domains(columns)
+    generated_by = "heuristic"
+    provider = instrumented_provider()
+    if provider is not None and len(columns) >= 8:
+        try:
+            import json as _json
+
+            raw = provider.complete_json(
+                "Group these dataset columns into 3-8 topical domains a "
+                "government analyst would recognize (e.g. literacy, workers, "
+                "amenities, demographics). Use ONLY the exact column names "
+                "given. Short plain names; one sentence why per domain. "
+                "Leave out identifier/name columns.",
+                f"Columns: {_json.dumps(columns)}",
+                {"type": "object", "properties": {"domains": {
+                    "type": "array", "items": {"type": "object", "properties": {
+                        "name": {"type": "string"},
+                        "columns": {"type": "array", "items": {"type": "string"}},
+                        "why": {"type": "string"}},
+                        "required": ["name", "columns", "why"],
+                        "additionalProperties": False}}},
+                 "required": ["domains"], "additionalProperties": False},
+                max_tokens=2500,
+            )
+            validated = validate_domains(raw.get("domains", []), columns)
+            if validated:
+                domains = validated
+                generated_by = "claude"
+        except Exception:
+            pass
+    suggested = suggest_domain(domains, ds.df)
+    store.log_event("Domain scout", "profile", dataset_id=ds.id,
+                    mode="llm" if generated_by == "claude" else "fallback",
+                    payload={"context": "domains", "n_domains": len(domains),
+                             "suggested": suggested})
+    return {"domains": domains, "suggested": suggested,
+            "generated_by": generated_by}
+
+
 @router.post("/datasets/{dataset_id}/explore")
-def auto_explore(dataset_id: str, lang: str = "en") -> dict:
+def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     """The exploring agents: starter questions asked AND answered before the
     user types anything. Plans are generated deterministically from the
     schema and run through the same executor as user questions; ONE batched
     LLM call phrases the findings (templated fallback). Every finding is
     individually logged."""
     ds = _gated_dataset(dataset_id)
+    focus_columns = [c for c in focus.split("|") if c] if focus else None
     try:
         findings_raw = []
         readiness = readiness_audit(ds.df)["findings"]
-        for cand in starter_questions(ds.df, ds.artifact_id or ds.id):
+        for cand in starter_questions(ds.df, ds.artifact_id or ds.id,
+                                      focus_columns=focus_columns):
             try:
                 plan = QueryPlan.model_validate(cand["plan"])
                 resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])

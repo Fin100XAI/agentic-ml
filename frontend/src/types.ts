@@ -384,6 +384,18 @@ export interface QueryBrief {
   critic: { flagged_claims: number; checked: number };
 }
 
+export interface Domain {
+  name: string;
+  columns: string[];
+  why: string;
+}
+
+export interface DomainsResponse {
+  domains: Domain[];
+  suggested: string | null;
+  generated_by: string;
+}
+
 export interface PlaceProposal {
   canonical: string;
   variants: string[];

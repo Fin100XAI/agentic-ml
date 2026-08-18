@@ -14,7 +14,37 @@ import pandas as pd
 from .readiness import _find_entity_key, _find_period_column
 
 MAX_STARTERS = 9
-MAX_CAT_LEVELS = 30
+# Grouping columns may have up to 60 levels (India has 35+ states; charts
+# guard their own category caps and top-N keeps rankings honest).
+MAX_CAT_LEVELS = 60
+
+
+def _is_numberish_text(s: pd.Series) -> bool:
+    """Numbers stored as text ('4,076', '-', '959') must not be treated as
+    categories - grouping by them is meaningless. The health screen already
+    proposes fixing such columns properly."""
+    non_null = s.dropna().astype(str).str.strip()
+    non_null = non_null[~non_null.isin(["", "-", "NA", "N/A", "nan"])]
+    if len(non_null) < 5:
+        return False
+    coerced = pd.to_numeric(non_null.str.replace(",", "", regex=False),
+                            errors="coerce")
+    return bool(coerced.notna().mean() > 0.6)
+
+
+def _plausible_period(s: pd.Series) -> bool:
+    """A time column must parse as PLAUSIBLE dates - '959' technically
+    parses as the year 959 AD, which is how a sex-ratio column once became
+    the timeline. Years must sit in 1900-2100."""
+    sample = s.dropna().astype(str).head(60)
+    if len(sample) < 3:
+        return False
+    parsed = pd.to_datetime(sample, errors="coerce", format="mixed")
+    ok = parsed.notna()
+    if ok.mean() < 0.6:
+        return False
+    years = parsed.dropna().dt.year
+    return bool(years.between(1900, 2100).mean() > 0.9)
 
 
 def _is_monthly(series: pd.Series) -> bool:
@@ -30,6 +60,8 @@ def _is_monthly(series: pd.Series) -> bool:
 
 def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
     period = _find_period_column(df)
+    if period is not None and not _plausible_period(df[period]):
+        period = None
     key = _find_entity_key(df, period)
     numerics = [
         str(c) for c in df.columns
@@ -42,6 +74,8 @@ def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
         and 2 <= df[c].nunique(dropna=True) <= MAX_CAT_LEVELS
         # all-unique text is an identifier, not a category worth counting
         and df[c].nunique(dropna=True) < len(df)
+        # numbers-stored-as-text are broken measures, not categories
+        and not _is_numberish_text(df[c])
     ]
     # Prefer the entity key as the main categorical; highest-spread numeric first.
     if key and key in cats:
@@ -51,10 +85,18 @@ def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
     return {"period": period, "cats": cats, "numerics": numerics}
 
 
-def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]]:
-    """Up to MAX_STARTERS {question, plan} candidates, most interesting first."""
+def starter_questions(df: pd.DataFrame, source: str = "",
+                      focus_columns: list[str] | None = None) -> list[dict[str, Any]]:
+    """Up to MAX_STARTERS {question, plan} candidates, most interesting first.
+    focus_columns (a chosen domain) restricts the measures explored; the
+    grouping columns stay open so every domain can still be sliced."""
     picks = _pick_columns(df)
     period, cats, numerics = picks["period"], picks["cats"], picks["numerics"]
+    if focus_columns:
+        focus = {str(c) for c in focus_columns}
+        focused = [n for n in numerics if n in focus]
+        if focused:
+            numerics = focused
     out: list[dict[str, Any]] = []
 
     if cats and numerics:
@@ -80,12 +122,27 @@ def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]
                     {"op": "top_n", "n": min(5, n)},
                 ]},
             })
+        # Relationships first: how two measures move together across groups.
+        if len(numerics) > 1:
+            num2 = numerics[1]
+            out.append({
+                "question": f"How do {num} and {num2} move together across {cat}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [cat]},
+                    {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
+                    {"op": "aggregate", "column": num2, "fn": "sum", "alias": f"total_{num2}"},
+                ]},
+            })
+        # Diversity: the average view uses the SECOND grouping column when
+        # one exists, so the board is not one category's story on repeat.
+        avg_cat = cats[1] if len(cats) > 1 else cats[0]
+        avg_num = numerics[2] if len(numerics) > 2 else num
         out.append({
-            "question": f"What is the average {num} per {cat}?",
+            "question": f"What is the average {avg_num} per {avg_cat}?",
             "plan": {"source": source, "steps": [
-                {"op": "group_by", "columns": [cat]},
-                {"op": "aggregate", "column": num, "fn": "mean", "alias": f"avg_{num}"},
-                {"op": "sort", "column": f"avg_{num}", "dir": "desc"},
+                {"op": "group_by", "columns": [avg_cat]},
+                {"op": "aggregate", "column": avg_num, "fn": "mean", "alias": f"avg_{avg_num}"},
+                {"op": "sort", "column": f"avg_{avg_num}", "dir": "desc"},
             ]},
         })
 

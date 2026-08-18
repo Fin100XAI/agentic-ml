@@ -16,7 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api/client";
-import type { DataOverview, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck } from "../../types";
+import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
 import { QueryChartWithMap } from "../QueryChart";
@@ -30,6 +30,7 @@ const boardCache = new Map<string, ExploreResponse>();
 const inFlight = new Map<string, Promise<ExploreResponse>>();
 const overviewCache = new Map<string, DataOverview>();
 const overviewInFlight = new Map<string, Promise<DataOverview>>();
+const domainsCache = new Map<string, DomainsResponse>();
 
 const ROLE_LABEL: Record<string, string> = {
   numeric: "number",
@@ -62,7 +63,16 @@ export function AnalyticsScreen({
 }) {
   // Phrasing language (AI-only; heuristic fallback stays English, badged).
   const [lang, setLang] = useState(() => sessionStorage.getItem("board-lang") ?? "en");
-  const cacheKey = `${datasetId}|${lang}`;
+  // Focus: "" = general overview; otherwise a domain name from the scout.
+  const [focusDomain, setFocusDomain] = useState("");
+  const [domains, setDomains] = useState<DomainsResponse | null>(
+    domainsCache.get(datasetId) ?? null,
+  );
+  const cacheKey = `${datasetId}|${lang}|${focusDomain}`;
+  const focusColumns =
+    focusDomain && domains
+      ? domains.domains.find((d) => d.name === focusDomain)?.columns
+      : undefined;
   const cached = boardCache.get(cacheKey) ?? null;
   const [resp, setResp] = useState<ExploreResponse | null>(cached);
   const [busy, setBusy] = useState(cached === null);
@@ -122,7 +132,7 @@ export function AnalyticsScreen({
     try {
       let p = inFlight.get(cacheKey);
       if (!p) {
-        p = api.explore(datasetId, lang);
+        p = api.explore(datasetId, lang, focusColumns);
         inFlight.set(cacheKey, p);
       }
       const r = await p;
@@ -156,6 +166,14 @@ export function AnalyticsScreen({
       setResp(null);
       void explore();
     }
+    if (!domainsCache.has(datasetId)) {
+      api.getDomains(datasetId)
+        .then((d) => {
+          domainsCache.set(datasetId, d);
+          setDomains(d);
+        })
+        .catch(() => {});
+    }
     if (!overviewCache.has(datasetId)) {
       let p = overviewInFlight.get(datasetId);
       if (!p) {
@@ -170,7 +188,7 @@ export function AnalyticsScreen({
         .finally(() => overviewInFlight.delete(datasetId));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, lang]);
+  }, [datasetId, lang, focusDomain]);
 
   const downloadBoard = async () => {
     if (!resp) return;
@@ -302,6 +320,45 @@ export function AnalyticsScreen({
             </Button>
           </CardBody>
         </Card>
+      )}
+
+      {/* Domain focus: the scout groups a wide file into topics; the user
+          chooses where to dig, or stays with the general overview. */}
+      {domains && domains.domains.length >= 2 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+            Focus
+          </span>
+          <button
+            onClick={() => setFocusDomain("")}
+            className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              focusDomain === ""
+                ? "border-accent/40 bg-accent-soft text-accent"
+                : "border-edge bg-panel-2 text-ink-dim hover:text-accent"
+            }`}
+          >
+            General overview
+          </button>
+          {domains.domains.map((d) => (
+            <button
+              key={d.name}
+              onClick={() => setFocusDomain(d.name)}
+              title={`${d.why} (${d.columns.length} columns)`}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                focusDomain === d.name
+                  ? "border-accent/40 bg-accent-soft text-accent"
+                  : "border-edge bg-panel-2 text-ink-dim hover:text-accent"
+              }`}
+            >
+              {d.name}
+              {domains.suggested === d.name && (
+                <span className="ml-1 text-[9px] uppercase tracking-wide text-accent">
+                  · agent suggests
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       )}
 
       {/* Place Harmonizer: split spellings silently split totals - review
