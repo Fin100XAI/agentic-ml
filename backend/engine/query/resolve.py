@@ -36,21 +36,24 @@ def _build_index(actual_columns: list[str]) -> dict[str, str]:
     return {_normalize(str(c)): str(c) for c in actual_columns}
 
 
-def _resolve_one(name: str, index: dict[str, str], derived: set[str]) -> str:
-    if name in derived:  # a column this plan derives earlier
-        return name
+def _resolve_one(name: str, index: dict[str, str], derived: dict[str, str]) -> str:
     norm = _normalize(name)
+    if name in derived.values() or norm in derived:
+        # A column this plan derives earlier - matched by normalization too,
+        # so 'participation rate' finds a derived 'participation_rate'.
+        return derived.get(norm, name)
     if norm in index:
         return index[norm]
-    close = difflib.get_close_matches(norm, list(index), n=2, cutoff=0.6)
-    raise ColumnResolutionError(name, [index[c] for c in close])
+    close = difflib.get_close_matches(norm, list(index) + list(derived), n=2, cutoff=0.6)
+    resolved_close = [index.get(c) or derived.get(c) for c in close]
+    raise ColumnResolutionError(name, [c for c in resolved_close if c])
 
 
 def resolve_plan(plan: QueryPlan, actual_columns: list[str]) -> QueryPlan:
     """Return a copy of the plan with every column rewritten to the actual
     schema name. Raises ColumnResolutionError on the first unknown column."""
     index = _build_index(actual_columns)
-    derived: set[str] = set()
+    derived: dict[str, str] = {}  # normalized -> as-derived name
     resolved = plan.model_copy(deep=True)
     for s in resolved.steps:
         if isinstance(s, (FilterStep, TimeWindowStep, SortStep)):
@@ -58,11 +61,11 @@ def resolve_plan(plan: QueryPlan, actual_columns: list[str]) -> QueryPlan:
         elif isinstance(s, AggregateStep):
             s.column = _resolve_one(s.column, index, derived)
             if s.alias:
-                derived.add(s.alias)
+                derived[_normalize(s.alias)] = s.alias
         elif isinstance(s, DeriveStep):
             s.left = _resolve_one(s.left, index, derived)
             s.right = _resolve_one(s.right, index, derived)
-            derived.add(s.name)
+            derived[_normalize(s.name)] = s.name
         elif isinstance(s, GroupByStep):
             s.columns = [_resolve_one(c, index, derived) for c in s.columns]
         elif isinstance(s, PivotStep):
@@ -72,5 +75,5 @@ def resolve_plan(plan: QueryPlan, actual_columns: list[str]) -> QueryPlan:
         elif isinstance(s, DeltaVsPeriodStep):
             s.column = _resolve_one(s.column, index, derived)
             s.period_column = _resolve_one(s.period_column, index, derived)
-            derived.add(f"{s.column}__delta")
+            derived[_normalize(f"{s.column}__delta")] = f"{s.column}__delta"
     return resolved

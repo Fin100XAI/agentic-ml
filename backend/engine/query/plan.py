@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 FilterOperator = Literal[
     "==", "!=", ">", ">=", "<", "<=", "in", "not_in", "contains", "is_null", "not_null"
@@ -33,6 +33,12 @@ class TimeWindowStep(BaseModel):
     # ...or an absolute range (ISO dates or period strings, inclusive).
     start: str | None = None
     end: str | None = None
+
+    @model_validator(mode="after")
+    def _needs_a_window(self):  # an empty window silently keeps everything
+        if self.last_n is None and self.start is None and self.end is None:
+            raise ValueError("time_window needs last_n (n) or a start/end range")
+        return self
 
 
 class DeriveStep(BaseModel):

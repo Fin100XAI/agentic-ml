@@ -16,7 +16,9 @@ from .base import LLMProvider
 
 class ClaudeProvider(LLMProvider):
     def __init__(self, api_key: str, model: str) -> None:
-        self._client = anthropic.Anthropic(api_key=api_key)
+        # Explicit timeout: the SDK default (10 minutes) would let one hung
+        # request freeze an agent call; heuristic fallbacks exist for a reason.
+        self._client = anthropic.Anthropic(api_key=api_key, timeout=120.0, max_retries=2)
         self._model = model
 
     def _create(self, **kwargs: Any):
