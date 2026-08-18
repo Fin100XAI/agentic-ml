@@ -185,6 +185,20 @@ def _template_headline(table: list[dict], columns: list[str]) -> str:
     return f"{len(table)} row(s). First: {summary}."
 
 
+@router.get("/datasets/{dataset_id}/overview")
+def dataset_overview(dataset_id: str) -> dict:
+    """Data description for the analytics path: the same profiler the ML
+    path uses (roles, missingness, distributions, top values) - computed
+    in Python, no AI involved."""
+    from engine.profiler import profile_dataframe
+
+    ds = _gated_dataset(dataset_id)
+    prof = profile_dataframe(ds.df)
+    store.log_event("Profiler", "profile", dataset_id=ds.id, mode="fallback",
+                    payload={"context": "analytics_overview"})
+    return {"profile": prof, "filename": ds.filename}
+
+
 @router.post("/datasets/{dataset_id}/explore")
 def auto_explore(dataset_id: str) -> dict:
     """The exploring agents: starter questions asked AND answered before the

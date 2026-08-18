@@ -17,7 +17,7 @@ import { AskScreen } from "./components/screens/AskScreen";
 import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
-import { Badge, Button, Card, CardBody } from "./components/ui";
+import { Button, Card, CardBody } from "./components/ui";
 import { AssemblyModal } from "./components/AssemblyModal";
 import { ColumnReviewModal } from "./components/ColumnReviewModal";
 import { BriefingView } from "./components/screens/BriefingView";
@@ -33,6 +33,13 @@ const STEPS: { key: Screen; label: string }[] = [
   { key: "eda", label: "Explore" },
   { key: "configure", label: "Model" },
   { key: "results", label: "Results" },
+];
+
+// The analytics road has its own visible workflow, mirroring the ML stepper.
+const ANALYTICS_STEPS: { key: Screen; label: string }[] = [
+  { key: "upload", label: "Upload" },
+  { key: "analytics", label: "Findings" },
+  { key: "ask", label: "Ask" },
 ];
 
 const GUIDE: Record<Screen, string> = {
@@ -555,7 +562,11 @@ function App() {
     setScreen("upload");
   };
 
-  const stepIndex = STEPS.findIndex(
+  // Which workflow the stepper shows: the analytics road for its screens,
+  // the ML path everywhere else.
+  const onAnalyticsPath = screen === "analytics" || screen === "ask";
+  const navSteps = onAnalyticsPath ? ANALYTICS_STEPS : STEPS;
+  const stepIndex = navSteps.findIndex(
     (s) => s.key === (screen === "compare" || screen === "report" ? "results" : screen),
   );
 
@@ -623,7 +634,7 @@ function App() {
               nothing on narrow screens - it never fights the toolbars. */}
           {screen !== "home" && screen !== "projects" && screen !== "about" && screen !== "activity" && (
             <nav className="hidden shrink-0 items-center gap-1 lg:flex">
-              {STEPS.map((s, i) => (
+              {navSteps.map((s, i) => (
                 <div key={s.key} className="flex items-center gap-1">
                   {i > 0 && <div className="h-px w-3 bg-edge xl:w-5" />}
                   <div
@@ -650,73 +661,65 @@ function App() {
 
           {/* Right toolbar: labels collapse to icons below lg so nothing
               ever wraps or overlaps the brand and stepper. */}
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors lg:px-3 ${
-                screen === "about"
-                  ? "border-accent/40 bg-accent-soft/40 text-accent"
-                  : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
-              }`}
-              title="Guide: what this platform is, how it works, and why it can be trusted"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Guide</span>
-            </button>
-            <button
-              onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
-              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors lg:px-3 ${
-                screen === "activity"
-                  ? "border-accent/40 bg-accent-soft/40 text-accent"
-                  : "border-edge bg-panel-2 text-ink-dim hover:border-accent/40 hover:text-accent"
-              }`}
-              title="Activity log: every action in order"
-            >
-              <ScrollText className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Log</span>
-            </button>
-            {run && (run.agent_log?.length ?? 0) > 0 && (
+          {/* Right toolbar: ONE segmented icon group (Guide / Log / Agent
+              activity) + a status dot. Labels live in tooltips, so nothing
+              wraps or collides at any width. */}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center overflow-hidden rounded-full border border-edge bg-panel-2">
               <button
-                onClick={() => setLogOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-2.5 py-1 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent lg:px-3"
-                title="Agent activity for this analysis"
+                onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
+                className={`px-2.5 py-1.5 transition-colors ${
+                  screen === "about" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
+                }`}
+                title="Guide: what this platform is, how it works, and why it can be trusted"
               >
-                <Bot className="h-3.5 w-3.5" />
-                <span className="hidden xl:inline">Agent activity</span>
-                <span className="rounded-full bg-accent-soft px-1.5 text-[10px] font-semibold text-accent">
-                  {run.agent_log?.length}
-                </span>
+                <BookOpen className="h-3.5 w-3.5" />
               </button>
-            )}
-            {llmEnabled === null ? (
-              <span title="The backend is not responding">
-                <Badge tone="bad">
-                  <span className="hidden lg:inline">backend offline?</span>
-                  <span className="lg:hidden">offline</span>
-                </Badge>
+              <div className="h-4 w-px bg-edge" />
+              <button
+                onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
+                className={`px-2.5 py-1.5 transition-colors ${
+                  screen === "activity" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
+                }`}
+                title="Activity log: every action in order"
+              >
+                <ScrollText className="h-3.5 w-3.5" />
+              </button>
+              {run && (run.agent_log?.length ?? 0) > 0 && (
+                <>
+                  <div className="h-4 w-px bg-edge" />
+                  <button
+                    onClick={() => setLogOpen(true)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-ink-dim transition-colors hover:text-accent"
+                    title="Agent activity for this analysis"
+                  >
+                    <Bot className="h-3.5 w-3.5" />
+                    <span className="text-[10px] font-semibold tabular-nums">{run.agent_log?.length}</span>
+                  </button>
+                </>
+              )}
+            </div>
+            <span
+              className="flex cursor-default items-center gap-1.5"
+              title={
+                llmEnabled === null
+                  ? "The backend is not responding"
+                  : !llmEnabled
+                    ? "Heuristic mode - no API key configured; agents use rule-based fallbacks"
+                    : llmOk === false
+                      ? "Heuristic mode - AI unreachable; agents use rule-based fallbacks"
+                      : "AI provider reachable - agent outputs are AI-generated"
+              }
+            >
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  llmEnabled === null ? "bg-bad" : !llmEnabled || llmOk === false ? "bg-warn" : "bg-good"
+                }`}
+              />
+              <span className="hidden text-[11px] font-medium text-ink-dim xl:inline">
+                {llmEnabled === null ? "offline" : !llmEnabled || llmOk === false ? "heuristic" : "AI connected"}
               </span>
-            ) : !llmEnabled ? (
-              <span title="No API key configured - agents use rule-based fallbacks">
-                <Badge tone="warn">
-                  <span className="hidden lg:inline">heuristic mode (no API key)</span>
-                  <span className="lg:hidden">heuristic</span>
-                </Badge>
-              </span>
-            ) : llmOk === false ? (
-              <span title="AI unreachable - agents use rule-based fallbacks">
-                <Badge tone="warn">
-                  <span className="hidden lg:inline">heuristic mode (AI unreachable)</span>
-                  <span className="lg:hidden">heuristic</span>
-                </Badge>
-              </span>
-            ) : (
-              <span title="AI provider reachable">
-                <Badge tone="accent">
-                  <span className="hidden lg:inline">AI connected</span>
-                  <span className="lg:hidden">AI</span>
-                </Badge>
-              </span>
-            )}
+            </span>
           </div>
         </div>
 

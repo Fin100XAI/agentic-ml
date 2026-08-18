@@ -161,9 +161,14 @@ with which reasoning, in how many ms) and on the run's decision trail.
   readiness machinery as the ML path (period gaps, near-duplicate spellings,
   missingness) plus row counts at every step.
 - **Auto-exploration board** - on the analytics path, exploring agents
-  generate starter questions from the schema, run them through the same
-  executor, and present charted initial findings before you type anything.
-  One batched AI call phrases the headlines from computed numbers only.
+  generate starter questions from the schema (leaders AND laggards, trends,
+  splits, second measures), run them through the same executor, and present
+  charted initial findings before you type anything - skippable with one
+  click. One batched AI call phrases the headlines from computed numbers
+  only. A dataset KPI strip (rows, columns, missing data) and an expandable
+  "About this data" panel with per-column distributions sit on top, and the
+  analytics road has its own visible workflow stepper (Upload - Findings -
+  Ask), mirroring the ML path.
 - **Deterministic charts** - the chart type is chosen from the result shape
   by rules (KPI cards, bars, ranked horizontal bars, time lines, threshold
   reference lines), never by the AI; bars always start at zero.

@@ -304,6 +304,35 @@ export interface ExploreResponse {
   artifact_id: string | null;
 }
 
+export interface OverviewColumn {
+  name: string;
+  role: string;
+  dtype: string;
+  missing_count: number;
+  missing_pct: number;
+  unique_count: number;
+  sample_values: (string | number | null)[];
+  display_name?: string;
+  meaning?: string;
+  stats?: { min: number; max: number; mean: number; std: number | null; median: number };
+  histogram?: { counts: number[]; edges: number[] };
+  top_values?: { value: string | number; count: number }[];
+}
+
+export interface DataOverview {
+  profile: {
+    n_rows: number;
+    n_cols: number;
+    columns: OverviewColumn[];
+    missingness: {
+      total_missing_cells: number;
+      pct_missing: number;
+      columns_with_missing: string[];
+    };
+  };
+  filename: string;
+}
+
 export interface IntakeRule {
   id: string;
   project_id: string;

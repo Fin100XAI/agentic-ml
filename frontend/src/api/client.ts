@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -82,6 +82,9 @@ export const api = {
 
   explore: (datasetId: string) =>
     request<ExploreResponse>(`/datasets/${datasetId}/explore`, { method: "POST" }),
+
+  datasetOverview: (datasetId: string) =>
+    request<DataOverview>(`/datasets/${datasetId}/overview`),
 
   pathChoice: (datasetId: string, choice: "analytics" | "model") =>
     request<{ ok: boolean }>(`/datasets/${datasetId}/path-choice`, json({ choice })),

@@ -13,7 +13,7 @@ import pandas as pd
 
 from .readiness import _find_entity_key, _find_period_column
 
-MAX_STARTERS = 5
+MAX_STARTERS = 8
 MAX_CAT_LEVELS = 30
 
 
@@ -58,6 +58,17 @@ def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]
                 {"op": "top_n", "n": n},
             ]},
         })
+        # The lagging end matters as much as the leaders for policy work.
+        if int(df[cat].nunique(dropna=True)) > 3:
+            out.append({
+                "question": f"Which {cat} values have the lowest total {num}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [cat]},
+                    {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
+                    {"op": "sort", "column": f"total_{num}", "dir": "asc"},
+                    {"op": "top_n", "n": min(5, n)},
+                ]},
+            })
         out.append({
             "question": f"What is the average {num} per {cat}?",
             "plan": {"source": source, "steps": [
@@ -75,6 +86,31 @@ def starter_questions(df: pd.DataFrame, source: str = "") -> list[dict[str, Any]
                 {"op": "group_by", "columns": [period]},
                 {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
                 {"op": "sort", "column": period, "dir": "asc"},
+            ]},
+        })
+
+    # A second lens: how the metric splits across the OTHER grouping column.
+    if len(cats) > 1 and numerics:
+        cat2, num = cats[1], numerics[0]
+        out.append({
+            "question": f"How does total {num} split across {cat2}?",
+            "plan": {"source": source, "steps": [
+                {"op": "group_by", "columns": [cat2]},
+                {"op": "aggregate", "column": num, "fn": "sum", "alias": f"total_{num}"},
+                {"op": "sort", "column": f"total_{num}", "dir": "desc"},
+            ]},
+        })
+
+    # A second measure, when the data carries one.
+    if cats and len(numerics) > 1:
+        cat, num2 = cats[0], numerics[1]
+        out.append({
+            "question": f"Which {cat} values have the highest total {num2}?",
+            "plan": {"source": source, "steps": [
+                {"op": "group_by", "columns": [cat]},
+                {"op": "aggregate", "column": num2, "fn": "sum", "alias": f"total_{num2}"},
+                {"op": "sort", "column": f"total_{num2}", "dir": "desc"},
+                {"op": "top_n", "n": min(10, int(df[cat].nunique(dropna=True)))},
             ]},
         })
 

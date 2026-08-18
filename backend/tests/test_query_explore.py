@@ -66,12 +66,21 @@ ds_id = up["dataset_id"]
 def test_starters_generate_and_execute():
     df = _df()
     cands = starter_questions(df, "a1")
-    assert 1 <= len(cands) <= 5
+    assert 1 <= len(cands) <= 8
     for cand in cands:
         plan = resolve_plan(QueryPlan.model_validate(cand["plan"]),
                             [str(c) for c in df.columns])
         result = execute_plan(plan, df)
         assert result["table"], cand["question"]
+
+
+def test_starters_cover_both_ends_and_second_measure():
+    qs = [c["question"] for c in starter_questions(_df(), "a1")]
+    assert any("highest total" in q for q in qs)
+    assert any("lowest total" in q for q in qs)  # lagging groups matter
+    # two numerics in the fixture -> a second-measure ranking appears
+    joined = " ".join(qs)
+    assert "enrollment" in joined and "budget" in joined
 
 
 def test_starters_lead_with_categorical_ranking():
@@ -217,6 +226,18 @@ def test_board_export_markdown():
     assert r.headers["content-type"].startswith("text/markdown")
     assert "# Initial findings" in r.text
     assert "| district |" in r.text
+
+
+def test_overview_endpoint():
+    r = client.get(f"/api/datasets/{ds_id}/overview")
+    assert r.status_code == 200, r.text
+    prof = r.json()["profile"]
+    assert prof["n_rows"] == 60 and prof["n_cols"] == 5
+    cols = {c["name"]: c for c in prof["columns"]}
+    assert "histogram" in cols["enrollment"]
+    assert "top_values" in cols["district"]
+    ev = client.get(f"/api/activity?project_id={pid}&limit=100").json()["events"]
+    assert any(e["event_type"] == "profile" for e in ev)
 
 
 def test_path_choice_logged():
