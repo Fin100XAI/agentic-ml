@@ -41,6 +41,32 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 8. Keep SQLite schema portable to Postgres (no SQLite-only features).
 9. Windows-friendly: no packages needing a C++ toolchain.
 
+## Query path rules (apply to ALL query-path tasks)
+
+10. The Query Path is additive. Existing ML-path modules (catalog/, validate,
+    suggest, autotune, scoring, drift, slices, scenario, multiforecast,
+    calibration) must NOT be modified. Permitted touch points, marked with
+    # QUERY-PATH EXTENSION comments, are exactly:
+    (a) the direction-stage alignment check (route classification),
+    (b) project dashboard + intake inbox (new panels/rule kinds),
+    (c) shared additive infrastructure: activity_log event types, artifact
+    transform_types, health-screen sections, brief/report renderers, shared
+    chart components.
+11. The LLM NEVER writes executable code for queries. It emits a structured
+    QueryPlan (Pydantic schema); a deterministic interpreter executes it.
+    No eval, no generated pandas.
+12. Every plan is shown in plain language before execution ("interpreted
+    as..."); execution without a visible interpretation is forbidden.
+13. Query answers always carry data caveats (missingness, excluded rows,
+    coverage, readiness findings) sourced from the same health/profile
+    machinery as the ML path.
+14. Charts are chosen deterministically from result shape, never by the LLM.
+    Chart grammar rules (zero-based bar axes, no dual axes, no 3D,
+    colorblind-safe palette, red/amber reserved for judgment states) are
+    binding on every chart in the system.
+15. Run the FULL existing test suite after every query-path task; any
+    ML-path test failure means rule 10 was violated.
+
 ## Commands
 
 ```powershell
