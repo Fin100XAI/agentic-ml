@@ -30,9 +30,9 @@ import { Badge, Card, CardBody } from "../ui";
 /* ---------- content ---------- */
 
 const STATS = [
-  { value: "4", label: "kinds of questions" },
+  { value: "2", label: "ways to work" },
   { value: "12", label: "models on tap" },
-  { value: "9", label: "AI agents" },
+  { value: "14", label: "AI agents" },
   { value: "100%", label: "of actions logged" },
   { value: "0", label: "numbers invented by AI" },
 ];
@@ -100,12 +100,17 @@ const LIFECYCLE = [
 
 const AGENTS = [
   ["EDA agent", "reads and explains your dataset"],
+  ["Explorer agents", "ask and answer the first questions before you type anything"],
+  ["Analyst agent", "explains what each finding means, in your language"],
+  ["Anomaly scout", "flags values that sit far outside the rest"],
+  ["Place harmonizer", "catches the same place spelled differently"],
+  ["Query planner", "turns plain-language questions into typed, visible plans"],
   ["Recommendation agent", "picks the method and checks your question fits the data"],
   ["Remediation agent", "phrases the data-fix proposals"],
   ["Feature agent", "suggests derived measures worth adding"],
   ["Interpretation agent", "judges how well the model did"],
   ["Brief agent", "writes the decision brief to the evidence level"],
-  ["Critic agent", "reviews the brief against the computed numbers"],
+  ["Critic agent", "checks every claim in every brief against the computed numbers"],
   ["Ask-the-data agent", "answers follow-ups from the run's own facts"],
   ["Compare summarizer", "explains the model leaderboard"],
 ];
@@ -142,10 +147,11 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-ink-dim">
             The Agentic ML Workbench turns departmental data - scheme enrollments, revenue
-            collections, service requests, demand histories - into decision briefs an officer
-            can act on and defend. AI agents do the analytical legwork, machine learning
-            computes every number, the officer approves every step, and everything lands on
-            an audit trail.
+            collections, service requests, demand histories - into answers an officer can act
+            on and defend. Upload a file and choose your direction: get charted answers to
+            plain-language questions in seconds, or train a model for predictions. Either way,
+            AI agents do the legwork, code computes every number, the officer approves every
+            step, and everything lands on an audit trail.
           </p>
         </div>
         <div className="grid grid-cols-2 divide-x divide-edge border-t border-edge bg-panel-2/60 sm:grid-cols-5">
@@ -176,9 +182,58 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
         </div>
       </section>
 
+      {/* The fork: two ways to work */}
+      <section>
+        <SectionLabel sub="Every uploaded file gets the same protections - approved column names, the privacy screen, spell-check on place names - and then the officer chooses the direction. Switching later is one click; both directions share the same protected copy of the data.">
+          Two ways to work
+        </SectionLabel>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-accent/40">
+            <CardBody>
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-lg bg-accent-soft p-2">
+                  <Sparkles className="h-4 w-4 text-accent" />
+                </span>
+                <h4 className="text-sm font-semibold">Understand & ask</h4>
+                <Badge tone="accent">answers in seconds</Badge>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+                Exploring agents scan the file and answer the first questions themselves -
+                leaders and laggards, trends and year-on-year changes, splits and totals -
+                as charted findings with plain-language meaning, in English, Hindi or
+                Marathi. Then the officer takes over: every question becomes a visible
+                step-by-step plan approved before it runs, follow-ups show exactly what
+                changed, district results offer a map view, and selected answers compile
+                into a critic-checked brief. Saved questions become dashboard indicators
+                that refresh when next month's file arrives.
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-lg bg-accent-soft p-2">
+                  <Landmark className="h-4 w-4 text-accent" />
+                </span>
+                <h4 className="text-sm font-semibold">Train a model</h4>
+                <Badge tone="neutral">predictions with cover</Badge>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+                For questions about what WILL happen - who is at risk, how much to expect,
+                where demand is heading - the full guided path below: health checks and
+                fixes, a recommended method with honest settings, training with stability
+                and probability checks on unseen data, and a decision brief with a trust
+                rating a critic has already reviewed. Trained models become managed,
+                versioned assets that score next month's file.
+              </p>
+            </CardBody>
+          </Card>
+        </div>
+      </section>
+
       {/* The working rhythm: timeline with actor lanes */}
       <section>
-        <SectionLabel sub="The division of labor is the design: AI proposes, machines compute, and every consequential step waits for a human. Follow one file from upload to decision.">
+        <SectionLabel sub="The division of labor is the design: AI proposes, machines compute, and every consequential step waits for a human. Follow one file down the model path, from upload to decision - the ask path follows the same rhythm with interpret-approve-run on every question.">
           How a decision gets made
         </SectionLabel>
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -448,7 +503,8 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <div className="mt-4 flex flex-wrap justify-center gap-1.5 border-t border-edge pt-3.5">
             {[
               "SQLite (Postgres-portable)", "content-addressed artifact store", "model plugins via @register",
-              "swappable LLM provider + deterministic fallbacks", "fold-safe validation pipelines",
+              "swappable LLM provider + deterministic fallbacks", "typed query plans - the AI never writes code",
+              "deterministic chart grammar", "bundled offline India boundary maps", "fold-safe validation pipelines",
               "out-of-fold threshold selection", "fixed seed 42", "Windows-friendly (no C++ toolchain)",
             ].map((chip) => (
               <span key={chip} className="rounded-full bg-slate-500/8 px-2.5 py-1 text-[10px] font-medium text-ink-dim ring-1 ring-inset ring-slate-500/15">

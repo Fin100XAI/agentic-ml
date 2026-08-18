@@ -1,13 +1,24 @@
 # Agentic ML Workbench
 
-An industry-agnostic, LLM-agent-driven analytics platform. Upload a spreadsheet and
-get a decision brief: what drives outcomes, what groups exist, where things are
-heading - with recommended actions and an honest read on how much to trust them.
-AI agents do the analysis; a human approves every step, and every decision is
-recorded on a visible trail.
+An LLM-agent-driven decision-support platform built for government. Upload a
+spreadsheet and choose your direction:
+
+- **Understand & ask** - exploring agents answer the first questions themselves
+  (leaders and laggards, trends, year-on-year changes, splits) as charted and
+  mapped findings with plain-language meaning; then ask anything in plain
+  language, follow up conversationally, and compile selected answers into a
+  critic-checked decision brief. Saved questions become dashboard indicators
+  that refresh when next month's file arrives.
+- **Train a model** - the full guided ML path: health checks, a recommended
+  method, training with honesty checks on unseen data, and a decision brief
+  with a trust rating, feeding a versioned model registry with scoring, drift
+  monitoring and what-if scenarios.
+
+AI agents do the legwork and phrasing; code computes every number; a human
+approves every step; and everything lands on an audit trail fit for review.
 
 Built for policy-making stakeholders: the goal is not model evaluation, it is
-giving decision makers enough evidence to act on.
+giving decision makers enough evidence to act on - and defend.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
@@ -173,17 +184,47 @@ with which reasoning, in how many ms) and on the run's decision trail.
   suggested next question - reasoning ONLY over shares, ratios and trend
   changes precomputed in Python (a templated fallback uses the same
   signals when no AI is available).
+- **Follow-up conversation** - each follow-up modifies the prior plan, and
+  the interpretation card shows EXACTLY what changed (a silently dropped
+  filter renders in amber - the classic wrong-answer risk). Prediction
+  follow-ups get a friendly hand-off into the model path.
+- **Place Harmonizer** - four deterministic layers catch the same place
+  spelled differently (case, official renames like Bangalore->Bengaluru,
+  close spellings, learned project aliases). Approved merges apply as
+  derived artifacts and are remembered for future files - fixing split
+  group-by totals AND map matching.
+- **Query decision brief** - tick answers in the Ask thread and compile a
+  brief: every plan re-executes at build time, a deterministic critic
+  verifies every number in every claim (unverifiable phrasing is replaced
+  by a computed restatement and flagged), a data-quality-only trust panel
+  states explicitly that no model-stability tier applies. Stored, read-only
+  shareable route, markdown + PDF from one source.
+- **Named indicators** - save any answer as an indicator keyed by a schema
+  fingerprint (not a file). The project dashboard shows them as KPI cards
+  with freshness dates, and "Refresh all against latest data" re-runs every
+  indicator against the newest compatible file - one click, fully logged.
 - **Deterministic charts** - the chart type is chosen from the result shape
-  by rules (KPI cards, bars, ranked horizontal bars, time lines, threshold
-  reference lines), never by the AI; bars always start at zero.
+  by rules (KPI cards, bars, ranked horizontal bars with value callouts and
+  an average benchmark line, time lines with a descriptive least-squares
+  trend, diverging change bars, scatter, stacked bars, small multiples,
+  threshold reference lines), never by the AI; bars always start at zero.
+  Small-group averages carry an explicit compare-with-care caveat, monthly
+  data spanning a year+ gets same-month-last-year comparisons, and ranked
+  findings offer one-click "per <other measure>" reframes.
+- **Local-language phrasing** - board headlines, meanings and the takeaway
+  in English, Hindi or Marathi (AI-phrased; numbers stay as computed; the
+  heuristic fallback stays English, honestly badged).
 - **Answer downloads** - any answer exports as CSV, the findings board as a
   markdown briefing; every export is a logged event.
 - **Map view** - when a ranking's keys match India's states or districts
   (>= 70%, via the same alias-aware normalization as the Place Harmonizer),
-  a choropleth is offered as a toggle beside the chart. Unmatched areas
-  render grey and are counted honestly. Boundary files are bundled locally
-  (no network fetch): simplified from the Datameet community maps
-  (github.com/datameet/maps, CC-BY 4.0). Note: matching is by name, so
+  a choropleth is offered as a toggle beside the chart. The coloring mode is
+  chosen deterministically: 5 quantile classes for levels (robust to one
+  giant district), zero-centered blue/orange for changes, amber for
+  below-threshold "flagged" selections - each with a matching legend.
+  Unmatched areas render grey and are counted honestly. Boundary files are
+  bundled locally (no network fetch): simplified from the Datameet community
+  maps (github.com/datameet/maps, CC-BY 4.0). Note: matching is by name, so
   same-named districts in different states (e.g. Aurangabad in Maharashtra
   and Bihar) can both color until state-qualified matching lands.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback

@@ -23,36 +23,43 @@ import { Badge, Button, Card, CardBody } from "../ui";
 
 const AGENTS = [
   {
-    name: "EDA Agent",
+    name: "Exploring Agents",
     icon: Search,
-    does: "Reads your data the moment you upload it: column types, missing values, correlations, likely prediction targets.",
-    gives: "A plain-language briefing on what your dataset contains.",
+    does: "Scan every upload, catch place names spelled differently, and answer the first questions themselves - leaders and laggards, trends, year-on-year changes - as charted findings with plain-language meaning.",
+    gives: "A findings board before you type a single question.",
   },
   {
-    name: "Recommendation Agent",
+    name: "Query Planner + Analyst",
     icon: Bot,
-    does: "Matches your goal + data shape to the right kind of analysis, ranks the models, and suggests settings computed from your actual data.",
-    gives: "A recommended model with settings you approve or adjust.",
+    does: "Turns your plain-language question into a visible step-by-step plan you approve before it runs; the analyst explains what each answer means - in English, Hindi or Marathi - and a critic checks every claim in every brief.",
+    gives: "Charted, mapped, defensible answers in seconds.",
   },
   {
-    name: "Interpretation Agent",
+    name: "Modeling Agents",
     icon: BarChart3,
-    does: "Reads the trained model's scores and charts, judges how well it did, and tells you what to try next.",
-    gives: "Results explained in plain language, not jargon.",
+    does: "Recommend the right method for prediction questions, flag leakage and data risks, train with honesty checks on unseen data, and judge the results.",
+    gives: "A decision brief with a trust rating you can act on.",
   },
 ];
 
 const PIPELINE = [
-  { icon: FileUp, label: "Upload CSV" },
-  { icon: Search, label: "Agent explores it" },
-  { icon: Settings2, label: "You approve the approach" },
-  { icon: Play, label: "Evidence engines run" },
-  { icon: BarChart3, label: "Decision brief + actions" },
+  { icon: FileUp, label: "Upload the file" },
+  { icon: Search, label: "Agents screen + explore" },
+  { icon: Settings2, label: "You choose the direction" },
+  { icon: Play, label: "Ask directly, or train a model" },
+  { icon: BarChart3, label: "Charted answers + briefs" },
 ];
 
-// The four kinds of analysis, framed as the questions an administrator
-// actually asks - no algorithm names on the landing page.
+// Framed as the questions an administrator actually asks - no algorithm
+// names on the landing page. The first two are answered in seconds on the
+// ask path; the rest go down the model path.
 const QUESTIONS = [
+  {
+    icon: Search,
+    title: "What does the data say?",
+    kind: "Answered in seconds",
+    example: "Top and bottom districts, totals and averages, month-by-month movement, shares per scheme - charted, mapped, and explained the moment you upload.",
+  },
   {
     icon: Users,
     title: "Who needs attention?",
@@ -66,16 +73,10 @@ const QUESTIONS = [
     example: "Estimate property valuations, expected collections per ward, or likely claim amounts.",
   },
   {
-    icon: GitCompareArrows,
-    title: "What groups exist?",
-    kind: "Discover segments",
-    example: "Segment citizens, villages or facilities into natural groups so schemes can be targeted, not blanket.",
-  },
-  {
     icon: LineChart,
     title: "Where is it heading?",
     kind: "Project the future",
-    example: "Project revenue collections, service demand or supply needs - per district, with honest uncertainty.",
+    example: "Project revenue collections, service demand or supply needs - per district, with honest uncertainty. Natural groups in the data surface along the way.",
   },
 ];
 
@@ -115,11 +116,12 @@ export function HomeScreen({
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
           Decision support built for government. Upload departmental data - scheme
           enrollments, revenue collections, service requests, demand histories - and
-          receive a brief an officer can act on and defend: what drives outcomes,
-          which groups need attention, where things are heading. Personal data is
-          screened before any analysis, every number is computed - never guessed -
-          nothing runs without your approval, and every action lands on an audit
-          trail fit for review.
+          choose your direction: ask questions in plain language and get charted,
+          mapped answers in seconds, or train a model for predictions with a decision
+          brief an officer can act on and defend. Personal data is screened before
+          any analysis, every number is computed - never guessed - nothing runs
+          without your approval, and every action lands on an audit trail fit for
+          review.
         </p>
         <Button className="mt-6 px-6" onClick={onStart}>
           Start a new analysis <ArrowRight className="h-4 w-4" />
@@ -164,8 +166,9 @@ export function HomeScreen({
           ))}
         </div>
         <p className="mt-2.5 text-[11px] text-ink-dim">
-          Bring the question - the recommendation agent picks the right analysis method from
-          your data and explains its choice. You approve before anything runs.
+          Bring the question - or none at all. Lookups are answered directly from the data;
+          prediction questions get the right method recommended and explained. Either way,
+          you approve before anything runs.
         </p>
       </section>
 
