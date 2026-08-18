@@ -162,7 +162,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       <Reveal>
         <section>
           <SectionLabel>Why a government can trust it</SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {PILLARS.map((p) => (
               <Card key={p.title} className="lift hover:border-accent/40">
                 <CardBody>
@@ -184,7 +184,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <SectionLabel sub="Every uploaded file gets the same protections - approved column names, the privacy screen, spell-check on place names - and then the officer chooses the direction. Switching later is one click; both directions share the same protected copy of the data.">
             Two ways to work
           </SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-2">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card className="lift border-accent/40">
               <CardBody>
                 <div className="flex items-center gap-2.5">
@@ -317,7 +317,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       <Reveal>
         <section>
           <SectionLabel>The questions it can answer</SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-2">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {USE_CASES.map((u) => (
               <Card key={u.title} className="lift hover:border-accent/40">
                 <CardBody>
@@ -344,7 +344,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <SectionLabel sub="The output is not a dashboard to interpret - it is a brief to act on, with its confidence stated up front.">
             What you receive
           </SectionLabel>
-          <div className="grid gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <div className="lg:col-span-3">
               {/* stylized decision brief */}
               <div className="rounded-2xl border border-edge bg-panel p-6 shadow-sm">
@@ -417,7 +417,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <SectionLabel sub="The first analysis is the beginning, not the end - trained models become managed assets.">
             After the first analysis
           </SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {LIFECYCLE.map((l) => (
               <Card key={l.title} className="lift hover:border-accent/40">
                 <CardBody>
@@ -435,7 +435,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
 
       {/* Agents + honesty */}
       <Reveal>
-        <section data-cascade className="grid gap-4 lg:grid-cols-2">
+        <section data-cascade className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Card>
             <CardBody>
               <SectionLabel>The AI team</SectionLabel>

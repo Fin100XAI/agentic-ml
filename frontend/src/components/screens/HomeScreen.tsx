@@ -174,7 +174,7 @@ export function HomeScreen({
       <Reveal>
         <section>
           <SectionLabel>The questions you can answer</SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-2">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {QUESTIONS.map((q) => (
               <Card key={q.title} className="lift hover:border-accent/50">
                 <CardBody>
@@ -204,7 +204,7 @@ export function HomeScreen({
       <Reveal>
         <section>
           <SectionLabel>Meet your agents</SectionLabel>
-          <div data-cascade className="grid gap-4 md:grid-cols-3">
+          <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {AGENTS.map((a) => (
               <Card key={a.name} className="lift hover:border-accent/50">
                 <CardBody>

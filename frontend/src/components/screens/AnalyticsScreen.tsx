@@ -357,7 +357,7 @@ export function AnalyticsScreen({
           <Compass className="h-5 w-5 text-accent" /> Initial findings
           <span className="hidden text-sm font-normal text-ink-dim sm:inline">· {filename}</span>
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <select
             value={lang}
             onChange={(e) => {
@@ -437,7 +437,7 @@ export function AnalyticsScreen({
             subtitle="Computed directly from the file - types, gaps and distributions. No AI involved."
           />
           <CardBody>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {prof.columns.map((c) => (
                 <ColumnCard key={c.name} col={c} />
               ))}
@@ -725,9 +725,11 @@ export function AnalyticsScreen({
         </Card>
       )}
 
-      {/* Findings grid: wide charts span the full row */}
+      {/* Findings grid: wide charts span the full row. grid-cols-1 at base
+          gives minmax(0,1fr) - without it the map svg's intrinsic width
+          blows the implicit column past small screens. */}
       {!busy && resp && resp.findings.length > 0 && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {resp.findings.map((f, i) => (
             <div
               key={i}

@@ -390,7 +390,7 @@ export function EdaScreen({
   const visibleCharts = showAllCharts ? chartCols : chartCols.slice(0, 6);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       {/* Main column */}
       <div className="space-y-6 lg:col-span-2">
         {/* Data health - the human's early-warning panel */}
@@ -442,7 +442,7 @@ export function EdaScreen({
               }
               subtitle="Pick one to set the direction - or write your own on the right"
             />
-            <CardBody className="grid gap-3 sm:grid-cols-1">
+            <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-1">
               {eda.problem_statements!.map((p, i) => {
                 const info = USE_CASE_INFO[p.use_case];
                 return (
@@ -500,7 +500,7 @@ export function EdaScreen({
               </span>
             }
           />
-          <CardBody className="grid gap-3 sm:grid-cols-3">
+          <CardBody className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {profile.suggested_use_cases.map((uc) => {
               const info = USE_CASE_INFO[uc];
               if (!info) return null;

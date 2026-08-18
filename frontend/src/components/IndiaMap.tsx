@@ -113,9 +113,24 @@ export function IndiaMap({
     const sx = W / (maxX - minX);
     const sy = H / (maxY - minY);
     const s = Math.min(sx, sy);
-    const px = (x: number) => (x - minX) * s;
-    const py = (y: number) => H - (y - minY) * s;
-    const paths = features.map((f) => {
+    // Center the content in the frame instead of anchoring left/bottom.
+    const xOff = (W - (maxX - minX) * s) / 2;
+    const yOff = (H - (maxY - minY) * s) / 2;
+    const px = (x: number) => xOff + (x - minX) * s;
+    const py = (y: number) => H - yOff - (y - minY) * s;
+    // When zoomed to the matched areas, features entirely outside the frame
+    // are skipped - drawing them only litters the edges with sliced shapes
+    // (and their hover targets). Features straddling the edge stay: a framed
+    // map crops its neighbors, that is normal cartography.
+    const inFrame = (f: GeoFeature): boolean => {
+      for (const poly of f.geometry.coordinates) {
+        for (const [x, y] of poly[0]) {
+          if (x >= minX && x <= maxX && y >= minY && y <= maxY) return true;
+        }
+      }
+      return false;
+    };
+    const paths = features.filter(inFrame).map((f) => {
       let d = "";
       for (const poly of f.geometry.coordinates) {
         for (const ring of poly) {
@@ -126,7 +141,9 @@ export function IndiaMap({
       }
       return { name: f.properties.name, d };
     });
-    return { W, H, paths };
+    const zoomed = colored.length > 0 && colored.length < features.length &&
+      paths.length < features.length;
+    return { W, H, paths, zoomed };
   }, [features, valueByBoundary]);
 
   if (!view) {
@@ -152,29 +169,38 @@ export function IndiaMap({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${view.W} ${view.H}`} className="w-full" role="img"
-        aria-label={`Map of ${metricLabel} by area`}>
-        {view.paths.map((p) => {
-          const v = valueByBoundary[p.name];
-          const isColored = typeof v === "number";
-          return (
-            <path
-              key={p.name}
-              d={p.d}
-              fill={isColored ? fillFor(v) : "#e2e8f0"}
-              stroke="#ffffff"
-              strokeWidth={0.6}
-              opacity={hover && hover !== p.name ? 0.55 : 1}
-              onMouseEnter={() => setHover(p.name)}
-              onMouseLeave={() => setHover(null)}
-            >
-              <title>
-                {p.name}{isColored ? `: ${v.toLocaleString()}` : " - no data in this result"}
-              </title>
-            </path>
-          );
-        })}
-      </svg>
+      {/* Framed window: the crop at the edges reads as a map frame, not a
+          rendering defect. */}
+      <div className="overflow-hidden rounded-xl border border-edge bg-panel-2/60">
+        <svg viewBox={`0 0 ${view.W} ${view.H}`} className="block w-full" role="img"
+          aria-label={`Map of ${metricLabel} by area`}>
+          {view.paths.map((p) => {
+            const v = valueByBoundary[p.name];
+            const isColored = typeof v === "number";
+            return (
+              <path
+                key={p.name}
+                d={p.d}
+                fill={isColored ? fillFor(v) : "#e7e3da"}
+                stroke="#ffffff"
+                strokeWidth={0.6}
+                opacity={hover && hover !== p.name ? 0.55 : 1}
+                onMouseEnter={() => setHover(p.name)}
+                onMouseLeave={() => setHover(null)}
+              >
+                <title>
+                  {p.name}{isColored ? `: ${v.toLocaleString()}` : " - no data in this result"}
+                </title>
+              </path>
+            );
+          })}
+        </svg>
+      </div>
+      {view.zoomed && (
+        <p className="mt-1 text-[10px] text-ink-dim">
+          Framed to the areas in this result - the rest of the country is outside the window.
+        </p>
+      )}
       {/* Legend: always shown, matched to the coloring mode */}
       {mode === "judgment" ? (
         <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">

@@ -101,7 +101,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
       {/* Segments */}
       {insights?.segments && insights.segments.length > 0 && (
         <Section title="Segment profiles">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {insights.segments.map((s) => (
               <div key={s.cluster} className="rounded-2xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
                 <div className="flex items-center justify-between">
@@ -155,7 +155,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
 
       {/* Actions + trust */}
       {brief && (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Section title={run.insights?.trust_tier === "weak" ? "Hypotheses to verify" : "Recommended actions"}>
             {run.insights?.trust_tier === "weak" && (
               <p className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-2.5 text-xs leading-relaxed">

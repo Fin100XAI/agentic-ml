@@ -16,6 +16,10 @@ from engine.orchestrator import Orchestrator, Run
 
 current_run_id: ContextVar[str | None] = ContextVar("current_run_id", default=None)
 current_dataset_id: ContextVar[str | None] = ContextVar("current_dataset_id", default=None)
+# Which agent is speaking: set before provider calls so the token-bearing
+# agent_call rows in the activity log carry a recognizable name instead of
+# the anonymous "llm-provider".
+current_agent: ContextVar[str | None] = ContextVar("current_agent", default=None)
 
 
 def set_run_context(run: Run) -> None:
@@ -25,7 +29,7 @@ def set_run_context(run: Run) -> None:
 
 def _on_llm_call(info: dict[str, Any]) -> None:
     store.log_event(
-        "llm-provider", "agent_call",
+        current_agent.get() or "llm-provider", "agent_call",
         run_id=current_run_id.get(),
         dataset_id=current_dataset_id.get(),
         provider=info.get("provider"), model=info.get("model"),

@@ -65,7 +65,7 @@ export function RunDiffModal({
             {result && (
               <div className="mt-4 space-y-4">
                 {/* Side-by-side header */}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(["a", "b"] as const).map((side) => {
                     const r = result.diff[side];
                     return (

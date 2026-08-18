@@ -296,7 +296,7 @@ export function ConfigureScreen({
 
       {/* Three paths - what happens if you click each */}
       {!busy && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <PathCard
             icon={Play}
             title="Run the model"
@@ -452,7 +452,7 @@ export function ConfigureScreen({
             }
           />
           <CardBody>
-            <div className="grid gap-2.5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
               {featureSuggestions.map((f) => {
                 const on = featureIds.has(f.id);
                 return (
@@ -491,10 +491,10 @@ export function ConfigureScreen({
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Model cards */}
         <div className="space-y-4 lg:col-span-2">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {ordered.map((m, idx) => {
               const ranked = recommendation.ranked_models.find((r) => r.key === m.key);
               const active = m.key === selected.key;

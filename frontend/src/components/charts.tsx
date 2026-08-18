@@ -534,7 +534,7 @@ export function ClassDistributionChart({
 export function ResultCharts({ result }: { result: RunResult }) {
   const a = result.artifacts;
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       {a.confusion_matrix && (
         <ChartPanel
           title="Right vs wrong predictions"

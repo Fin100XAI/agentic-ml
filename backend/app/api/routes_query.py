@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.store import store
-from app.telemetry import instrumented_provider
+from app.telemetry import current_agent, instrumented_provider
 from engine.agents.query_planner import run_query_planner
 from engine.query.describe import describe_plan
 from engine.query.diff import diff_plans
@@ -83,6 +83,7 @@ def _context_for(ds) -> dict[str, Any]:
 def plan_question(dataset_id: str, req: PlanRequest) -> dict:
     ds = _gated_dataset(dataset_id)
     provider = instrumented_provider()
+    current_agent.set("Query planner")
     result = run_query_planner(provider, req.question, _context_for(ds), req.prior_plan)
     # Rule 12: every candidate ships with its exact interpretation.
     for cand in result["plans"]:
@@ -182,6 +183,7 @@ def _headline(question: str, plan: QueryPlan, result: dict[str, Any]) -> tuple[s
     provider = instrumented_provider()
     if provider is None or not table:
         return fallback, "heuristic"
+    current_agent.set("Analyst agent")
     try:
         import json as _json
 
@@ -295,6 +297,7 @@ def dataset_domains(dataset_id: str) -> dict:
     generated_by = "heuristic"
     provider = instrumented_provider()
     if provider is not None and len(columns) >= 8:
+        current_agent.set("Domain scout")
         try:
             import json as _json
 
@@ -440,6 +443,7 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
     provider = instrumented_provider()
     if provider is None or ds.df.shape[1] < 6:
         return None
+    current_agent.set("Question scout")
     try:
         import json as _json
 
@@ -525,6 +529,7 @@ def _batch_narrative(findings: list[dict[str, Any]], lang: str = "en") -> dict[s
     provider = instrumented_provider()
     if provider is None or not findings:
         return fallback
+    current_agent.set("Analyst agent")
     try:
         import json as _json
 

@@ -467,7 +467,7 @@ export function InsightsScreen({
           </Card>
 
           {/* Headline chart + findings, side by side */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">Key findings</h3>
               {insights.findings.map((f, i) => (
@@ -527,7 +527,7 @@ export function InsightsScreen({
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
                 Other drivers of the outcome
               </h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {insights.drivers.slice(1).map((d) => (
                   <DriverChart key={d.feature} driver={d} />
                 ))}
@@ -541,7 +541,7 @@ export function InsightsScreen({
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-accent">
                 <Users className="h-4 w-4" /> Segment profiles
               </h3>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {insights.segments.map((s) => (
                   <SegmentCard key={s.cluster} segment={s} />
                 ))}
@@ -550,7 +550,7 @@ export function InsightsScreen({
           )}
 
           {/* Actions + trust - weak evidence reframes actions as hypotheses */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <Card className={insights.trust_tier === "weak" ? "border-warn/40" : "border-good/30"}>
               <CardHeader
                 title={
