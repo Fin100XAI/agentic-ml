@@ -323,6 +323,84 @@ def test_synthesis_fallback_mentions_extremes():
     assert "Nagpur" in syn and "Pune" in syn and "+50%" in syn
 
 
+# ---------- P2.1: full grammar mappings + completeness ----------
+
+VALID_KINDS = {"kpi", "bar", "hbar", "line", "dbar", "scatter", "sbar",
+               "multiples", "table"}
+
+
+def test_chart_two_metrics_per_key_is_scatter():
+    df = _df()
+    result, plan = _run_plan(df, {"source": "a1", "steps": [
+        {"op": "group_by", "columns": ["district"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "total_enr"},
+        {"op": "aggregate", "column": "budget", "fn": "sum", "alias": "total_bud"},
+    ]})
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "scatter"
+    assert spec["y"] == ["total_enr", "total_bud"]
+
+
+def test_chart_pivot_is_stacked_bar():
+    df = _df()
+    result, plan = _run_plan(df, {"source": "a1", "steps": [
+        {"op": "pivot", "index": "district", "columns": "scheme",
+         "values": "enrollment"},
+    ]})
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "sbar"
+    assert 2 <= len(spec["y"]) <= 6
+
+
+def test_chart_grouped_time_series_is_small_multiples():
+    df = _df()
+    df["month"] = [f"2025-{(i % 6) + 1:02d}" for i in range(len(df))]
+    result, plan = _run_plan(df, {"source": "a1", "steps": [
+        {"op": "group_by", "columns": ["month", "scheme"]},
+        {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "total"},
+        {"op": "sort", "column": "month", "dir": "asc"},
+    ]})
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "multiples"
+    assert spec["facet"] == "scheme"
+
+
+def test_chart_completeness_every_shape_maps():
+    """Every result shape the executor can produce must land on a valid
+    ChartSpec kind - no plan may leave the board chartless-by-accident."""
+    df = _df()
+    plans = [
+        # every step type appears at least once across these plans
+        [{"op": "filter", "column": "scheme", "operator": "==", "value": "A"}],
+        [{"op": "time_window", "column": "month", "last_n": 3}],
+        [{"op": "derive", "name": "per_unit", "kind": "ratio",
+          "left": "budget", "right": "enrollment"},
+         {"op": "group_by", "columns": ["district"]},
+         {"op": "aggregate", "column": "per_unit", "fn": "mean", "alias": "avg_pu"}],
+        [{"op": "group_by", "columns": ["district"]},
+         {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+         {"op": "sort", "column": "t", "dir": "desc"},
+         {"op": "top_n", "n": 3}],
+        [{"op": "pivot", "index": "district", "columns": "scheme",
+          "values": "enrollment"}],
+        [{"op": "group_by", "columns": ["month"]},
+         {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"},
+         {"op": "sort", "column": "month", "dir": "asc"},
+         {"op": "delta_vs_period", "column": "t", "period_column": "month", "lag": 1}],
+        [{"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "t"}],
+        [{"op": "group_by", "columns": ["district"]},
+         {"op": "aggregate", "column": "district", "fn": "count", "alias": "n"}],
+    ]
+    used_ops = {s["op"] for p in plans for s in p}
+    from engine.query.plan import ALL_STEP_TYPES
+    all_ops = {t.model_fields["op"].default for t in ALL_STEP_TYPES}
+    assert used_ops == all_ops, f"missing coverage for: {all_ops - used_ops}"
+    for steps in plans:
+        result, plan = _run_plan(df, {"source": "a1", "steps": steps})
+        spec = choose_chart(result, plan)
+        assert spec["kind"] in VALID_KINDS, (steps, spec)
+
+
 # ---------- API: explore / export / path-choice ----------
 
 def test_explore_endpoint_heuristic():

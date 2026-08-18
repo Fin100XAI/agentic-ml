@@ -16,7 +16,7 @@ from typing import Any
 
 import pandas as pd
 
-from .plan import DeltaVsPeriodStep, FilterStep, QueryPlan, SortStep, TopNStep
+from .plan import DeltaVsPeriodStep, FilterStep, PivotStep, QueryPlan, SortStep, TopNStep
 
 MAX_BAR_CATEGORIES = 30
 # Thin diverging bars stay readable much further than labeled category bars.
@@ -71,8 +71,32 @@ def choose_chart(result: dict[str, Any], plan: QueryPlan) -> dict[str, Any]:
                     "note": f"{len(table)} periods - too many to chart the changes honestly."}
     thr = threshold["value"] if threshold and threshold["column"] in (y, x) else None
 
+    timeish = _is_timeish([r.get(x) for r in table[:50]])
+
+    # Grouped time series -> small multiples, never spaghetti lines.
+    if timeish and len(non_numeric) >= 2:
+        groups = {r.get(non_numeric[1]) for r in table}
+        if 2 <= len(groups) <= 9:
+            return {"kind": "multiples", "x": x, "y": [y],
+                    "facet": non_numeric[1], "threshold": thr, "note": None}
+        return {"kind": "table", "x": None, "y": [], "threshold": None,
+                "note": f"{len(groups)} series - too many to chart honestly."}
+
+    # Pivot output with a few metric columns -> stacked bar (<= 6 slices,
+    # NEVER pie); more slices fall through to the table.
+    if any(isinstance(s, PivotStep) for s in plan.steps) and not timeish:
+        if 2 <= len(numeric_cols) <= 6 and len(table) <= MAX_BAR_CATEGORIES:
+            return {"kind": "sbar", "x": x, "y": numeric_cols,
+                    "threshold": None, "note": None}
+
+    # Two metrics per key -> scatter (each point one key).
+    if (len(numeric_cols) >= 2 and not timeish and len(table) >= 5
+            and not any(isinstance(s, PivotStep) for s in plan.steps)):
+        return {"kind": "scatter", "x": None, "y": numeric_cols[:2],
+                "label": x, "threshold": None, "note": None}
+
     # Time on the key axis -> line.
-    if _is_timeish([r.get(x) for r in table[:50]]):
+    if timeish:
         return {"kind": "line", "x": x, "y": [y], "threshold": thr, "note": None}
 
     if len(table) > MAX_BAR_CATEGORIES:

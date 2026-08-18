@@ -5,10 +5,13 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   ReferenceLine,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -18,6 +21,8 @@ import type { ChartSpec, QueryResult } from "../types";
 const AXIS = { stroke: "#64748b", fontSize: 11 };
 const GRID = "#dde3ee";
 const BLUE = "#1d4ed8";
+// Colorblind-safe series palette; amber/red stay reserved for judgment.
+const PALETTE = ["#1d4ed8", "#059669", "#7c3aed", "#0891b2", "#ea580c", "#c026d3"];
 
 const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.95)",
@@ -61,6 +66,37 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
     );
   }
 
+  // Scatter carries its key column in `label`, not on an axis.
+  if (spec.kind === "scatter" && spec.y.length >= 2) {
+    const [xm, ym] = spec.y;
+    const pts = rows
+      .filter((r) => typeof r[xm] === "number" && typeof r[ym] === "number")
+      .map((r) => ({ ...r }));
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} />
+          <XAxis dataKey={xm} type="number" name={niceLabel(xm)} tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
+          <YAxis dataKey={ym} type="number" name={niceLabel(ym)} tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
+          <Tooltip
+            contentStyle={TOOLTIP_STYLE}
+            cursor={{ strokeDasharray: "3 3" }}
+            formatter={(v, n) => [typeof v === "number" ? v.toLocaleString() : String(v), niceLabel(String(n))]}
+            labelFormatter={() => ""}
+          />
+          <Scatter
+            data={pts}
+            fill={BLUE}
+            isAnimationActive={false}
+            shape={(p: { cx?: number; cy?: number }) => (
+              <circle cx={p.cx} cy={p.cy} r={4} fill={BLUE} fillOpacity={0.6} />
+            )}
+          />
+        </ScatterChart>
+      </ResponsiveContainer>
+    );
+  }
+
   if (spec.kind === "table" || !spec.x || spec.y.length === 0) {
     return spec.note ? <p className="text-[11px] text-ink-dim">{spec.note}</p> : null;
   }
@@ -68,6 +104,47 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
   const x = spec.x;
   const y = spec.y[0];
   const data = rows.map((r) => ({ ...r, [x]: String(r[x] ?? "") }));
+
+  // Part-of-whole (pivot output) -> stacked bars, never pie.
+  if (spec.kind === "sbar") {
+    return (
+      <ResponsiveContainer width="100%" height={260}>
+        <BarChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 10 }} stroke={GRID} />
+          <YAxis tick={AXIS} stroke={GRID} domain={[0, "auto"]} tickFormatter={(v) => compact(Number(v))} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {spec.y.map((col, i) => (
+            <Bar key={col} dataKey={col} stackId="whole" fill={PALETTE[i % PALETTE.length]} isAnimationActive={false} name={niceLabel(col)} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  // Grouped time series -> small multiples, never spaghetti.
+  if (spec.kind === "multiples" && spec.facet) {
+    const facet = spec.facet;
+    const groups = [...new Set(data.map((r) => String(r[facet] ?? "")))];
+    return (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {groups.map((g, gi) => (
+          <div key={g} className="rounded-lg border border-edge/70 p-2">
+            <p className="mb-1 truncate text-[10px] font-semibold text-ink-dim" title={g}>{g}</p>
+            <ResponsiveContainer width="100%" height={110}>
+              <LineChart data={data.filter((r) => String(r[facet] ?? "") === g)} margin={{ top: 2, right: 4, bottom: 0, left: 0 }}>
+                <XAxis dataKey={x} hide />
+                <YAxis tick={{ ...AXIS, fontSize: 8 }} stroke={GRID} width={34} tickFormatter={(v) => compact(Number(v))} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Line type="monotone" dataKey={y} stroke={PALETTE[gi % PALETTE.length]} strokeWidth={1.5} dot={false} isAnimationActive={false} name={niceLabel(y)} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (spec.kind === "line") {
     return (

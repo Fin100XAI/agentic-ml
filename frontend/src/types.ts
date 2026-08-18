@@ -262,11 +262,13 @@ export interface QueryPlanResponse {
 }
 
 export interface ChartSpec {
-  kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "table";
+  kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "scatter" | "sbar" | "multiples" | "table";
   x: string | null;
   y: string[];
   threshold: number | null;
   note: string | null;
+  facet?: string | null;
+  label?: string | null;
 }
 
 export interface PlanChanges {
