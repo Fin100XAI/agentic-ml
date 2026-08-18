@@ -338,12 +338,24 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     # Shape Scout first: WHAT KIND of dataset is this? The classification is
     # deterministic, shown on the board, and steers which questions lead.
     shape = classify_shape(ds.df)
+    source = ds.artifact_id or ds.id
+    # Question Scout (general mode): the LLM chooses WHICH columns are worth
+    # asking about from a fixed template menu - diversity across topics is
+    # its brief, and the validator enforces it regardless. Plans are built
+    # deterministically; the fallback is the hand-written starter list.
+    questions_by = "heuristic"
+    candidates = None
+    if not focus_columns:
+        candidates = _question_scout(ds, shape, source)
+        if candidates:
+            questions_by = "claude"
+    if not candidates:
+        candidates = starter_questions(ds.df, source,
+                                       focus_columns=focus_columns, shape=shape)
     try:
         findings_raw = []
         readiness = readiness_audit(ds.df)["findings"]
-        for cand in starter_questions(ds.df, ds.artifact_id or ds.id,
-                                      focus_columns=focus_columns,
-                                      shape=shape):
+        for cand in candidates:
             try:
                 plan = QueryPlan.model_validate(cand["plan"])
                 resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
@@ -386,9 +398,63 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     )
     return {"findings": findings_raw, "generated_by": generated_by,
             "synthesis": narrative["synthesis"],
+            "questions_by": questions_by,
             "shape": {"shape": shape["shape"], "label": shape["label"],
                       "reasoning": shape["reasoning"]},
             "filename": ds.filename, "artifact_id": ds.artifact_id}
+
+
+def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, Any]] | None:
+    """ONE LLM call choosing template+column selections; validated and built
+    deterministically. Returns None when unavailable or too thin (the
+    deterministic starters then take over). Wide datasets benefit most."""
+    from engine.query.domains import heuristic_domains
+    from engine.query.starter import SCOUT_TEMPLATES, starters_from_selections
+
+    provider = instrumented_provider()
+    if provider is None or ds.df.shape[1] < 6:
+        return None
+    try:
+        import json as _json
+
+        cols_ctx = []
+        for c in ds.df.columns:
+            s = ds.df[c]
+            samples = ([str(v) for v in s.dropna().unique()[:3]]
+                       if s.dtype == object else [])
+            cols_ctx.append({"name": str(c), "dtype": str(s.dtype),
+                             "samples": samples})
+        domains = heuristic_domains([str(c) for c in ds.df.columns])
+        raw = provider.complete_json(
+            "You choose the OPENING questions for a government data board by "
+            "filling a fixed template menu - you never write queries. "
+            f"Templates: {', '.join(SCOUT_TEMPLATES)}. Each selection names a "
+            "template plus real column names: metric (numeric), group "
+            "(categorical), second_metric (relationship only). Pick 8-9 "
+            "selections that SPREAD across the dataset's different topics - "
+            "at most 2 selections per metric, at least 4 distinct metrics "
+            "from DIFFERENT topics when available. Prefer headline measures "
+            "an administrator cares about over obscure ones. Use exact "
+            "column names only.",
+            f"Dataset shape: {shape['label']}\n"
+            f"Topic groups: {_json.dumps([{d['name']: d['columns'][:6]} for d in domains])}\n"
+            f"Columns: {_json.dumps(cols_ctx)}",
+            {"type": "object", "properties": {"selections": {
+                "type": "array", "items": {"type": "object", "properties": {
+                    "template": {"type": "string"},
+                    "metric": {"type": "string"},
+                    "group": {"type": "string"},
+                    "second_metric": {"type": "string"}},
+                    "required": ["template", "metric", "group", "second_metric"],
+                    "additionalProperties": False}}},
+             "required": ["selections"], "additionalProperties": False},
+            max_tokens=2000,
+        )
+        built = starters_from_selections(raw.get("selections", []), ds.df, source)
+        # Too thin a result means the scout misfired - fall back honestly.
+        return built if len(built) >= 4 else None
+    except Exception:
+        return None
 
 
 _LANGS = {"hi": "Hindi (Devanagari script)", "mr": "Marathi (Devanagari script)"}

@@ -581,6 +581,45 @@ def test_geo_endpoint_serves_bundled_file():
     assert client.get("/api/geo/nowhere").status_code == 404
 
 
+# ---------- Question Scout: validated template selections ----------
+
+def test_scout_selections_validated_and_capped():
+    from engine.query.starter import starters_from_selections
+    df = _df()
+    selections = [
+        {"template": "top_groups", "metric": "enrollment", "group": "district", "second_metric": ""},
+        {"template": "bottom_groups", "metric": "enrollment", "group": "district", "second_metric": ""},
+        # third use of the same metric -> dropped by the 2-per-metric cap
+        {"template": "avg_per_group", "metric": "enrollment", "group": "scheme", "second_metric": ""},
+        {"template": "split", "metric": "budget", "group": "scheme", "second_metric": ""},
+        {"template": "relationship", "metric": "budget", "group": "district", "second_metric": "enrollment"},
+        # hallucinated column -> dropped
+        {"template": "top_groups", "metric": "gdp_growth", "group": "district", "second_metric": ""},
+        # numberish-text/unusable group -> dropped
+        {"template": "count", "metric": "", "group": "month", "second_metric": ""},
+        {"template": "count", "metric": "", "group": "scheme", "second_metric": ""},
+        # unknown template -> dropped
+        {"template": "pie_chart", "metric": "budget", "group": "scheme", "second_metric": ""},
+    ]
+    built = starters_from_selections(selections, df, "a1")
+    qs = [b["question"] for b in built]
+    assert not any("gdp_growth" in q for q in qs)
+    assert not any("each month" in q for q in qs)  # month is the period, not a group
+    enrollment_metric_qs = [q for q in qs if "total enrollment" in q or "average enrollment" in q]
+    assert len(enrollment_metric_qs) == 2  # cap enforced
+    assert any("responses" not in q and "scheme" in q for q in qs)
+    # every survivor executes
+    for b in built:
+        plan = resolve_plan(QueryPlan.model_validate(b["plan"]),
+                            [str(c) for c in df.columns])
+        assert execute_plan(plan, df)["table"]
+
+
+def test_explore_heuristic_mode_reports_playbook_questions():
+    r = client.post(f"/api/datasets/{ds_id}/explore")
+    assert r.json()["questions_by"] == "heuristic"  # no key in tests
+
+
 # ---------- Shape Scout: the fixture zoo ----------
 # One representative frame per dataset shape. Each must classify correctly
 # AND produce a sensible, executable board - forever. This is the guarantee

@@ -257,7 +257,11 @@ export function AnalyticsScreen({
         <p className="text-[11px] text-ink-dim" title={resp.shape.reasoning}>
           Reading this as{" "}
           <span className="font-semibold text-ink">{resp.shape.label}</span>
-          <span className="text-ink-dim/70"> - the opening questions follow this reading (hover for why).</span>
+          <span className="text-ink-dim/70">
+            {" "}- questions {resp.questions_by === "claude"
+              ? "chosen by the AI scout across the data's topics"
+              : "from the built-in playbook"} (hover for why).
+          </span>
         </p>
       )}
 

@@ -85,6 +85,109 @@ def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
     return {"period": period, "cats": cats, "numerics": numerics}
 
 
+# The template menu the Question Scout may fill. The LLM only CHOOSES
+# columns for these shapes - deterministic code builds every plan.
+SCOUT_TEMPLATES = ("top_groups", "bottom_groups", "avg_per_group",
+                   "relationship", "split", "count", "trend", "kpi")
+
+
+def _build_from_selection(template: str, source: str, df: pd.DataFrame,
+                          metric: str | None, group: str | None,
+                          second_metric: str | None,
+                          period: str | None) -> dict[str, Any] | None:
+    """One template + validated columns -> the same deterministic plans the
+    hand-written starters use. Returns None when inapplicable."""
+    if template == "top_groups" and metric and group:
+        n = min(10, int(df[group].nunique(dropna=True)))
+        return {"question": f"Which {group} values have the highest total {metric}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": f"total_{metric}", "dir": "desc"},
+                    {"op": "top_n", "n": n}]}}
+    if template == "bottom_groups" and metric and group:
+        return {"question": f"Which {group} values have the lowest total {metric}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": f"total_{metric}", "dir": "asc"},
+                    {"op": "top_n", "n": 5}]}}
+    if template == "avg_per_group" and metric and group:
+        return {"question": f"What is the average {metric} per {group}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": metric, "fn": "mean", "alias": f"avg_{metric}"},
+                    {"op": "sort", "column": f"avg_{metric}", "dir": "desc"}]}}
+    if template == "relationship" and metric and second_metric and group:
+        return {"question": f"How do {metric} and {second_metric} move together across {group}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "aggregate", "column": second_metric, "fn": "sum", "alias": f"total_{second_metric}"}]}}
+    if template == "split" and metric and group:
+        return {"question": f"How does total {metric} split across {group}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": f"total_{metric}", "dir": "desc"}]}}
+    if template == "count" and group:
+        return {"question": f"How many rows fall under each {group}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [group]},
+                    {"op": "aggregate", "column": group, "fn": "count", "alias": "count"},
+                    {"op": "sort", "column": "count", "dir": "desc"}]}}
+    if template == "trend" and metric and period:
+        return {"question": f"How does total {metric} move across {period}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [period]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": period, "dir": "asc"}]}}
+    if template == "kpi" and metric:
+        return {"question": f"What are the overall total and average of {metric}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "aggregate", "column": metric, "fn": "mean", "alias": f"avg_{metric}"}]}}
+    return None
+
+
+def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
+                             source: str) -> list[dict[str, Any]]:
+    """Validate the Question Scout's choices and build plans. Only real
+    numeric metrics and usable grouping columns survive; at most 2
+    questions per metric (the diversity guarantee is enforced HERE, not
+    trusted to the LLM)."""
+    picks = _pick_columns(df)
+    valid_nums = set(picks["numerics"])
+    valid_cats = set(picks["cats"])
+    period = picks["period"]
+    out: list[dict[str, Any]] = []
+    metric_uses: dict[str, int] = {}
+    seen: set[str] = set()
+    for sel in selections:
+        template = str(sel.get("template", ""))
+        metric = sel.get("metric") or None
+        group = sel.get("group") or None
+        second = sel.get("second_metric") or None
+        if template not in SCOUT_TEMPLATES:
+            continue
+        if metric and metric not in valid_nums:
+            continue
+        if second and second not in valid_nums:
+            continue
+        if group and group not in valid_cats:
+            continue
+        if metric and metric_uses.get(metric, 0) >= 2:
+            continue
+        cand = _build_from_selection(template, source, df, metric, group,
+                                     second, period)
+        if cand and cand["question"] not in seen:
+            seen.add(cand["question"])
+            out.append(cand)
+            if metric:
+                metric_uses[metric] = metric_uses.get(metric, 0) + 1
+    return out[:MAX_STARTERS]
+
+
 def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
                  period: str | None, cats: list[str],
                  numerics: list[str]) -> list[dict[str, Any]]:
