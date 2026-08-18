@@ -1,4 +1,6 @@
 // Landing screen: what the platform can do, its agents, models, and past runs.
+// Motion: staggered hero entrance on load, scroll reveals per section, hover
+// lifts on cards - all transform/opacity, strong ease-out, reduced-motion safe.
 import { useState } from "react";
 import {
   ArrowRight,
@@ -7,10 +9,14 @@ import {
   FileUp,
   GitCompareArrows,
   LineChart,
+  Lock,
   Play,
+  ScrollText,
   Search,
   Settings2,
+  ShieldCheck,
   Target,
+  UserCheck,
   Users,
 } from "lucide-react";
 import type { RegistryEntry, RunSummary } from "../../types";
@@ -19,8 +25,9 @@ import { GlossaryManager } from "../GlossaryManager";
 import { IndicatorsPanel } from "../IndicatorsPanel";
 import { IntakePanel } from "../IntakePanel";
 import { ModelsPanel } from "../ModelsPanel";
+import { Reveal } from "../Reveal";
 import { RunDiffModal } from "../RunDiffModal";
-import { Badge, Button, Card, CardBody } from "../ui";
+import { Badge, Button, Card, CardBody, SectionLabel } from "../ui";
 
 const AGENTS = [
   {
@@ -49,6 +56,14 @@ const PIPELINE = [
   { icon: Settings2, label: "You choose the direction" },
   { icon: Play, label: "Ask directly, or train a model" },
   { icon: BarChart3, label: "Charted answers + briefs" },
+];
+
+// The trust points, as a scannable row instead of a wall of text.
+const ASSURANCES = [
+  { icon: Lock, label: "Personal data screened first" },
+  { icon: ShieldCheck, label: "Every number computed, never guessed" },
+  { icon: UserCheck, label: "Nothing runs without your approval" },
+  { icon: ScrollText, label: "Every action on the audit trail" },
 ];
 
 // Framed as the questions an administrator actually asks - no algorithm
@@ -109,35 +124,43 @@ export function HomeScreen({
 
   return (
     <div className="space-y-10">
-      {/* Hero */}
+      {/* Hero: staggered entrance, one idea per line */}
       <div className="rounded-2xl border border-edge bg-gradient-to-b from-accent-soft/25 via-panel to-panel px-8 py-14 text-center shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+        <p className="animate-rise text-xs font-bold uppercase tracking-[0.18em] text-accent">
           Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
         </p>
-        <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-bold leading-tight">
+        <h2 className="animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
           Evidence for every decision.
           <span className="text-accent"> Accountability at every step.</span>
         </h2>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
+        <p className="animate-rise mx-auto mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-ink-dim [animation-delay:120ms]">
           Decision support built for government. Upload departmental data - scheme
           enrollments, revenue collections, service requests, demand histories - and
           choose your direction: ask questions in plain language and get charted,
           mapped answers in seconds, or train a model for predictions with a decision
-          brief an officer can act on and defend. Personal data is screened before
-          any analysis, every number is computed - never guessed - nothing runs
-          without your approval, and every action lands on an audit trail fit for
-          review.
+          brief an officer can act on and defend.
         </p>
-        <Button className="mt-6 px-6" onClick={onStart}>
-          Start a new analysis <ArrowRight className="h-4 w-4" />
-        </Button>
+        <div className="animate-rise mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 [animation-delay:180ms]">
+          {ASSURANCES.map((a) => (
+            <span key={a.label} className="flex items-center gap-1.5 text-[11px] font-medium text-ink-dim">
+              <a.icon className="h-3.5 w-3.5 text-accent" />
+              {a.label}
+            </span>
+          ))}
+        </div>
+        <div className="animate-rise [animation-delay:240ms]">
+          <Button className="mt-6 px-6" onClick={onStart}>
+            Start a new analysis <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
 
         {/* Mini pipeline */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+        <div className="animate-rise mt-8 flex flex-wrap items-center justify-center gap-2 [animation-delay:300ms]">
           {PIPELINE.map((p, i) => (
             <div key={p.label} className="flex items-center gap-2">
               {i > 0 && <div className="h-px w-5 bg-edge" />}
               <div className="flex items-center gap-1.5 rounded-full border border-edge bg-panel px-3 py-1.5 text-[11px] text-ink-dim">
+                <span className="text-[10px] font-bold tabular-nums text-accent/70">{i + 1}</span>
                 <p.icon className="h-3.5 w-3.5 text-accent" />
                 {p.label}
               </div>
@@ -148,59 +171,59 @@ export function HomeScreen({
 
       {/* The questions it can answer - no algorithm names on the landing page;
           the recommendation agent picks the method behind the scenes. */}
-      <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
-          The questions you can answer
-        </h3>
-        <div className="grid gap-4 md:grid-cols-2">
-          {QUESTIONS.map((q) => (
-            <Card key={q.title} className="transition-colors hover:border-accent/50">
-              <CardBody>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="rounded-lg bg-accent-soft p-2">
-                      <q.icon className="h-4 w-4 text-accent" />
-                    </span>
-                    <h4 className="text-sm font-semibold">{q.title}</h4>
+      <Reveal>
+        <section>
+          <SectionLabel>The questions you can answer</SectionLabel>
+          <div data-cascade className="grid gap-4 md:grid-cols-2">
+            {QUESTIONS.map((q) => (
+              <Card key={q.title} className="lift hover:border-accent/50">
+                <CardBody>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="rounded-lg bg-accent-soft p-2">
+                        <q.icon className="h-4 w-4 text-accent" />
+                      </span>
+                      <h4 className="text-sm font-semibold">{q.title}</h4>
+                    </div>
+                    <Badge tone="accent">{q.kind}</Badge>
                   </div>
-                  <Badge tone="accent">{q.kind}</Badge>
-                </div>
-                <p className="mt-3 text-xs leading-relaxed text-ink-dim">{q.example}</p>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
-        <p className="mt-2.5 text-[11px] text-ink-dim">
-          Bring the question - or none at all. Lookups are answered directly from the data;
-          prediction questions get the right method recommended and explained. Either way,
-          you approve before anything runs.
-        </p>
-      </section>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-dim">{q.example}</p>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+          <p className="mt-2.5 text-[11px] text-ink-dim">
+            Bring the question - or none at all. Lookups are answered directly from the data;
+            prediction questions get the right method recommended and explained. Either way,
+            you approve before anything runs.
+          </p>
+        </section>
+      </Reveal>
 
       {/* Agents */}
-      <section>
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-accent">
-          Meet your agents
-        </h3>
-        <div className="grid gap-4 md:grid-cols-3">
-          {AGENTS.map((a) => (
-            <Card key={a.name}>
-              <CardBody>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-accent-soft p-2">
-                    <a.icon className="h-4 w-4 text-accent" />
-                  </span>
-                  <h4 className="text-sm font-semibold">{a.name}</h4>
-                </div>
-                <p className="mt-3 text-xs leading-relaxed text-ink-dim">{a.does}</p>
-                <p className="mt-2 border-t border-edge pt-2 text-[11px] leading-snug text-good">
-                  → {a.gives}
-                </p>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
-      </section>
+      <Reveal>
+        <section>
+          <SectionLabel>Meet your agents</SectionLabel>
+          <div data-cascade className="grid gap-4 md:grid-cols-3">
+            {AGENTS.map((a) => (
+              <Card key={a.name} className="lift hover:border-accent/50">
+                <CardBody>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-lg bg-accent-soft p-2">
+                      <a.icon className="h-4 w-4 text-accent" />
+                    </span>
+                    <h4 className="text-sm font-semibold">{a.name}</h4>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-ink-dim">{a.does}</p>
+                  <p className="mt-2 border-t border-edge pt-2 text-[11px] leading-snug text-good">
+                    → {a.gives}
+                  </p>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </Reveal>
 
       {/* Project data dictionary */}
       {/* Your data: direct re-entry into any file's board or Ask thread */}
@@ -272,7 +295,7 @@ export function HomeScreen({
                 <button
                   key={r.id}
                   onClick={() => onResume(r.id)}
-                  className="flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-panel-2/60"
+                  className="group flex w-full items-center justify-between px-5 py-3 text-left transition-colors hover:bg-panel-2/60"
                 >
                   <div>
                     <div className="text-sm font-medium">{r.filename}</div>
@@ -284,7 +307,7 @@ export function HomeScreen({
                     <Badge tone={r.stage === "interpret" || r.stage === "compare" ? "good" : "warn"}>
                       {r.stage}
                     </Badge>
-                    <ArrowRight className="h-4 w-4 text-ink-dim" />
+                    <ArrowRight className="h-4 w-4 text-ink-dim transition-transform duration-200 group-hover:translate-x-0.5" />
                   </div>
                 </button>
               ))}

@@ -52,7 +52,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out",
         "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
         size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
         variant === "primary" &&
@@ -87,6 +87,15 @@ export function Badge({
     >
       {children}
     </span>
+  );
+}
+
+export function SectionLabel({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
+  return (
+    <div className="mb-4">
+      <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">{children}</h3>
+      {sub && <p className="mt-1 max-w-2xl text-xs leading-relaxed text-ink-dim">{sub}</p>}
+    </div>
   );
 }
 
