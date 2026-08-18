@@ -47,7 +47,7 @@ export function PiiReviewModal({
               {findings.map((f) => (
                 <div
                   key={f.column}
-                  className="rounded-xl border border-edge bg-panel-2 px-4 py-2.5"
+                  className="rounded-2xl border border-edge bg-panel-2 px-4 py-2.5"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">

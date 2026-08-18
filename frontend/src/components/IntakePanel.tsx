@@ -110,7 +110,7 @@ export function IntakePanel({
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           {showForm && (
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-panel-2 p-3">
+            <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-edge bg-panel-2 p-3">
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] uppercase tracking-wider text-ink-dim">Model version</span>
                 <select
@@ -198,7 +198,7 @@ export function IntakePanel({
                 )}
               </div>
               {pending.map((item) => (
-                <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-edge bg-panel-2 px-3 py-2 text-xs">
+                <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-2xl border border-edge bg-panel-2 px-3 py-2 text-xs">
                   <span className="font-medium">{item.filename}</span>
                   <span className="text-ink-dim">matched "{item.rule_name}"</span>
                   {item.coverage != null && item.coverage < 1 && (

@@ -25,11 +25,11 @@ import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner, Stat } from "../ui";
 import { genLabel } from "../../lib/labels";
 
-const AXIS = { fill: "#64748b", fontSize: 10 };
-const GRID = "#dde3ee";
+const AXIS = { fill: "#78716c", fontSize: 10 };
+const GRID = "#e7e3da";
 const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.95)",
-  border: "1px solid #dde3ee",
+  border: "1px solid #e7e3da",
   borderRadius: 10,
   fontSize: 12,
   color: "#0f172a",
@@ -79,7 +79,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
     count: c,
   }));
   return (
-    <div className="min-w-0 rounded-xl border border-edge bg-panel p-3 backdrop-blur-xl">
+    <div className="min-w-0 rounded-2xl border border-edge bg-panel p-3 backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-semibold" title={col.name}>
           {col.display_name}
@@ -94,7 +94,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
             labelFormatter={(_, p) => (p?.[0]?.payload as { label?: string })?.label ?? ""}
             cursor={{ fill: "rgba(79,70,229,0.06)" }}
           />
-          <Bar dataKey="count" fill="#1d4ed8" radius={[3, 3, 0, 0]} opacity={0.75} />
+          <Bar dataKey="count" fill="#4338ca" radius={[3, 3, 0, 0]} opacity={0.75} />
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-ink-dim">
@@ -116,7 +116,7 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
   }));
   if (data.length === 0) return null;
   return (
-    <div className="min-w-0 rounded-xl border border-edge bg-panel p-3 backdrop-blur-xl">
+    <div className="min-w-0 rounded-2xl border border-edge bg-panel p-3 backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="truncate text-xs font-semibold" title={col.name}>
           {col.display_name}
@@ -140,7 +140,7 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
             fill="#059669"
             radius={[0, 3, 3, 0]}
             opacity={0.75}
-            label={{ position: "right", fill: "#64748b", fontSize: 9 }}
+            label={{ position: "right", fill: "#78716c", fontSize: 9 }}
           />
         </BarChart>
       </ResponsiveContainer>
@@ -186,7 +186,7 @@ function MissingnessCard({ profile }: { profile: Profile }) {
             tickFormatter={(v: string) => (v.length > 12 ? v.slice(0, 11) + "…" : v)}
           />
           <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}% missing`, ""]} cursor={{ fill: "rgba(217,119,6,0.06)" }} />
-          <Bar dataKey="pct" fill="#d97706" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "#64748b", fontSize: 9, formatter: (v) => `${v}%` }} />
+          <Bar dataKey="pct" fill="#d97706" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "#78716c", fontSize: 9, formatter: (v) => `${v}%` }} />
         </BarChart>
       </ResponsiveContainer>
       <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
@@ -212,7 +212,7 @@ function CorrelationChart({ profile }: { profile: Profile }) {
           type="category"
           dataKey="pair"
           width={130}
-          tick={{ fill: "#64748b", fontSize: 9 }}
+          tick={{ fill: "#78716c", fontSize: 9 }}
           stroke={GRID}
           tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 21) + "…" : v)}
         />
@@ -224,7 +224,7 @@ function CorrelationChart({ profile }: { profile: Profile }) {
         <Bar
           dataKey="corr"
           radius={[0, 3, 3, 0]}
-          label={{ position: "right", fill: "#64748b", fontSize: 9 }}
+          label={{ position: "right", fill: "#78716c", fontSize: 9 }}
         >
           {data.map((d, i) => (
             <Cell key={i} fill={d.corr >= 0 ? "#059669" : "#dc2626"} opacity={0.35 + Math.abs(d.corr) * 0.6} />
@@ -303,7 +303,7 @@ function TypeComposition({ profile }: { profile: Profile }) {
   const entries = Object.entries(counts);
   const total = profile.columns.length || 1;
   const COLORS: Record<string, string> = {
-    numeric: "#1d4ed8",
+    numeric: "#4338ca",
     categorical: "#059669",
     datetime: "#d97706",
     boolean: "#0891b2",
@@ -505,7 +505,7 @@ export function EdaScreen({
               const info = USE_CASE_INFO[uc];
               if (!info) return null;
               return (
-                <div key={uc} className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2.5 backdrop-blur">
+                <div key={uc} className="min-w-0 rounded-2xl border border-edge bg-panel-2 px-3 py-2.5 backdrop-blur">
                   <div className="text-sm">
                     {info.icon} <span className="font-semibold">{info.title}</span>
                   </div>
@@ -639,7 +639,7 @@ export function EdaScreen({
               onChange={(e) => setComment(e.target.value)}
               rows={3}
               placeholder="What do you want to find out? Pick a problem, or write your own here…"
-              className="w-full resize-none rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
+              className="w-full resize-none rounded-2xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
             />
             {(eda.problem_statements?.length ?? 0) > 0 && (
               <div className="mt-2">

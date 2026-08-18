@@ -59,7 +59,7 @@ export function IndicatorsPanel({ projectId }: { projectId: string }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-edge bg-panel p-4 shadow-sm">
+    <div className="rounded-2xl border border-edge bg-panel p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
           <Gauge className="h-3.5 w-3.5 text-accent" /> Indicators

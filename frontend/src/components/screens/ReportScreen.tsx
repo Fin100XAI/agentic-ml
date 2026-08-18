@@ -57,7 +57,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
           <FileText className="h-5 w-5" />
           <span className="text-xs font-semibold uppercase tracking-widest">Decision report</span>
         </div>
-        <h1 className="mt-2 text-xl font-bold">{run.question || "Data analysis"}</h1>
+        <h1 className="font-display mt-2 text-xl font-bold">{run.question || "Data analysis"}</h1>
         <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-dim">
           <span>Dataset: {run.filename}</span>
           {run.profile && (
@@ -89,7 +89,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
         <Section title="Key findings">
           <div className="space-y-3">
             {insights.findings.map((f, i) => (
-              <div key={i} className="rounded-xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
+              <div key={i} className="rounded-2xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
                 <h4 className="text-sm font-semibold leading-snug">{f.headline}</h4>
                 <p className="mt-1 text-xs leading-relaxed text-ink-dim">{f.detail}</p>
               </div>
@@ -103,7 +103,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
         <Section title="Segment profiles">
           <div className="grid gap-3 sm:grid-cols-2">
             {insights.segments.map((s) => (
-              <div key={s.cluster} className="rounded-xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
+              <div key={s.cluster} className="rounded-2xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold">{s.name}</span>
                   <Badge tone={s.cluster === -1 ? "warn" : "accent"}>
@@ -144,7 +144,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
               ],
               ["Typical error", insights.outlook.uncertainty_pct === null ? "-" : `±${insights.outlook.uncertainty_pct}%`],
             ].map(([label, value]) => (
-              <div key={String(label)} className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
+              <div key={String(label)} className="min-w-0 rounded-2xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
                 <div className="truncate text-[11px] uppercase tracking-wider text-ink-dim">{label}</div>
                 <div className="mt-0.5 truncate text-lg font-semibold tabular-nums">{value}</div>
               </div>
@@ -212,7 +212,7 @@ export function ReportScreen({ run, onBack }: { run: Run; onBack: () => void }) 
               .filter(([, v]) => v !== null)
               .slice(0, 8)
               .map(([k, v]) => (
-                <div key={k} className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
+                <div key={k} className="min-w-0 rounded-2xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
                   <div className="truncate text-[11px] uppercase tracking-wider text-ink-dim">
                     {metricInfo(k).label}
                   </div>

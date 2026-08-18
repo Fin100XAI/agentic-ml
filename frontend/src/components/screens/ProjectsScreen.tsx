@@ -36,7 +36,7 @@ export function ProjectsScreen({ onOpen }: { onOpen: (project: Project) => void 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="text-center">
-        <h2 className="text-xl font-bold">Your projects</h2>
+        <h2 className="font-display text-xl font-bold">Your projects</h2>
         <p className="mt-1 text-sm text-ink-dim">
           A project keeps related datasets, analyses and their full audit trail together.
         </p>

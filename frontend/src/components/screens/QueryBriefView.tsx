@@ -38,7 +38,7 @@ export function QueryBriefView({ briefId }: { briefId: string }) {
               <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent">
                 <FileText className="h-3.5 w-3.5" /> Query decision brief
               </p>
-              <h1 className="mt-1 text-2xl font-bold">{brief.title}</h1>
+              <h1 className="font-display mt-1 text-2xl font-bold">{brief.title}</h1>
               <p className="mt-1 text-xs text-ink-dim">
                 Prepared {brief.created_at} from {brief.filename} - every number recomputed
                 from the data; {brief.critic.checked} claim(s) checked by the critic
@@ -70,7 +70,7 @@ export function QueryBriefView({ briefId }: { briefId: string }) {
         )}
 
         {brief.items.map((item, i) => (
-          <section key={i} className="rounded-xl border border-edge bg-panel p-4 shadow-sm">
+          <section key={i} className="rounded-2xl border border-edge bg-panel p-4 shadow-sm">
             <h2 className="text-sm font-semibold">{i + 1}. {item.question}</h2>
             <p className="mt-2 text-sm font-medium leading-relaxed">{item.headline}</p>
             {item.meaning && (
@@ -101,7 +101,7 @@ export function QueryBriefView({ briefId }: { briefId: string }) {
           </section>
         ))}
 
-        <section className="rounded-xl border border-edge bg-panel p-4 shadow-sm">
+        <section className="rounded-2xl border border-edge bg-panel p-4 shadow-sm">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
             <ShieldCheck className="h-4 w-4 text-accent" /> Data trust panel
           </h2>

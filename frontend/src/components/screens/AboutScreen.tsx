@@ -135,7 +135,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       <div className="overflow-hidden rounded-2xl border border-edge bg-gradient-to-b from-accent-soft/25 via-panel to-panel shadow-sm">
         <div className="px-8 py-12 text-center">
           <p className="animate-rise text-xs font-bold uppercase tracking-[0.18em] text-accent">Platform guide</p>
-          <h2 className="animate-rise mx-auto mt-3 max-w-3xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
+          <h2 className="font-display animate-rise mx-auto mt-3 max-w-3xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
             Decision support for government,
             <span className="text-accent"> with accountability built in.</span>
           </h2>
@@ -261,7 +261,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                       <span className="text-[11px] font-bold text-white">{i + 1}</span>
                     </span>
                     <div className={`ml-12 flex-1 md:ml-0 ${left ? "md:mr-8" : "md:ml-8"}`}>
-                      <div className="lift rounded-xl border border-edge bg-panel p-4 shadow-sm">
+                      <div className="lift rounded-2xl border border-edge bg-panel p-4 shadow-sm">
                         <div className="flex flex-wrap items-center gap-2">
                           <s.icon className="h-4 w-4 text-accent" />
                           <h4 className="text-sm font-semibold">{s.title}</h4>
@@ -286,7 +286,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <SectionLabel sub="The original file is stored read-only with a fingerprint. Every change creates a NEW copy that points back at its parent - so any number in any brief can be traced to the exact data it came from.">
             What happens to your data
           </SectionLabel>
-          <div className="rounded-xl border border-edge bg-panel p-5 shadow-sm">
+          <div className="rounded-2xl border border-edge bg-panel p-5 shadow-sm">
             <div data-cascade className="flex flex-wrap items-center justify-center gap-y-4">
               {LINEAGE.map((l, i) => (
                 <div key={l.label} className="flex items-center">
@@ -347,7 +347,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <div className="grid gap-4 lg:grid-cols-5">
             <div className="lg:col-span-3">
               {/* stylized decision brief */}
-              <div className="rounded-xl border border-edge bg-panel p-6 shadow-sm">
+              <div className="rounded-2xl border border-edge bg-panel p-6 shadow-sm">
                 <div className="flex items-center justify-between border-b border-edge pb-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-ink-dim">Decision brief</p>
@@ -401,7 +401,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 ["Shareable + printable", "A read-only briefing link for stakeholders, plus markdown and PDF exports."],
                 ["Ask the data", "A grounded chat answers follow-ups from the run's own numbers - it cannot make things up."],
               ].map(([t, d]) => (
-                <div key={t} className="lift rounded-xl border border-edge bg-panel p-4 shadow-sm">
+                <div key={t} className="lift rounded-2xl border border-edge bg-panel p-4 shadow-sm">
                   <h5 className="text-xs font-semibold">{t}</h5>
                   <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">{d}</p>
                 </div>
@@ -489,7 +489,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <SectionLabel sub="One page for the technical evaluator: the architecture is three clean tiers, and the AI is replaceable.">
             Under the hood
           </SectionLabel>
-          <div className="rounded-xl border border-edge bg-panel p-5 shadow-sm">
+          <div className="rounded-2xl border border-edge bg-panel p-5 shadow-sm">
             <div data-cascade className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
               {[
                 { icon: MonitorSmartphone, title: "React UI", sub: "TypeScript + Tailwind + Recharts", note: "screens mirror backend types" },
@@ -529,7 +529,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
 
       {/* Footer / status */}
       <Reveal>
-        <div className="rounded-xl border border-edge bg-panel-2 px-6 py-5 text-center">
+        <div className="rounded-2xl border border-edge bg-panel-2 px-6 py-5 text-center">
           <p className="text-xs leading-relaxed text-ink-dim">
             This is a proof of concept running locally: single user, no login, data never leaves
             this machine. Production hardening (roles and sign-in, on-premise or air-gapped

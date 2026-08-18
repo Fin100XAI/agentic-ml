@@ -68,13 +68,13 @@ export function ThresholdPanel({
                 step={0.05}
                 value={thr}
                 onChange={(e) => setThr(Number(e.target.value))}
-                className="w-full accent-[#1d4ed8]"
+                className="w-full accent-[#4338ca]"
               />
               <span className="w-10 text-sm font-semibold tabular-nums">{point.threshold}</span>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {([["precision", "few false alarms"], ["recall", "few missed cases"], ["f1", "balance"]] as const).map(([k, hint]) => (
-                <div key={k} className="rounded-xl border border-edge bg-panel-2 px-3 py-2">
+                <div key={k} className="rounded-2xl border border-edge bg-panel-2 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-wider text-ink-dim" title={hint}>{k}</div>
                   <div className="text-lg font-semibold tabular-nums">{point[k]}</div>
                 </div>

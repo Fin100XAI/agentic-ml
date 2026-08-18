@@ -59,7 +59,7 @@ export function BriefingView({ runId }: { runId: string }) {
             <Printer className="h-3.5 w-3.5" /> Print
           </Button>
         </div>
-        <h1 className="mt-2 text-lg font-bold leading-snug">{run.question || "Data analysis"}</h1>
+        <h1 className="font-display mt-2 text-lg font-bold leading-snug">{run.question || "Data analysis"}</h1>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-dim">
           <span>{run.filename}</span>
           {run.profile && <span>{run.profile.n_rows.toLocaleString()} records</span>}
@@ -88,7 +88,7 @@ export function BriefingView({ runId }: { runId: string }) {
       </section>
 
       {/* The headline picture */}
-      <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+      <div className="rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
         {insights.use_case === "classification" && a.class_distribution && (
           <ClassDistributionChart data={a.class_distribution} />
         )}

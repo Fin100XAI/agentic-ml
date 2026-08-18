@@ -41,7 +41,7 @@ export function CompareScreen({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold">Model comparison</h2>
+          <h2 className="font-display text-lg font-semibold">Model comparison</h2>
           <Badge tone="accent">{comparison.use_case}</Badge>
           <span className="inline-flex items-center gap-1 text-xs text-ink-dim">
             ranked by {pInfo.label} ({comparison.higher_is_better ? "higher" : "lower"} wins)

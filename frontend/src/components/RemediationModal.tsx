@@ -65,7 +65,7 @@ export function RemediationModal({
                     type="checkbox"
                     checked={ticked.has(p.id)}
                     onChange={() => toggle(p.id)}
-                    className="mt-0.5 h-3.5 w-3.5 accent-[#1d4ed8]"
+                    className="mt-0.5 h-3.5 w-3.5 accent-[#4338ca]"
                   />
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-1.5">

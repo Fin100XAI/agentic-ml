@@ -12,9 +12,11 @@ results as a decision brief with charts, trust tiers, and a critic review.
 Trained models live in a versioned registry with scoring, drift monitoring,
 what-if scenarios, and an approval-gated intake inbox for recurring files.
 Every decision lands on a visible timeline and in the unified activity log.
-UI design system: flat corporate look, white cards, slate borders, royal blue
-accent (#1d4ed8) - tokens in frontend/src/index.css, primitives in
-frontend/src/components/ui.tsx.
+UI design system: warm editorial look - paper surface (#f4f2ec), white cards,
+stone borders, deep indigo accent (#4338ca), Fraunces serif for page titles
+(font-display), Inter for UI - tokens in frontend/src/index.css, primitives
+in frontend/src/components/ui.tsx. Judgment colors (green/amber/red) stay
+reserved for judgment states.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 

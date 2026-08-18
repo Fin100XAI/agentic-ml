@@ -130,7 +130,7 @@ export function UploadScreen({
                   onChange={(e) => setQuestion(e.target.value)}
                   rows={2}
                   placeholder='e.g. "Which customers should we focus retention on?" or "How much stock will we need next quarter?"'
-                  className="mt-1.5 w-full resize-none rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
+                  className="mt-1.5 w-full resize-none rounded-2xl border border-edge bg-panel-2 px-3 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
                 />
               </label>
 

@@ -79,7 +79,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
                   </span>
                   <p className="min-w-0 break-words pt-1 text-sm font-medium">{qa.q}</p>
                 </div>
-                <div className="ml-8 rounded-xl border border-edge bg-panel-2 px-4 py-3 backdrop-blur">
+                <div className="ml-8 rounded-2xl border border-edge bg-panel-2 px-4 py-3 backdrop-blur">
                   <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{qa.a}</p>
                   <div className="mt-1.5">
                     <Badge tone={qa.by === "claude" ? "accent" : qa.by === "error" ? "bad" : "neutral"}>
@@ -110,7 +110,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder='e.g. "Which group should we prioritize and why?"'
-            className="min-w-0 flex-1 rounded-xl border border-edge bg-panel-2 px-3.5 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
+            className="min-w-0 flex-1 rounded-2xl border border-edge bg-panel-2 px-3.5 py-2 text-sm outline-none backdrop-blur placeholder:text-ink-dim/60 focus:border-accent"
             disabled={busy}
           />
           <button

@@ -18,23 +18,23 @@ import {
 } from "recharts";
 import type { RunResult } from "../types";
 
-const AXIS = { stroke: "#64748b", fontSize: 11 };
-const GRID = "#dde3ee";
+const AXIS = { stroke: "#78716c", fontSize: 11 };
+const GRID = "#e7e3da";
 const PALETTE = [
-  "#1d4ed8",
+  "#4338ca",
   "#059669",
   "#d97706",
   "#dc2626",
-  "#7c3aed",
+  "#ca8a04",
   "#0891b2",
   "#ea580c",
   "#c026d3",
-  "#64748b",
+  "#78716c",
 ];
 
 const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.95)",
-  border: "1px solid #dde3ee",
+  border: "1px solid #e7e3da",
   borderRadius: 10,
   fontSize: 12,
   color: "#0f172a",
@@ -117,7 +117,7 @@ export function FeatureImportanceChart({
           cursor={{ fill: "rgba(79,70,229,0.06)" }}
           formatter={(v, _n, item) => [v, (item?.payload as { feature?: string })?.feature ?? ""]}
         />
-        <Bar dataKey="importance" fill="#1d4ed8" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="importance" fill="#4338ca" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -212,7 +212,7 @@ export function ClusterScatter({
             max={12}
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
-            className="w-28 accent-[#1d4ed8]"
+            className="w-28 accent-[#4338ca]"
           />
           <span className="w-5 tabular-nums">{size}px</span>
         </label>
@@ -224,7 +224,7 @@ export function ClusterScatter({
             max={100}
             value={Math.round(opacity * 100)}
             onChange={(e) => setOpacity(Number(e.target.value) / 100)}
-            className="w-28 accent-[#1d4ed8]"
+            className="w-28 accent-[#4338ca]"
           />
         </label>
         <span className="text-[10px] text-ink-dim">
@@ -336,9 +336,9 @@ export function ForecastChart({
     });
 
   const LINES: { key: string; label: string; color: string }[] = [
-    { key: "actual", label: "actual", color: "#64748b" },
+    { key: "actual", label: "actual", color: "#78716c" },
     { key: "predicted", label: "holdout check", color: "#d97706" },
-    { key: "forecast", label: "forecast", color: "#1d4ed8" },
+    { key: "forecast", label: "forecast", color: "#4338ca" },
   ];
 
   return (
@@ -352,7 +352,7 @@ export function ForecastChart({
               onClick={() => setView(v.key)}
               className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                 view === v.key
-                  ? "border-[#1d4ed8]/40 bg-[#1d4ed8]/10 font-medium text-[#1d4ed8]"
+                  ? "border-[#4338ca]/40 bg-[#4338ca]/10 font-medium text-[#4338ca]"
                   : "border-edge bg-white/50 text-ink-dim"
               }`}
             >
@@ -418,7 +418,7 @@ export function ForecastChart({
               yAxisId="left"
               dataKey="band"
               stroke="none"
-              fill="#1d4ed8"
+              fill="#4338ca"
               fillOpacity={0.1}
               isAnimationActive={false}
               name={`likely range (+/- ${pct}%)`}
@@ -426,9 +426,9 @@ export function ForecastChart({
               tooltipType="none"
             />
           )}
-          <Line yAxisId="left" type="monotone" dataKey="actual" stroke="#64748b" dot={false} strokeWidth={1.5} name="actual" hide={hidden.has("actual")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="actual" stroke="#78716c" dot={false} strokeWidth={1.5} name="actual" hide={hidden.has("actual")} isAnimationActive={false} />
           <Line yAxisId="left" type="monotone" dataKey="predicted" stroke="#d97706" dot={false} strokeWidth={2} name="holdout check" hide={hidden.has("predicted")} isAnimationActive={false} />
-          <Line yAxisId="left" type="monotone" dataKey="forecast" stroke="#1d4ed8" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" hide={hidden.has("forecast")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="forecast" stroke="#4338ca" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" hide={hidden.has("forecast")} isAnimationActive={false} />
           {companion && (
             <Line yAxisId="right" type="monotone" dataKey="companion" stroke="#0891b2" dot={false} strokeWidth={1.5} strokeDasharray="2 3" name={companionLabel} connectNulls isAnimationActive={false} />
           )}
@@ -472,9 +472,9 @@ export function PredictedVsActualChart({
         <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
         <Line dataKey="predicted" stroke="#94a3b8" strokeDasharray="5 4" dot={false} isAnimationActive={false} legendType="none" tooltipType="none" />
         <Scatter
-          data={points} fill="#1d4ed8" isAnimationActive={false}
+          data={points} fill="#4338ca" isAnimationActive={false}
           shape={(props: { cx?: number; cy?: number }) => (
-            <circle cx={props.cx} cy={props.cy} r={2.5} fill="#1d4ed8" fillOpacity={0.55} />
+            <circle cx={props.cx} cy={props.cy} r={2.5} fill="#4338ca" fillOpacity={0.55} />
           )}
         />
       </ComposedChart>
@@ -493,7 +493,7 @@ export function ResidualHistChart({ data }: { data: { mid: number; count: number
         <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
         <Bar dataKey="count" radius={[3, 3, 0, 0]}>
           {named.map((d, i) => (
-            <Cell key={i} fill={d.mid < 0 ? "#d97706" : "#1d4ed8"} />
+            <Cell key={i} fill={d.mid < 0 ? "#d97706" : "#4338ca"} />
           ))}
         </Bar>
       </BarChart>
@@ -623,7 +623,7 @@ function ChartPanel({
 }) {
   return (
     <div
-      className={`rounded-xl border border-edge bg-panel p-4 shadow-sm ${wide ? "lg:col-span-2" : ""}`}
+      className={`rounded-2xl border border-edge bg-panel p-4 shadow-sm ${wide ? "lg:col-span-2" : ""}`}
     >
       <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">
         {title}

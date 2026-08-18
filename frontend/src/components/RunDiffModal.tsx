@@ -69,7 +69,7 @@ export function RunDiffModal({
                   {(["a", "b"] as const).map((side) => {
                     const r = result.diff[side];
                     return (
-                      <div key={side} className="rounded-xl border border-edge bg-panel-2 px-4 py-3">
+                      <div key={side} className="rounded-2xl border border-edge bg-panel-2 px-4 py-3">
                         <div className="flex items-center justify-between">
                           <Badge tone={side === "a" ? "neutral" : "accent"}>
                             {side === "a" ? "Earlier (A)" : "Later (B)"}
@@ -104,7 +104,7 @@ export function RunDiffModal({
                 {Object.keys(result.diff.metrics).length > 0 && (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {Object.entries(result.diff.metrics).slice(0, 8).map(([k, m]) => (
-                      <div key={k} className="rounded-xl border border-edge bg-panel-2 px-3 py-2">
+                      <div key={k} className="rounded-2xl border border-edge bg-panel-2 px-3 py-2">
                         <div className="truncate text-[10px] uppercase tracking-wider text-ink-dim">{k}</div>
                         <div className="text-sm font-semibold tabular-nums">
                           {m.a} → {m.b}
@@ -149,7 +149,7 @@ export function RunDiffModal({
                 {(result.diff.findings.drivers.entered.length > 0 ||
                   result.diff.findings.drivers.dropped.length > 0 ||
                   result.diff.findings.drivers.top_changed) && (
-                  <div className="rounded-xl border border-edge bg-panel-2 px-4 py-3 text-xs">
+                  <div className="rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-xs">
                     <span className="font-semibold">Driver changes: </span>
                     {result.diff.findings.drivers.top_changed && (
                       <span>top driver {result.diff.findings.drivers.a[0]} → {result.diff.findings.drivers.b[0]}. </span>

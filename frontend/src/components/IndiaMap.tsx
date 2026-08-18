@@ -16,8 +16,8 @@ function mix(a: number[], b: number[], t: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-const BLUE_LO = [219, 234, 254]; // #dbeafe
-const BLUE_HI = [29, 78, 216]; // #1d4ed8
+const BLUE_LO = [224, 231, 255]; // #e0e7ff
+const BLUE_HI = [67, 56, 202]; // #4338ca
 const ORANGE_LO = [255, 237, 213]; // #ffedd5
 const ORANGE_HI = [234, 88, 12]; // #ea580c
 const AMBER = "#d97706";

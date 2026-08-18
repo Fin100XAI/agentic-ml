@@ -103,13 +103,13 @@ export function DriftModal({
                 {/* Performance decay */}
                 {result.decay && (
                   <div className="flex flex-wrap gap-3">
-                    <div className="rounded-xl border border-edge bg-panel-2 px-4 py-2">
+                    <div className="rounded-2xl border border-edge bg-panel-2 px-4 py-2">
                       <div className="text-[10px] uppercase tracking-wider text-ink-dim">
                         {result.decay.metric} at training
                       </div>
                       <div className="text-lg font-semibold tabular-nums">{result.decay.train}</div>
                     </div>
-                    <div className="rounded-xl border border-edge bg-panel-2 px-4 py-2">
+                    <div className="rounded-2xl border border-edge bg-panel-2 px-4 py-2">
                       <div className="text-[10px] uppercase tracking-wider text-ink-dim">
                         {result.decay.metric} on this data
                       </div>

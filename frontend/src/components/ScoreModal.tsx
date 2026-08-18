@@ -107,7 +107,7 @@ export function ScoreModal({
                   </p>
                 )}
 
-                <div className="rounded-xl border border-edge bg-panel p-4">
+                <div className="rounded-2xl border border-edge bg-panel p-4">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
                     How the predictions distribute
                   </h4>

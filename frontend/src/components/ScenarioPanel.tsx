@@ -103,7 +103,7 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
                 step={(f.max - f.min) / 100 || 1}
                 value={Math.min(Math.max(values[col] ?? f.min, f.min), f.max)}
                 onChange={(e) => setValues((v) => ({ ...v, [col]: Number(e.target.value) }))}
-                className="w-40 accent-[#1d4ed8]"
+                className="w-40 accent-[#4338ca]"
               />
               <input
                 type="number"
@@ -147,7 +147,7 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
         </div>
 
         {result && (
-          <div className="rounded-xl border border-edge bg-panel-2 px-4 py-3">
+          <div className="rounded-2xl border border-edge bg-panel-2 px-4 py-3">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               <span>
                 Typical record: <span className="font-semibold tabular-nums">{result.baseline}</span>
@@ -168,14 +168,14 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
         )}
 
         {curve && (
-          <div className="rounded-xl border border-edge bg-panel-2 p-3">
+          <div className="rounded-2xl border border-edge bg-panel-2 p-3">
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={curve.points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
-                <CartesianGrid stroke="#dde3ee" />
-                <XAxis dataKey="x" tick={{ stroke: "#64748b", fontSize: 10 }} tickFormatter={(v) => String(Math.round(v * 100) / 100)} />
-                <YAxis tick={{ stroke: "#64748b", fontSize: 10 }} domain={["auto", "auto"]} />
+                <CartesianGrid stroke="#e7e3da" />
+                <XAxis dataKey="x" tick={{ stroke: "#78716c", fontSize: 10 }} tickFormatter={(v) => String(Math.round(v * 100) / 100)} />
+                <YAxis tick={{ stroke: "#78716c", fontSize: 10 }} domain={["auto", "auto"]} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10 }} />
-                <Line type="monotone" dataKey="y" stroke="#1d4ed8" strokeWidth={2} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="y" stroke="#4338ca" strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
             <p className="mt-1 text-[10px] leading-snug text-ink-dim">

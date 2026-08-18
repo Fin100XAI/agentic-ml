@@ -173,7 +173,7 @@ const EVIDENCE_TEXT = {
 function DriverChart({ driver }: { driver: Driver }) {
   const max = Math.max(...driver.groups.map((g) => g.rate_pct), 1);
   return (
-    <div className="min-w-0 rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+    <div className="min-w-0 rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-2">
         <h4 className="min-w-0 truncate text-xs font-semibold" title={`raw column: ${driver.feature}`}>
           {driver.label ?? driver.feature}
@@ -187,19 +187,19 @@ function DriverChart({ driver }: { driver: Driver }) {
       </p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
-          <CartesianGrid stroke="#dde3ee" horizontal={false} />
+          <CartesianGrid stroke="#e7e3da" horizontal={false} />
           <XAxis type="number" hide domain={[0, max * 1.15]} />
           <YAxis
             type="category"
             dataKey="label"
             width={90}
-            tick={{ fill: "#64748b", fontSize: 10 }}
-            stroke="#dde3ee"
+            tick={{ fill: "#78716c", fontSize: 10 }}
+            stroke="#e7e3da"
           />
           <Tooltip
             contentStyle={{
               backgroundColor: "rgba(255,255,255,0.95)",
-              border: "1px solid #dde3ee",
+              border: "1px solid #e7e3da",
               borderRadius: 10,
               fontSize: 12,
               color: "#0f172a",
@@ -213,7 +213,7 @@ function DriverChart({ driver }: { driver: Driver }) {
             label={{ position: "right", fill: "#0f172a", fontSize: 10, formatter: (v) => `${v}%` }}
           >
             {driver.groups.map((g, i) => (
-              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#1d4ed8"} />
+              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#4338ca"} />
             ))}
           </Bar>
         </BarChart>
@@ -257,7 +257,7 @@ function SegmentCard({ segment }: { segment: Segment }) {
 
 function Tile({ label, value, tip }: { label: string; value: React.ReactNode; tip?: string }) {
   return (
-    <div className="min-w-0 rounded-xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
+    <div className="min-w-0 rounded-2xl border border-edge bg-panel px-4 py-3 backdrop-blur-xl">
       <div className="flex items-center gap-1 truncate text-[11px] uppercase tracking-wider text-ink-dim">
         {label}
         {tip && <InfoTip text={tip} />}
@@ -376,7 +376,7 @@ export function InsightsScreen({
       {/* Header: tabs + actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex rounded-xl border border-edge bg-panel-2 p-0.5 backdrop-blur">
+          <div className="flex rounded-2xl border border-edge bg-panel-2 p-0.5 backdrop-blur">
             <button
               onClick={() => setTab("brief")}
               className={`flex items-center gap-1.5 rounded-[10px] px-3.5 py-1.5 text-xs font-medium transition-colors ${
@@ -482,28 +482,28 @@ export function InsightsScreen({
             <div className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">The picture</h3>
               {insights.use_case === "classification" && a.class_distribution && (
-                <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+                <div className="rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">How outcomes split today</h4>
                   <p className="mb-2 text-[11px] text-ink-dim">Every action you take aims to shift this balance.</p>
                   <ClassDistributionChart data={a.class_distribution} />
                 </div>
               )}
               {insights.use_case === "regression" && a.predicted_vs_actual && (
-                <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+                <div className="rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">Predicted vs actual</h4>
                   <p className="mb-2 text-[11px] text-ink-dim">Dots on the dashed line = perfect predictions. Tight cloud = trustworthy estimates.</p>
                   <PredictedVsActualChart points={a.predicted_vs_actual.points} />
                 </div>
               )}
               {insights.use_case === "clustering" && a.scatter && (
-                <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+                <div className="rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">The groups, mapped</h4>
                   <p className="mb-2 text-[11px] text-ink-dim">Each dot is one record, colored by group. Clear islands = distinct groups.</p>
                   <ClusterScatter points={a.scatter.points} axes={a.scatter.axes} />
                 </div>
               )}
               {insights.use_case === "forecasting" && a.series && a.forecast && (
-                <div className="rounded-xl border border-edge bg-panel p-4 backdrop-blur-xl">
+                <div className="rounded-2xl border border-edge bg-panel p-4 backdrop-blur-xl">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-ink-dim">History & projection</h4>
                   <p className="mb-2 text-[11px] text-ink-dim">Grey = actual history · dashed blue = the projection ahead · shaded = the likely range.</p>
                   <ForecastChart
@@ -632,7 +632,7 @@ export function InsightsScreen({
             {metrics.map(([k, v]) => {
               const info = metricInfo(k);
               return (
-                <div key={k} className="min-w-0 rounded-xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
+                <div key={k} className="min-w-0 rounded-2xl border border-edge bg-panel-2 px-3 py-2 backdrop-blur">
                   <div className="flex items-center gap-1 truncate text-[11px] uppercase tracking-wider text-ink-dim">
                     {info.label}
                     <InfoTip text={info.explain} />

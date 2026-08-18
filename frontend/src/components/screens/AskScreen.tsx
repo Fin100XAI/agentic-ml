@@ -167,7 +167,7 @@ export function AskScreen({
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-lg font-bold">
+        <h2 className="font-display flex items-center gap-2 text-lg font-bold">
           <MessageSquareText className="h-5 w-5 text-accent" /> Ask your data
         </h2>
         <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export function AskScreen({
 
       {/* Brief bar: tick answers below, compile the critic-checked document */}
       {thread.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-panel-2/60 px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-edge bg-panel-2/60 px-4 py-2">
           <p className="text-[11px] text-ink-dim">
             Tick the answers to keep, then compile a decision brief - every number is
             recomputed and every claim checked before it lands in the document.
@@ -214,7 +214,7 @@ export function AskScreen({
               type="checkbox"
               checked={included.has(i)}
               onChange={() => toggleInclude(i)}
-              className="mt-0.5 accent-[#1d4ed8]"
+              className="mt-0.5 accent-[#4338ca]"
               title="Include in the brief"
             />
             <div className="min-w-0">
@@ -398,7 +398,7 @@ export function AskScreen({
                     type="checkbox"
                     checked={included.has(thread.length - 1)}
                     onChange={() => toggleInclude(thread.length - 1)}
-                    className="accent-[#1d4ed8]"
+                    className="accent-[#4338ca]"
                   />
                   In brief
                 </label>

@@ -32,7 +32,7 @@ export function DatasetsPanel({
   if (datasets.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-edge bg-panel p-4 shadow-sm">
+    <div className="rounded-2xl border border-edge bg-panel p-4 shadow-sm">
       <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-dim">
         <Database className="h-3.5 w-3.5 text-accent" /> Your data
       </h3>

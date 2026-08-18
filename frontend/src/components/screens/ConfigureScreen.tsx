@@ -49,7 +49,7 @@ function ParamField({
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-2 h-4 w-4 accent-[#1d4ed8]"
+          className="mt-2 h-4 w-4 accent-[#4338ca]"
         />
       ) : (
         <input
@@ -466,7 +466,7 @@ export function ConfigureScreen({
                       type="checkbox"
                       checked={on}
                       onChange={() => toggleFeature(f.id)}
-                      className="mt-0.5 h-3.5 w-3.5 accent-[#1d4ed8]"
+                      className="mt-0.5 h-3.5 w-3.5 accent-[#4338ca]"
                     />
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -610,7 +610,7 @@ export function ConfigureScreen({
                 if (regressorOptions.length === 0) return null;
                 const esSelected = selected.key === "exp_smoothing";
                 return (
-                  <div className="rounded-xl border border-edge bg-panel-2 px-3.5 py-2.5">
+                  <div className="rounded-2xl border border-edge bg-panel-2 px-3.5 py-2.5">
                     <span className="inline-flex items-center gap-1 text-xs font-medium">
                       Extra driver columns (optional)
                       <InfoTip text="Numeric columns the forecast can lean on (e.g. promotion spend driving sales). Backtests use their real history; future values are held at their last level unless you can supply them." />
@@ -649,7 +649,7 @@ export function ConfigureScreen({
                               return next;
                             })
                           }
-                          className="mt-0.5 accent-[#1d4ed8]"
+                          className="mt-0.5 accent-[#4338ca]"
                         />
                         <span>
                           Will you know <span className="font-semibold">{c}</span>'s future values
@@ -695,7 +695,7 @@ export function ConfigureScreen({
                             type="radio"
                             checked={groupAgg === a}
                             onChange={() => setGroupAgg(a)}
-                            className="accent-[#1d4ed8]"
+                            className="accent-[#4338ca]"
                           />
                           {a === "sum" ? "total across groups" : "average per group"}
                         </label>

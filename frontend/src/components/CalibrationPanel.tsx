@@ -75,7 +75,7 @@ export function CalibrationPanel({
                   stroke="#94a3b8" strokeDasharray="4 4"
                 />
                 <Line
-                  type="monotone" dataKey="observed" stroke="#1d4ed8"
+                  type="monotone" dataKey="observed" stroke="#4338ca"
                   strokeWidth={2} dot={{ r: 3 }}
                 />
               </LineChart>
@@ -83,13 +83,13 @@ export function CalibrationPanel({
           </div>
           <div className="max-w-64 space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-edge bg-panel-2 px-3 py-2">
+              <div className="rounded-2xl border border-edge bg-panel-2 px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-ink-dim" title="Average squared gap between predicted probability and outcome; lower is better.">
                   Brier score
                 </div>
                 <div className="text-lg font-semibold tabular-nums">{cal.brier}</div>
               </div>
-              <div className="rounded-xl border border-edge bg-panel-2 px-3 py-2">
+              <div className="rounded-2xl border border-edge bg-panel-2 px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-ink-dim" title="Weighted gap between what the model said and what happened; under 0.05 reads as honest.">
                   Avg gap
                 </div>

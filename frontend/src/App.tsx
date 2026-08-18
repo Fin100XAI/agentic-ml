@@ -583,7 +583,7 @@ function App() {
             <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
               <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
               <div>
-                <h1 className="whitespace-nowrap text-sm font-semibold leading-tight">
+                <h1 className="font-display whitespace-nowrap text-[15px] font-semibold leading-tight">
                   Agentic ML Workbench
                 </h1>
                 <p className="hidden whitespace-nowrap text-[11px] leading-tight text-ink-dim lg:block">
@@ -775,7 +775,7 @@ function App() {
       <main className="mx-auto max-w-7xl px-6 py-6">
         {/* Compact decision timeline */}
         {screen !== "home" && run && run.decisions.length > 0 && (
-          <div className="mb-6 rounded-xl border border-edge bg-panel shadow-sm">
+          <div className="mb-6 rounded-2xl border border-edge bg-panel shadow-sm">
             <div className="flex items-center justify-between border-b border-edge/60 px-4 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
                 Decision trail
@@ -986,7 +986,7 @@ function App() {
                   </button>
                   <button
                     onClick={() => choosePath("model")}
-                    className="rounded-xl border border-edge bg-panel-2 p-3 text-left transition-colors hover:border-accent/40"
+                    className="rounded-2xl border border-edge bg-panel-2 p-3 text-left transition-colors hover:border-accent/40"
                   >
                     <span className="text-sm font-semibold">Train a model</span>
                     <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">
@@ -1236,7 +1236,7 @@ function App() {
                         setSheetChoice(null);
                         handleUpload(file, question, s.name);
                       }}
-                      className="flex w-full items-center justify-between rounded-xl border border-edge bg-panel-2 px-4 py-2.5 text-left transition-colors hover:border-accent/50"
+                      className="flex w-full items-center justify-between rounded-2xl border border-edge bg-panel-2 px-4 py-2.5 text-left transition-colors hover:border-accent/50"
                     >
                       <span className="min-w-0 truncate text-sm font-medium">{s.name}</span>
                       <span className="shrink-0 text-[11px] tabular-nums text-ink-dim">

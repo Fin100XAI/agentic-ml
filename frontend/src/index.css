@@ -1,19 +1,21 @@
 @import "tailwindcss";
 
 @theme {
-  /* Crisp corporate palette: white panels, slate borders, royal blue accent */
-  --color-surface: #f8fafc;
+  /* Warm editorial palette: paper surface, white panels, stone borders,
+     deep indigo accent, serif display headings */
+  --color-surface: #f4f2ec;
   --color-panel: #ffffff;
-  --color-panel-2: #f8fafc;
-  --color-edge: #e2e8f0;
-  --color-ink: #0f172a;
-  --color-ink-dim: #64748b;
-  --color-accent: #1d4ed8;
-  --color-accent-soft: #dbeafe;
+  --color-panel-2: #f8f6f1;
+  --color-edge: #e5e1d8;
+  --color-ink: #1c1917;
+  --color-ink-dim: #78716c;
+  --color-accent: #4338ca;
+  --color-accent-soft: #e0e7ff;
   --color-good: #059669;
   --color-warn: #d97706;
   --color-bad: #dc2626;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   /* Strong easing curves - built-in CSS easings are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);

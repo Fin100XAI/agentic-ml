@@ -286,7 +286,7 @@ export function AnalyticsScreen({
     <div className="mx-auto max-w-5xl space-y-4">
       {/* Header row: title left, actions right */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-lg font-bold">
+        <h2 className="font-display flex items-center gap-2 text-lg font-bold">
           <Compass className="h-5 w-5 text-accent" /> Initial findings
           <span className="hidden text-sm font-normal text-ink-dim sm:inline">· {filename}</span>
         </h2>
@@ -349,7 +349,7 @@ export function AnalyticsScreen({
           />
           <button
             onClick={() => setAboutOpen((o) => !o)}
-            className="flex flex-col justify-center rounded-xl border border-edge bg-panel p-3 text-left shadow-sm transition-colors hover:border-accent/40"
+            className="flex flex-col justify-center rounded-2xl border border-edge bg-panel p-3 text-left shadow-sm transition-colors hover:border-accent/40"
           >
             <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
               <Database className="h-3 w-3" /> About this data
@@ -479,7 +479,7 @@ export function AnalyticsScreen({
                         return next;
                       })
                     }
-                    className="mt-0.5 accent-[#1d4ed8]"
+                    className="mt-0.5 accent-[#4338ca]"
                   />
                   <span className="min-w-0 text-xs leading-relaxed">
                     <span className="font-semibold">{p.column}</span>
@@ -533,7 +533,7 @@ export function AnalyticsScreen({
                             return next;
                           })
                         }
-                        className="mt-0.5 accent-[#1d4ed8]"
+                        className="mt-0.5 accent-[#4338ca]"
                       />
                       <span className="min-w-0 text-xs leading-relaxed">
                         In <span className="font-semibold">{col.column}</span>:{" "}
@@ -632,7 +632,7 @@ export function AnalyticsScreen({
 
 function Kpi({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
-    <div className="rounded-xl border border-edge bg-panel p-3 shadow-sm">
+    <div className="rounded-2xl border border-edge bg-panel p-3 shadow-sm">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">{label}</div>
       <div className={`mt-0.5 text-xl font-semibold tabular-nums ${warn ? "text-warn" : "text-ink"}`}>
         {value}

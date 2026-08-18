@@ -23,15 +23,15 @@ import { useState } from "react";
 import type { ChartSpec, QueryResult } from "../types";
 import { IndiaMap } from "./IndiaMap";
 
-const AXIS = { stroke: "#64748b", fontSize: 11 };
-const GRID = "#dde3ee";
-const BLUE = "#1d4ed8";
+const AXIS = { stroke: "#78716c", fontSize: 11 };
+const GRID = "#e7e3da";
+const BLUE = "#4338ca";
 // Colorblind-safe series palette; amber/red stay reserved for judgment.
-const PALETTE = ["#1d4ed8", "#059669", "#7c3aed", "#0891b2", "#ea580c", "#c026d3"];
+const PALETTE = ["#4338ca", "#059669", "#db2777", "#0891b2", "#ea580c", "#ca8a04"];
 
 const TOOLTIP_STYLE = {
   backgroundColor: "rgba(255,255,255,0.95)",
-  border: "1px solid #dde3ee",
+  border: "1px solid #e7e3da",
   borderRadius: 10,
   fontSize: 12,
   color: "#0f172a",
@@ -233,7 +233,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
               isAnimationActive={false} legendType="none" tooltipType="none" />
             <Line type="monotone" dataKey={y} stroke={BLUE} strokeWidth={2.2} dot={data.length <= 30} isAnimationActive={false} name={niceLabel(y)} />
             {spec.trend && (
-              <Line type="linear" dataKey="__trend" stroke="#64748b" strokeWidth={1.5}
+              <Line type="linear" dataKey="__trend" stroke="#78716c" strokeWidth={1.5}
                 strokeDasharray="6 4" dot={false} isAnimationActive={false} name="trend" />
             )}
           </ComposedChart>
@@ -258,7 +258,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} interval={0} angle={data.length > 8 ? -30 : 0} textAnchor={data.length > 8 ? "end" : "middle"} height={data.length > 8 ? 55 : 30} />
           <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
           <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
-          <ReferenceLine y={0} stroke="#64748b" />
+          <ReferenceLine y={0} stroke="#78716c" />
           <Bar dataKey={y} isAnimationActive={false} name={niceLabel(y)} radius={[3, 3, 0, 0]}>
             {data.map((r, i) => (
               <Cell key={i} fill={Number(r[y]) >= 0 ? BLUE : "#ea580c"} />
@@ -283,8 +283,8 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
               label={{ value: compact(spec.threshold), fontSize: 10, fill: "#d97706" }} />
           )}
           {spec.benchmark && (
-            <ReferenceLine x={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
-              label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideBottomRight" }} />
+            <ReferenceLine x={spec.benchmark.value} stroke="#78716c" strokeDasharray="3 4"
+              label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#78716c", position: "insideBottomRight" }} />
           )}
           <Bar dataKey={y} radius={[0, 4, 4, 0]} isAnimationActive={false} name={niceLabel(y)}>
             {/* Color = category identity (colorblind-safe; amber/red reserved) */}
@@ -313,8 +313,8 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
             label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "#d97706", position: "insideTopRight" }} />
         )}
         {spec.benchmark && (
-          <ReferenceLine y={spec.benchmark.value} stroke="#64748b" strokeDasharray="3 4"
-            label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#64748b", position: "insideTopRight" }} />
+          <ReferenceLine y={spec.benchmark.value} stroke="#78716c" strokeDasharray="3 4"
+            label={{ value: `${spec.benchmark.label} ${compact(spec.benchmark.value)}`, fontSize: 9, fill: "#78716c", position: "insideTopRight" }} />
         )}
         <Bar dataKey={y} radius={[4, 4, 0, 0]} isAnimationActive={false} name={niceLabel(y)}>
           {data.map((_, i) => (

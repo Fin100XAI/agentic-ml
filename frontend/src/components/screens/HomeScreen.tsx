@@ -129,7 +129,7 @@ export function HomeScreen({
         <p className="animate-rise text-xs font-bold uppercase tracking-[0.18em] text-accent">
           Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
         </p>
-        <h2 className="animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
+        <h2 className="font-display animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
           Evidence for every decision.
           <span className="text-accent"> Accountability at every step.</span>
         </h2>
