@@ -771,6 +771,12 @@ function App() {
             eda={run.eda}
             question={run.question}
             onApprove={handleApproveEda}
+            onAsk={(q) => {
+              if (!run) return;
+              api.routeChoice(run.id, "direct_query").catch(() => {});
+              setAskCtx({ datasetId: run.dataset_id, filename: run.filename, question: q });
+              setScreen("ask");
+            }}
             busy={busy}
           />
         )}

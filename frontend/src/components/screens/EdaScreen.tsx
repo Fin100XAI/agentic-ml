@@ -366,12 +366,14 @@ export function EdaScreen({
   eda,
   question,
   onApprove,
+  onAsk,
   busy,
 }: {
   profile: Profile;
   eda: Eda;
   question: string;
   onApprove: (comment: string) => void;
+  onAsk?: (question: string) => void;  // QUERY-PATH: standing entry to Ask
   busy: boolean;
 }) {
   const [comment, setComment] = useState(question);
@@ -662,13 +664,21 @@ export function EdaScreen({
                 </div>
               </div>
             )}
-            <div className="mt-3">
+            <div className="mt-3 space-y-2">
               {busy ? (
                 <Spinner label="Recommendation agent thinking…" />
               ) : (
-                <Button className="w-full" onClick={() => onApprove(comment)}>
-                  Set direction & recommend an approach
-                </Button>
+                <>
+                  <Button className="w-full" onClick={() => onApprove(comment)}>
+                    Set direction & recommend an approach
+                  </Button>
+                  {onAsk && (
+                    <Button variant="outline" className="w-full" onClick={() => onAsk(comment)}>
+                      <MessageSquare className="h-4 w-4" />
+                      Ask a direct question instead - no model training
+                    </Button>
+                  )}
+                </>
               )}
             </div>
             <p className="mt-2 text-center text-[10px] leading-snug text-ink-dim">
