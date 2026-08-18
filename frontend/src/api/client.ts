@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DriftResult, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, Project, QueryAnswer, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -79,6 +79,30 @@ export const api = {
 
   routeChoice: (runId: string, choice: "direct_query" | "model") =>
     request<{ ok: boolean }>(`/runs/${runId}/route-choice`, json({ choice })),
+
+  explore: (datasetId: string) =>
+    request<ExploreResponse>(`/datasets/${datasetId}/explore`, { method: "POST" }),
+
+  pathChoice: (datasetId: string, choice: "analytics" | "model") =>
+    request<{ ok: boolean }>(`/datasets/${datasetId}/path-choice`, json({ choice })),
+
+  // Downloads return files, not JSON - handled outside request<T>.
+  queryExportCsv: async (datasetId: string, plan: object, question: string) => {
+    const res = await fetch(`${BASE}/datasets/${datasetId}/query/export`,
+      json({ plan, question }));
+    if (!res.ok) throw new Error(res.statusText);
+    return res.blob();
+  },
+
+  exploreExportMd: async (
+    datasetId: string,
+    items: { question: string; headline: string; sentences: string[]; table: object[] }[],
+  ) => {
+    const res = await fetch(`${BASE}/datasets/${datasetId}/explore/export`,
+      json({ items }));
+    if (!res.ok) throw new Error(res.statusText);
+    return res.blob();
+  },
 
   getIntake: (projectId: string) =>
     request<{ rules: IntakeRule[]; items: IntakeItem[] }>(`/projects/${projectId}/intake`),

@@ -21,6 +21,8 @@ from engine.query.executor import QueryExecutionError, execute_plan
 from engine.query.plan import QueryPlan, plan_columns
 from engine.query.readiness import caveats_for_columns, readiness_audit
 from engine.query.resolve import ColumnResolutionError, resolve_plan
+from engine.query.starter import starter_questions
+from engine.query.vizmap import choose_chart
 
 router = APIRouter()
 
@@ -141,6 +143,9 @@ def run_question(dataset_id: str, req: RunRequest) -> dict:
         "generated_by": generated_by,
         "caveats": caveats,
         "sentences": sentences,
+        # Chart chosen deterministically from the result shape (rule 14).
+        "chart": choose_chart(result, resolved),
+        "plan": resolved.model_dump(),
         "artifact_id": ds.artifact_id,
         "filename": ds.filename,
     }
@@ -178,6 +183,160 @@ def _template_headline(table: list[dict], columns: list[str]) -> str:
     first = table[0]
     summary = ", ".join(f"{k}: {v}" for k, v in list(first.items())[:3])
     return f"{len(table)} row(s). First: {summary}."
+
+
+@router.post("/datasets/{dataset_id}/explore")
+def auto_explore(dataset_id: str) -> dict:
+    """The exploring agents: starter questions asked AND answered before the
+    user types anything. Plans are generated deterministically from the
+    schema and run through the same executor as user questions; ONE batched
+    LLM call phrases the findings (templated fallback). Every finding is
+    individually logged."""
+    ds = _gated_dataset(dataset_id)
+    try:
+        findings_raw = []
+        readiness = readiness_audit(ds.df)["findings"]
+        for cand in starter_questions(ds.df, ds.artifact_id or ds.id):
+            try:
+                plan = QueryPlan.model_validate(cand["plan"])
+                resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+                result = execute_plan(resolved, ds.df)
+            except Exception:
+                continue  # one broken starter must not sink the board
+            used = plan_columns(resolved)
+            caveats = list(result["coverage_notes"])
+            caveats += caveats_for_columns(readiness, used)
+            findings_raw.append({
+                "question": cand["question"],
+                "plan": resolved.model_dump(),
+                "sentences": describe_plan(resolved, dataset_name=f"'{ds.filename}'")["sentences"],
+                "result": result,
+                "chart": choose_chart(result, resolved),
+                "caveats": caveats,
+            })
+            store.log_event(
+                "Explorer agents", "query_plan", dataset_id=ds.id, mode="fallback",
+                payload={"question": cand["question"], "auto": True,
+                         "rows_out": result["row_counts"][-1]["rows"]},
+            )
+    except QueryExecutionError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    headlines, generated_by = _batch_headlines(findings_raw)
+    for f, h in zip(findings_raw, headlines):
+        f["headline"] = h
+    store.log_event(
+        "Explorer agents", "query_execute", dataset_id=ds.id,
+        mode="llm" if generated_by == "claude" else "fallback",
+        payload={"auto_explore": True, "n_findings": len(findings_raw)},
+    )
+    return {"findings": findings_raw, "generated_by": generated_by,
+            "filename": ds.filename, "artifact_id": ds.artifact_id}
+
+
+def _batch_headlines(findings: list[dict[str, Any]]) -> tuple[list[str], str]:
+    """ONE phrasing call for the whole board - never one per finding."""
+    fallbacks = [_template_headline(f["result"]["table"], f["result"]["columns"])
+                 for f in findings]
+    provider = instrumented_provider()
+    if provider is None or not findings:
+        return fallbacks, "heuristic"
+    try:
+        import json as _json
+
+        compact = [{"i": i, "question": f["question"],
+                    "table": f["result"]["table"][:8]}
+                   for i, f in enumerate(findings)]
+        raw = provider.complete_json(
+            "You phrase data findings for a government officer. For each item, "
+            "write ONE plain sentence using ONLY the numbers in its table - "
+            "never compute or invent. Style: plain hyphens only.",
+            f"Items: {_json.dumps(compact)}",
+            {"type": "object", "properties": {"headlines": {
+                "type": "array", "items": {"type": "object", "properties": {
+                    "i": {"type": "integer"}, "text": {"type": "string"}},
+                    "required": ["i", "text"], "additionalProperties": False}}},
+             "required": ["headlines"], "additionalProperties": False},
+            max_tokens=1500,
+        )
+        by_i = {h["i"]: h["text"] for h in raw.get("headlines", [])}
+        return [by_i.get(i) or fb for i, fb in enumerate(fallbacks)], "claude"
+    except Exception:
+        return fallbacks, "heuristic"
+
+
+@router.post("/datasets/{dataset_id}/query/export")
+def export_answer(dataset_id: str, req: RunRequest):
+    """Download an answer as CSV: the plan re-executes (deterministic, same
+    numbers) and the export is logged like every other export."""
+    from fastapi.responses import Response
+
+    ds = _gated_dataset(dataset_id)
+    try:
+        plan = QueryPlan.model_validate(req.plan)
+        resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
+        result = execute_plan(resolved, ds.df)
+    except (ColumnResolutionError, QueryExecutionError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    import pandas as pd
+
+    csv_bytes = pd.DataFrame(result["table"]).to_csv(index=False).encode("utf-8-sig")
+    store.log_event("user", "export", dataset_id=ds.id,
+                    payload={"format": "csv", "kind": "query_answer",
+                             "question": req.question[:200],
+                             "rows": len(result["table"])})
+    return Response(
+        content=csv_bytes, media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="answer.csv"'},
+    )
+
+
+class BoardExportRequest(BaseModel):
+    items: list[dict[str, Any]]  # {question, headline, sentences, table}
+
+
+@router.post("/datasets/{dataset_id}/explore/export")
+def export_board(dataset_id: str, req: BoardExportRequest):
+    """Download the findings board as markdown; export logged."""
+    from fastapi.responses import Response
+
+    ds = _gated_dataset(dataset_id)
+    lines = [f"# Initial findings - {ds.filename}", ""]
+    for item in req.items[:12]:
+        lines.append(f"## {str(item.get('question', ''))[:200]}")
+        if item.get("headline"):
+            lines.append(f"**{str(item['headline'])[:400]}**")
+        lines.append("")
+        for s in (item.get("sentences") or [])[:12]:
+            lines.append(f"- {str(s)[:200]}")
+        table = item.get("table") or []
+        if table:
+            cols = list(table[0].keys())
+            lines.append("")
+            lines.append("| " + " | ".join(cols) + " |")
+            lines.append("|" + "---|" * len(cols))
+            for row in table[:50]:
+                lines.append("| " + " | ".join(str(row.get(c, "")) for c in cols) + " |")
+        lines.append("")
+    lines.append("_Every number computed deterministically from the data; "
+                 "plans and row counts are in the activity log._")
+    store.log_event("user", "export", dataset_id=ds.id,
+                    payload={"format": "markdown", "kind": "explore_board",
+                             "n_items": len(req.items)})
+    return Response(
+        content="\n".join(lines).encode("utf-8"),
+        media_type="text/markdown",
+        headers={"Content-Disposition": 'attachment; filename="initial-findings.md"'},
+    )
+
+
+@router.post("/datasets/{dataset_id}/path-choice")
+def path_choice(dataset_id: str, req: RouteChoiceRequest) -> dict:
+    """The post-upload fork decision is a logged approval."""
+    ds = _gated_dataset(dataset_id)
+    store.log_event("user", "approval", dataset_id=ds.id,
+                    payload={"gate": "path", "choice": req.choice})
+    return {"ok": True}
 
 
 @router.post("/runs/{run_id}/route-choice")

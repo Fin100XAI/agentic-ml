@@ -24,24 +24,36 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
    data (emails, Indian mobiles, Aadhaar-like numbers, PAN, names, addresses) are
    flagged with a per-column mask/drop/keep choice. Masking produces a derived
    copy; the original file is stored read-only with its hash.
-4. **Profile + health check** - column types, human-friendly names, missing data,
+4. **Choose your direction** - the fork every file gets, question or no question:
+   - **Understand & ask (analytics)** - the exploring agents scan the schema,
+     ask the first questions on your behalf, execute them deterministically
+     through the query engine, and present an initial-findings board: charted
+     answers with plain-language interpretations, caveats and row counts. From
+     there you take over in plain language - every question becomes a visible
+     step-by-step plan you approve before it runs, every answer arrives with a
+     deterministic chart, and both single answers (CSV) and the whole board
+     (markdown briefing) are downloadable. No model training involved.
+   - **Train a model** - the full guided path below.
+5. **Profile + health check** - column types, human-friendly names, missing data,
    imbalance, duplicates, size warnings - each with a suggestion.
-5. **Remediation** - the engine proposes concrete fixes (impute, de-duplicate,
+6. **Remediation** - the engine proposes concrete fixes (impute, de-duplicate,
    fix numbers-stored-as-text, drop mostly-empty columns, optional outlier caps);
    you tick what to apply, or skip. Applied fixes become one derived artifact.
-6. **EDA agent** explains the dataset in plain language with charts and proposes
+7. **EDA agent** explains the dataset in plain language with charts and proposes
    concrete problem statements.
-7. **Set direction** - pick a proposed problem or write your own. If the question
-   does not match the data, the agent says so before you continue.
-8. **Recommendation agent** picks the use case, ranks the models, and computes
+8. **Set direction** - pick a proposed problem or write your own. If the question
+   does not match the data, the agent says so before you continue - and if it can
+   be answered directly without training (a lookup, ranking or total), the
+   platform offers the direct-answer route first.
+9. **Recommendation agent** picks the use case, ranks the models, and computes
    hyperparameter suggestions from your actual data. The **leakage sentinel**
    flags columns that contain the answer or would not exist at prediction time -
    each is a keep/exclude question; exclusions apply at training only.
-9. **Feature agent** proposes optional engineered features (log scale, ratios,
+10. **Feature agent** proposes optional engineered features (log scale, ratios,
    interactions, text length) - you tick the ones to include.
-10. **Choose a path**: run the chosen model, auto-tune it first (you set how many
+11. **Choose a path**: run the chosen model, auto-tune it first (you set how many
    combinations), or compare every model on a leaderboard.
-11. **Results** land as a decision brief: executive summary, key findings, drivers,
+12. **Results** land as a decision brief: executive summary, key findings, drivers,
     segment profiles, outlook, recommended actions, and a trust panel. A technical
     appendix holds metrics, the stability check, error slices, the
     decision-threshold tuner and probability check (binary classification),
@@ -50,9 +62,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
     numbers, causal caveats), and a **trust tier** derived from the stability
     verdict reframes weak-evidence runs as "hypotheses to verify" everywhere -
     UI, markdown and PDF.
-12. **Ask the data** - a grounded chat answers follow-up questions from the run's
+13. **Ask the data** - a grounded chat answers follow-up questions from the run's
     own numbers.
-13. **Export** - in-app report page, markdown download, or a styled PDF. Every
+14. **Export** - in-app report page, markdown download, or a styled PDF. Every
     action along the way (uploads, agent calls with tokens and latency, approvals,
     declines, transforms, training, exports) is in the activity log, with a data
     lineage breadcrumb (original -> PII mask -> fixes -> features) on the results.
@@ -142,6 +154,21 @@ with which reasoning, in how many ms) and on the run's decision trail.
   monthly extract, fresh applicant list) and queue score / drift-check /
   retrain proposals in an inbox. Approve executes, decline discards, and a
   cadence flags overdue arrivals - nothing ever auto-runs.
+- **Ask your data (query path)** - plain-language questions become typed,
+  visible query plans (filter / group / aggregate / derive / rank - never
+  free-form code). The interpretation is shown and approved before anything
+  executes; pandas computes every number; answers carry caveats from the same
+  readiness machinery as the ML path (period gaps, near-duplicate spellings,
+  missingness) plus row counts at every step.
+- **Auto-exploration board** - on the analytics path, exploring agents
+  generate starter questions from the schema, run them through the same
+  executor, and present charted initial findings before you type anything.
+  One batched AI call phrases the headlines from computed numbers only.
+- **Deterministic charts** - the chart type is chosen from the result shape
+  by rules (KPI cards, bars, ranked horizontal bars, time lines, threshold
+  reference lines), never by the AI; bars always start at zero.
+- **Answer downloads** - any answer exports as CSV, the findings board as a
+  markdown briefing; every export is a logged event.
 - **Graceful degradation** - every agent has a deterministic heuristic fallback
   used when no API key is set or a call fails; the UI badges each output as
   `AI` or `heuristic`, and an unreachable provider raises a visible banner -

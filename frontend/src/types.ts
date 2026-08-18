@@ -258,21 +258,50 @@ export interface QueryPlanResponse {
   generated_by: string;
 }
 
+export interface ChartSpec {
+  kind: "kpi" | "bar" | "hbar" | "line" | "table";
+  x: string | null;
+  y: string[];
+  threshold: number | null;
+  note: string | null;
+}
+
+export interface QueryResult {
+  table: Record<string, string | number | null>[];
+  columns: string[];
+  dtypes: Record<string, string>;
+  row_counts: { step: string; rows: number }[];
+  excluded_null_rows: Record<string, number>;
+  coverage_notes: string[];
+}
+
 export interface QueryAnswer {
-  result: {
-    table: Record<string, string | number | null>[];
-    columns: string[];
-    dtypes: Record<string, string>;
-    row_counts: { step: string; rows: number }[];
-    excluded_null_rows: Record<string, number>;
-    coverage_notes: string[];
-  };
+  result: QueryResult;
   headline: string;
   generated_by: string;
   caveats: string[];
   sentences: string[];
+  chart: ChartSpec;
+  plan: Record<string, unknown>;
   artifact_id: string | null;
   filename: string;
+}
+
+export interface ExploreFinding {
+  question: string;
+  plan: Record<string, unknown>;
+  sentences: string[];
+  result: QueryResult;
+  chart: ChartSpec;
+  caveats: string[];
+  headline: string;
+}
+
+export interface ExploreResponse {
+  findings: ExploreFinding[];
+  generated_by: string;
+  filename: string;
+  artifact_id: string | null;
 }
 
 export interface IntakeRule {

@@ -1,13 +1,14 @@
 // Ask your data: question -> visible interpretation -> run -> answer.
 // The interpretation card is the contract (rule 12): nothing executes
 // until the user runs exactly the sentences shown. Every answer carries
-// its caveats (rule 13). Charts arrive with the Phase 2 viz engine -
-// until then answers render as headline + table.
+// its caveats (rule 13) and a deterministically chosen chart (rule 14).
 import { useState } from "react";
-import { ArrowLeft, CircleHelp, MessageSquareText, Play, Sparkles } from "lucide-react";
+import { ArrowLeft, CircleHelp, Download, MessageSquareText, Play, Sparkles } from "lucide-react";
 import { api } from "../../api/client";
 import type { QueryAnswer, QueryPlanCandidate, QueryPlanResponse } from "../../types";
 import { genLabel } from "../../lib/labels";
+import { saveBlob } from "../../lib/download";
+import { QueryChart } from "../QueryChart";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
 const EXAMPLES = [
@@ -206,7 +207,11 @@ export function AskScreen({
               </div>
             )}
 
-            {/* Chart lands with the Phase 2 viz engine; table is the answer for now. */}
+            {/* Chart chosen from the result shape on the backend (rule 14). */}
+            {answer.chart && answer.chart.kind !== "table" && (
+              <QueryChart spec={answer.chart} result={answer.result} />
+            )}
+
             <div className="overflow-x-auto rounded-lg border border-edge">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -245,12 +250,24 @@ export function AskScreen({
               )}
             </div>
 
-            <p className="text-[10px] leading-relaxed text-ink-dim">
-              Computed from {answer.filename}
-              {" - "}
-              {answer.result.row_counts.map((rc) => `${rc.step}: ${rc.rows.toLocaleString()}`).join(" → ")}
-              . The plan and row counts are in the activity log.
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] leading-relaxed text-ink-dim">
+                Computed from {answer.filename}
+                {" - "}
+                {answer.result.row_counts.map((rc) => `${rc.step}: ${rc.rows.toLocaleString()}`).join(" → ")}
+                . The plan and row counts are in the activity log.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const blob = await api.queryExportCsv(datasetId, answer.plan, question);
+                  saveBlob(blob, "answer.csv");
+                }}
+              >
+                <Download className="h-3.5 w-3.5" /> CSV
+              </Button>
+            </div>
           </CardBody>
         </Card>
       )}

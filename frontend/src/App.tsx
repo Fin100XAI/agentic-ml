@@ -12,6 +12,7 @@ import { HomeScreen } from "./components/screens/HomeScreen";
 import { InsightsScreen } from "./components/screens/InsightsScreen";
 import { ReportScreen } from "./components/screens/ReportScreen";
 import { AboutScreen } from "./components/screens/AboutScreen";
+import { AnalyticsScreen } from "./components/screens/AnalyticsScreen";
 import { AskScreen } from "./components/screens/AskScreen";
 import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
@@ -25,7 +26,7 @@ import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask";
+type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask" | "analytics";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -49,6 +50,8 @@ const GUIDE: Record<Screen, string> = {
   activity: "Every action in order - uploads, agent calls, approvals, training and exports.",
   about: "",
   ask: "Ask a direct question - the interpretation is shown before anything runs, and every answer carries its caveats.",
+  analytics:
+    "The exploring agents ran the first questions for you - every number computed from the data, every finding charted. Take over whenever you like.",
 };
 
 // Map a run's backend stage to the screen that shows it.
@@ -110,7 +113,10 @@ function App() {
   // one more attempt before changing anything.
   const [runFailure, setRunFailure] = useState<{ message: string; kind: "data" | "transient" } | null>(null);
   // Ask-your-data context + the direction-stage route offer (QUERY-PATH)
-  const [askCtx, setAskCtx] = useState<{ datasetId: string; filename: string; question?: string } | null>(null);
+  const [askCtx, setAskCtx] = useState<{ datasetId: string; filename: string; question?: string; from?: "analytics" } | null>(null);
+  // The post-upload fork: analytics (explore + ask, no training) vs model path.
+  const [pathOffer, setPathOffer] = useState<{ datasetId: string; filename: string; question: string } | null>(null);
+  const [analyticsCtx, setAnalyticsCtx] = useState<{ datasetId: string; filename: string } | null>(null);
   const [routeOffer, setRouteOffer] = useState<{
     runId: string; datasetId: string; filename: string; question: string;
     route: "direct_query" | "both"; reasoning: string;
@@ -285,16 +291,18 @@ function App() {
         setPiiReview({ datasetId, filename: columnReview.filename, question, findings });
         return;
       }
-      await runAnalysis(datasetId, question);
+      // The fork: explore-and-ask or train a model - the user decides first.
+      setPathOffer({ datasetId, filename: columnReview.filename, question });
     });
 
   const handlePiiApprove = (actions: Record<string, string>) =>
     guard("Applying privacy screen…", async () => {
       if (!piiReview) return;
-      const { datasetId, question } = piiReview;
+      const { datasetId, question, filename } = piiReview;
       await api.piiReview(datasetId, actions);
       setPiiReview(null);
-      await runAnalysis(datasetId, question);
+      // The fork: explore-and-ask or train a model - the user decides first.
+      setPathOffer({ datasetId, filename, question });
     });
 
   const handleApproveEda = (comment: string) =>
@@ -326,6 +334,21 @@ function App() {
       // Agent flags questions the data cannot actually answer.
       if (align && !align.aligned) setMisalignNote(align.note || "The question may not match this dataset.");
     });
+
+  // The post-upload fork. The choice is a logged approval (gate: path); the
+  // analytics side runs the exploring agents, the model side profiles as before.
+  const choosePath = (choice: "analytics" | "model") => {
+    if (!pathOffer) return;
+    const offer = pathOffer;
+    setPathOffer(null);
+    api.pathChoice(offer.datasetId, choice).catch(() => {});
+    if (choice === "analytics") {
+      setAnalyticsCtx({ datasetId: offer.datasetId, filename: offer.filename });
+      setScreen("analytics");
+    } else {
+      void guard("Analyzing…", () => runAnalysis(offer.datasetId, offer.question));
+    }
+  };
 
   const chooseRoute = (choice: "direct_query" | "model") => {
     if (!routeOffer) return;
@@ -463,6 +486,7 @@ function App() {
     }
     if (s === "home") return project !== null;
     if (s === "ask") return askCtx !== null;
+    if (s === "analytics") return analyticsCtx !== null;
     return true;
   };
   const goBack = () => {
@@ -813,6 +837,27 @@ function App() {
             datasetId={askCtx.datasetId}
             filename={askCtx.filename}
             initialQuestion={askCtx.question}
+            onBack={
+              askCtx.from === "analytics" && analyticsCtx
+                ? () => setScreen("analytics")
+                : goHome
+            }
+          />
+        )}
+
+        {screen === "analytics" && analyticsCtx && (
+          <AnalyticsScreen
+            datasetId={analyticsCtx.datasetId}
+            filename={analyticsCtx.filename}
+            onAsk={(q) => {
+              setAskCtx({
+                datasetId: analyticsCtx.datasetId,
+                filename: analyticsCtx.filename,
+                question: q,
+                from: "analytics",
+              });
+              setScreen("ask");
+            }}
             onBack={goHome}
           />
         )}
@@ -879,6 +924,50 @@ function App() {
         onClose={() => setTuneOpen(false)}
         onApply={() => setTuneOpen(false)}
       />
+
+      {/* The post-upload fork: two clearly separated directions (logged). */}
+      {pathOffer && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4">
+            <Card className="border-accent/40 bg-white/95">
+              <CardBody>
+                <h3 className="text-sm font-semibold">
+                  {pathOffer.filename} is ready - how do you want to work with it?
+                </h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={() => choosePath("analytics")}
+                    className="rounded-xl border border-accent/40 bg-accent-soft/40 p-3 text-left transition-colors hover:bg-accent-soft"
+                  >
+                    <span className="text-sm font-semibold text-accent">Understand & ask</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">
+                      The exploring agents scan the data, answer the first questions
+                      themselves, and chart the findings. Then ask anything in plain
+                      language - answers in seconds, no model training.
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => choosePath("model")}
+                    className="rounded-xl border border-edge bg-panel-2 p-3 text-left transition-colors hover:border-accent/40"
+                  >
+                    <span className="text-sm font-semibold">Train a model</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">
+                      The full guided path: health checks, exploration, a recommended
+                      method, training, and a decision brief - with your approval at
+                      every step.
+                    </p>
+                  </button>
+                </div>
+                <p className="mt-3 text-[10px] text-ink-dim">
+                  You can switch at any time - both directions use the same protected
+                  copy of your data, and this choice is recorded on the timeline.
+                </p>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* Question/data misalignment warning */}
       {/* QUERY-PATH: the direction-stage route offer (rule 10 touch point a) */}
