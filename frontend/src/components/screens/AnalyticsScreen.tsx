@@ -87,6 +87,10 @@ export function AnalyticsScreen({
   const [numDismissed, setNumDismissed] = useState(false);
   const [numBusy, setNumBusy] = useState(false);
   const [numTicks, setNumTicks] = useState<Set<string>>(new Set());
+  // Sequencing: the repair scans run FIRST; exploration waits until the
+  // user has decided on any proposals - otherwise the agents explore the
+  // unfixed data and everything runs twice.
+  const [checksReady, setChecksReady] = useState(false);
 
   const applyNumbers = async () => {
     if (!numCheck) return;
@@ -187,35 +191,30 @@ export function AnalyticsScreen({
     }
   };
 
+  // Step 1: repair scans + overview + domains - all fast and independent of
+  // exploration. Exploration itself waits for the repair decision (step 2).
   useEffect(() => {
-    // Scan for text-costumed numbers once per visit; proposals only.
-    api.numberCheck(datasetId)
-      .then((nc) => {
-        if (nc.columns.length > 0) {
-          setNumCheck(nc.columns);
-          setNumTicks(new Set(nc.columns.map((p) => p.column)));
+    setChecksReady(false);
+    setNumDismissed(false);
+    setPlaceDismissed(false);
+    Promise.allSettled([api.numberCheck(datasetId), api.placeCheck(datasetId)])
+      .then(([n, p]) => {
+        if (n.status === "fulfilled" && n.value.columns.length > 0) {
+          setNumCheck(n.value.columns);
+          setNumTicks(new Set(n.value.columns.map((x) => x.column)));
+        } else {
+          setNumCheck(null);
         }
-      })
-      .catch(() => {});
-    // Scan for split place spellings once per visit; proposals only.
-    api.placeCheck(datasetId)
-      .then((pc) => {
-        if (pc.columns.length > 0) {
-          setPlaceCheck(pc);
+        if (p.status === "fulfilled" && p.value.columns.length > 0) {
+          setPlaceCheck(p.value);
           // default: everything ticked - one click fixes the common case
-          setPlaceTicks(new Set(pc.columns.flatMap((c) =>
-            c.proposals.map((p) => `${c.column}|${p.canonical}`))));
+          setPlaceTicks(new Set(p.value.columns.flatMap((c) =>
+            c.proposals.map((x) => `${c.column}|${x.canonical}`))));
+        } else {
+          setPlaceCheck(null);
         }
-      })
-      .catch(() => {});
-    const c = boardCache.get(cacheKey);
-    if (c) {
-      setResp(c);
-      setBusy(false);
-    } else {
-      setResp(null);
-      void explore();
-    }
+        setChecksReady(true);
+      });
     if (!domainsCache.has(datasetId)) {
       api.getDomains(datasetId)
         .then((d) => {
@@ -238,7 +237,25 @@ export function AnalyticsScreen({
         .finally(() => overviewInFlight.delete(datasetId));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, lang, focusDomain]);
+  }, [datasetId]);
+
+  const repairsPending =
+    (numCheck !== null && !numDismissed) || (placeCheck !== null && !placeDismissed);
+
+  // Step 2: explore only once the repair decision is made (approved cards
+  // clear their proposals; "Keep as is" dismisses them).
+  useEffect(() => {
+    if (!checksReady || repairsPending) return;
+    const c = boardCache.get(cacheKey);
+    if (c) {
+      setResp(c);
+      setBusy(false);
+    } else {
+      setResp(null);
+      void explore();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetId, lang, focusDomain, checksReady, repairsPending]);
 
   const downloadBoard = async () => {
     if (!resp) return;
@@ -362,13 +379,25 @@ export function AnalyticsScreen({
         </Card>
       )}
 
-      {busy && (
+      {repairsPending && (
+        <Card>
+          <CardBody className="py-6">
+            <p className="text-sm text-ink-dim">
+              Decide on the data fixes above first - the agents will explore the CLEAN
+              version once, instead of exploring twice. Or skip straight to asking.
+            </p>
+          </CardBody>
+        </Card>
+      )}
+
+      {busy && !repairsPending && (
         <Card>
           <CardBody className="flex items-center gap-3 py-8">
             <Spinner />
             <p className="text-sm text-ink-dim">
-              The exploring agents are asking the first questions and computing every answer
-              from the data - or skip straight to asking your own.
+              {checksReady
+                ? "The exploring agents are asking the first questions and computing every answer from the data - or skip straight to asking your own."
+                : "Checking the data for repairs worth making first..."}
             </p>
           </CardBody>
         </Card>

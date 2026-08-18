@@ -303,7 +303,10 @@ def dataset_domains(dataset_id: str) -> dict:
                 "government analyst would recognize (e.g. literacy, workers, "
                 "amenities, demographics). Use ONLY the exact column names "
                 "given. Short plain names; one sentence why per domain. "
-                "Leave out identifier/name columns.",
+                "Leave out identifier/name columns. Also set 'suggested' to "
+                "the ONE domain name where deeper analysis is most valuable "
+                "to an administrator - judged by policy relevance, not by "
+                "which numbers vary most.",
                 f"Columns: {_json.dumps(columns)}",
                 {"type": "object", "properties": {"domains": {
                     "type": "array", "items": {"type": "object", "properties": {
@@ -311,16 +314,32 @@ def dataset_domains(dataset_id: str) -> dict:
                         "columns": {"type": "array", "items": {"type": "string"}},
                         "why": {"type": "string"}},
                         "required": ["name", "columns", "why"],
-                        "additionalProperties": False}}},
-                 "required": ["domains"], "additionalProperties": False},
+                        "additionalProperties": False}},
+                    "suggested": {"type": "string"}},
+                 "required": ["domains", "suggested"],
+                 "additionalProperties": False},
                 max_tokens=2500,
             )
             validated = validate_domains(raw.get("domains", []), columns)
             if validated:
                 domains = validated
                 generated_by = "claude"
-        except Exception:
-            pass
+                llm_suggested = str(raw.get("suggested", ""))
+                if any(d["name"] == llm_suggested for d in domains):
+                    store.log_event("Domain scout", "profile", dataset_id=ds.id,
+                                    mode="llm",
+                                    payload={"context": "domains",
+                                             "n_domains": len(domains),
+                                             "suggested": llm_suggested})
+                    return {"domains": domains, "suggested": llm_suggested,
+                            "generated_by": generated_by}
+        except Exception as exc:
+            # Silent fallbacks are undebuggable - the reason goes in the log.
+            store.log_event("Domain scout", "profile", dataset_id=ds.id,
+                            mode="fallback",
+                            payload={"context": "domains_llm_failed",
+                                     "error": str(exc)[:300]})
+    # Fallback suggestion: variability (used when no AI or its pick invalid).
     suggested = suggest_domain(domains, ds.df)
     store.log_event("Domain scout", "profile", dataset_id=ds.id,
                     mode="llm" if generated_by == "claude" else "fallback",
@@ -415,7 +434,8 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
     deterministically. Returns None when unavailable or too thin (the
     deterministic starters then take over). Wide datasets benefit most."""
     from engine.query.domains import heuristic_domains
-    from engine.query.starter import SCOUT_TEMPLATES, starters_from_selections
+    from engine.query.starter import (SCOUT_TEMPLATES, _pick_columns,
+                                      starters_from_selections)
 
     provider = instrumented_provider()
     if provider is None or ds.df.shape[1] < 6:
@@ -423,6 +443,10 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
     try:
         import json as _json
 
+        # Tell the scout exactly which columns the validator will accept -
+        # without this it picks interesting-looking text columns and its
+        # selections die in validation, silently falling back to heuristics.
+        picks = _pick_columns(ds.df)
         cols_ctx = []
         for c in ds.df.columns:
             s = ds.df[c]
@@ -446,6 +470,10 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
             "words, no raw column names, must mean exactly what the template "
             "computes.",
             f"Dataset shape: {shape['label']}\n"
+            f"USABLE metrics (only these may be metric/second_metric): "
+            f"{_json.dumps(picks['numerics'])}\n"
+            f"USABLE groupings (only these may be group): "
+            f"{_json.dumps(picks['cats'])}\n"
             f"Topic groups: {_json.dumps([{d['name']: d['columns'][:6]} for d in domains])}\n"
             f"Columns: {_json.dumps(cols_ctx)}",
             {"type": "object", "properties": {"selections": {
@@ -462,9 +490,20 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
             max_tokens=2500,
         )
         built = starters_from_selections(raw.get("selections", []), ds.df, source)
-        # Too thin a result means the scout misfired - fall back honestly.
-        return built if len(built) >= 4 else None
-    except Exception:
+        if len(built) < 4:
+            # Too thin means most selections died in validation - log which.
+            store.log_event("Question scout", "profile", dataset_id=ds.id,
+                            mode="fallback",
+                            payload={"context": "scout_thin",
+                                     "proposed": len(raw.get("selections", [])),
+                                     "survived": len(built)})
+            return None
+        return built
+    except Exception as exc:
+        store.log_event("Question scout", "profile", dataset_id=ds.id,
+                        mode="fallback",
+                        payload={"context": "scout_failed",
+                                 "error": str(exc)[:300]})
         return None
 
 
