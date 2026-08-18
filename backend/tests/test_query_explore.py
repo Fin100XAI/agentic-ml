@@ -557,6 +557,30 @@ def test_geo_matching_levels_and_threshold():
     assert ma is None or ma["match_pct"] >= 0.66  # threshold behavior, no crash
 
 
+def test_map_offered_when_bars_overflow():
+    # 35 states exceed the bar cap -> table fallback, but the map must
+    # still be offered (it is the ONLY honest picture for that many areas).
+    from app.api.routes_query import _attach_map
+    from engine.query.geo import STATE_CODES
+    codes = list(STATE_CODES.keys())[:35]
+    table = [{"State": c.upper(), "total": 1000 + i} for i, c in enumerate(codes)]
+    chart = {"kind": "table", "x": "State", "y": ["total"],
+             "threshold": None, "note": "35 rows"}
+    caveats: list[str] = []
+    _attach_map(chart, {"table": table}, caveats)
+    assert "map" in chart and chart["map"]["level"] == "states"
+    assert chart["map"]["match_pct"] >= 0.9
+
+
+def test_geo_state_codes_match():
+    from engine.query.geo import match_level
+    m = match_level(["AN", "MH", "UP", "TN", "KA", "WB"])
+    assert m is not None and m["level"] == "states"
+    assert m["matches"]["MH"] == "Maharashtra"
+    assert m["matches"]["AN"] == "Andaman & Nicobar Island"
+    assert m["match_pct"] == 1.0
+
+
 def test_geo_unmatched_counted():
     from engine.query.geo import match_level
     m = match_level(["Pune", "Nashik", "Nagpur", "Xyzland"])

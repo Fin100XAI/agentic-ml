@@ -53,7 +53,11 @@ function niceLabel(col: string): string {
 // Chart with an optional map toggle - offered only when the backend matched
 // the keys to a bundled boundary set (>= 70%). The chart stays the default.
 export function QueryChartWithMap({ spec, result }: { spec: ChartSpec; result: QueryResult }) {
-  const [view, setView] = useState<"chart" | "map">("chart");
+  // When there are too many categories for honest bars, the map IS the
+  // best view - make it the default there.
+  const [view, setView] = useState<"chart" | "map">(
+    spec.map && spec.kind === "table" ? "map" : "chart",
+  );
   if (!spec.map) return <QueryChart spec={spec} result={result} />;
   const x = spec.x ?? "";
   const y = spec.y[0] ?? "";

@@ -22,11 +22,48 @@ MATCH_THRESHOLD = 0.7
 
 _V2C = {v.lower(): c for c, variants in INDIA_ALIASES.items() for v in variants}
 
+# Standard two-letter state/UT codes (census files often carry ONLY the
+# code) - calibrated to the bundled boundary names.
+STATE_CODES = {
+    "an": "Andaman & Nicobar Island", "ap": "Andhra Pradesh",
+    "ar": "Arunanchal Pradesh", "as": "Assam", "br": "Bihar",
+    "ch": "Chandigarh", "cg": "Chhattisgarh", "ct": "Chhattisgarh",
+    "dn": "Dadara & Nagar Havelli", "dd": "Daman & Diu",
+    "dl": "NCT of Delhi", "ga": "Goa", "gj": "Gujarat", "hr": "Haryana",
+    "hp": "Himachal Pradesh", "jk": "Jammu & Kashmir", "jh": "Jharkhand",
+    "ka": "Karnataka", "kl": "Kerala", "ld": "Lakshadweep",
+    "mp": "Madhya Pradesh", "mh": "Maharashtra", "mn": "Manipur",
+    "ml": "Meghalaya", "mz": "Mizoram", "nl": "Nagaland",
+    "or": "Odisha", "od": "Odisha", "pb": "Punjab", "py": "Puducherry",
+    "rj": "Rajasthan", "sk": "Sikkim", "tn": "Tamil Nadu",
+    "tg": "Telangana", "ts": "Telangana", "tr": "Tripura",
+    "up": "Uttar Pradesh", "ut": "Uttarakhand", "uk": "Uttarakhand",
+    "wb": "West Bengal",
+}
+
+
+# Common misspellings and abbreviations seen in real files, keyed by their
+# fully normalized (alphanumeric-only) form. Note the boundary file itself
+# spells "Arunanchal Pradesh" - the fix maps the CORRECT spelling onto it.
+GEO_NAME_FIXES = {
+    "andhra": "Andhra Pradesh", "orrisa": "Odisha", "delhi": "NCT of Delhi",
+    "newdelhi": "NCT of Delhi", "uttranchal": "Uttarakhand",
+    "meghalya": "Meghalaya", "arunachalpradesh": "Arunanchal Pradesh",
+    "dnh": "Dadara & Nagar Havelli", "dd": "Daman & Diu",
+    "lakshdweep": "Lakshadweep", "jandk": "Jammu & Kashmir",
+    "chattisgarh": "Chhattisgarh", "hariyana": "Haryana",
+}
+
 
 def _norm(name: str) -> str:
     low = str(name).strip().lower()
+    low = STATE_CODES.get(low, low).lower()
     low = _V2C.get(low, low).lower()
-    return re.sub(r"[^a-z0-9]", "", low)
+    slug = re.sub(r"[^a-z0-9]", "", low)
+    fixed = GEO_NAME_FIXES.get(slug)
+    if fixed:
+        return re.sub(r"[^a-z0-9]", "", fixed.lower())
+    return slug
 
 
 @lru_cache(maxsize=None)

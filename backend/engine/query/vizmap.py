@@ -120,7 +120,9 @@ def choose_chart(result: dict[str, Any], plan: QueryPlan) -> dict[str, Any]:
         return spec
 
     if len(table) > MAX_BAR_CATEGORIES:
-        return {"kind": "table", "x": None, "y": [], "threshold": None,
+        # Keep the encodings: too many categories for bars, but a map (when
+        # the keys match boundaries) shows ALL of them honestly.
+        return {"kind": "table", "x": x, "y": [y], "threshold": None,
                 "note": f"{len(table)} rows - too many categories to chart honestly."}
 
     # Benchmark line: the average across the shown groups, so "who is below

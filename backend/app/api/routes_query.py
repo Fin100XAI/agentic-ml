@@ -198,7 +198,8 @@ def _attach_map(chart: dict[str, Any], result: dict[str, Any],
     """Offer a map view when the keys match a bundled boundary set (rule 14:
     deterministic offer, chart stays the default). Unmatched names are
     counted honestly in the caveats."""
-    if chart.get("kind") not in ("hbar", "bar") or not chart.get("x"):
+    if chart.get("kind") not in ("hbar", "bar", "table") or not chart.get("x") \
+            or not chart.get("y"):
         return
     from engine.query.geo import match_level
     keys = [str(r.get(chart["x"])) for r in result["table"]]
