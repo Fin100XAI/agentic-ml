@@ -754,6 +754,59 @@ def get_boundaries(level: str):
                         headers={"Cache-Control": "max-age=86400"})
 
 
+@router.get("/datasets/{dataset_id}/number-check")
+def number_check(dataset_id: str) -> dict:
+    """Scan for numbers stored as text - proposals only, nothing applies
+    without approval."""
+    from engine.query.textnum import detect_text_numbers
+
+    ds = _gated_dataset(dataset_id)
+    proposals = detect_text_numbers(ds.df)
+    if proposals:
+        store.log_event("Number repair", "profile", dataset_id=ds.id,
+                        mode="fallback",
+                        payload={"context": "number_check",
+                                 "n_columns": len(proposals)})
+    return {"columns": proposals}
+
+
+class FixNumbersRequest(BaseModel):
+    columns: list[str]
+
+
+@router.post("/datasets/{dataset_id}/fix-numbers")
+def fix_numbers(dataset_id: str, req: FixNumbersRequest) -> dict:
+    """Apply an APPROVED text-to-number conversion as a derived artifact.
+    The original file never changes; every previously invisible measure
+    becomes explorable."""
+    import pandas as pd
+
+    from engine.query.textnum import apply_text_number_fix
+
+    ds = _gated_dataset(dataset_id)
+    columns = [c for c in req.columns if c in ds.df.columns
+               and ds.df[c].dtype == object]
+    if not columns:
+        raise HTTPException(400, "Nothing to convert - no matching text columns.")
+    fixed = apply_text_number_fix(ds.df, columns)
+    art = store.add_derived_artifact(
+        fixed, [ds.artifact_id] if ds.artifact_id else [],
+        "fix_text_numbers", {"columns": columns},
+        project_id=ds.project_id,
+    )
+    ds.df = fixed
+    ds.artifact_id = art.id
+    store.update_dataset(ds)
+    store.log_event("user", "approval", dataset_id=ds.id,
+                    payload={"gate": "fix_text_numbers", "n_columns": len(columns)})
+    store.log_event("user", "transform", dataset_id=ds.id, artifact_id=art.id,
+                    payload={"action": "fix_text_numbers", "columns": columns})
+    n_numeric = sum(1 for c in ds.df.columns
+                    if pd.api.types.is_numeric_dtype(ds.df[c]))
+    return {"ok": True, "artifact_id": art.id, "converted": len(columns),
+            "numeric_columns_now": n_numeric}
+
+
 @router.get("/datasets/{dataset_id}/place-check")
 def place_check(dataset_id: str) -> dict:
     """The Place Harmonizer's scan: layered deterministic detection of place

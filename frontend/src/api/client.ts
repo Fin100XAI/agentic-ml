@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, TextNumberProposal, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -98,6 +98,13 @@ export const api = {
 
   placeCheck: (datasetId: string) =>
     request<PlaceCheck>(`/datasets/${datasetId}/place-check`),
+
+  numberCheck: (datasetId: string) =>
+    request<{ columns: TextNumberProposal[] }>(`/datasets/${datasetId}/number-check`),
+
+  fixNumbers: (datasetId: string, columns: string[]) =>
+    request<{ ok: boolean; converted: number; numeric_columns_now: number }>(
+      `/datasets/${datasetId}/fix-numbers`, json({ columns })),
 
   harmonizePlaces: (datasetId: string, column: string, mapping: Record<string, string>) =>
     request<{ ok: boolean; distinct_after: number }>(

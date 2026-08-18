@@ -16,7 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api/client";
-import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck } from "../../types";
+import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck, TextNumberProposal } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
 import { QueryChartWithMap } from "../QueryChart";
@@ -82,6 +82,47 @@ export function AnalyticsScreen({
     overviewCache.get(datasetId) ?? null,
   );
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Number repair: text-costumed numbers reviewed here, applied on approval.
+  const [numCheck, setNumCheck] = useState<TextNumberProposal[] | null>(null);
+  const [numDismissed, setNumDismissed] = useState(false);
+  const [numBusy, setNumBusy] = useState(false);
+  const [numTicks, setNumTicks] = useState<Set<string>>(new Set());
+
+  const applyNumbers = async () => {
+    if (!numCheck) return;
+    setNumBusy(true);
+    setError(null);
+    try {
+      await inFlight.get(cacheKey)?.catch(() => {});
+      inFlight.delete(cacheKey);
+      const cols = numCheck.filter((p) => numTicks.has(p.column)).map((p) => p.column);
+      if (cols.length > 0) {
+        await api.fixNumbers(datasetId, cols);
+      }
+      // Column types changed: every cached view of this dataset is stale.
+      for (const k of [...boardCache.keys()]) {
+        if (k.startsWith(`${datasetId}|`)) boardCache.delete(k);
+      }
+      overviewCache.delete(datasetId);
+      domainsCache.delete(datasetId);
+      setNumCheck(null);
+      setOverview(null);
+      api.datasetOverview(datasetId).then((o) => {
+        overviewCache.set(datasetId, o);
+        setOverview(o);
+      }).catch(() => {});
+      api.getDomains(datasetId).then((d) => {
+        domainsCache.set(datasetId, d);
+        setDomains(d);
+      }).catch(() => {});
+      await explore();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setNumBusy(false);
+    }
+  };
+
   // Place Harmonizer: proposals reviewed here, applied only on approval.
   const [placeCheck, setPlaceCheck] = useState<PlaceCheck | null>(null);
   const [placeDismissed, setPlaceDismissed] = useState(false);
@@ -147,6 +188,15 @@ export function AnalyticsScreen({
   };
 
   useEffect(() => {
+    // Scan for text-costumed numbers once per visit; proposals only.
+    api.numberCheck(datasetId)
+      .then((nc) => {
+        if (nc.columns.length > 0) {
+          setNumCheck(nc.columns);
+          setNumTicks(new Set(nc.columns.map((p) => p.column)));
+        }
+      })
+      .catch(() => {});
     // Scan for split place spellings once per visit; proposals only.
     api.placeCheck(datasetId)
       .then((pc) => {
@@ -372,6 +422,58 @@ export function AnalyticsScreen({
             </button>
           ))}
         </div>
+      )}
+
+      {/* Number repair: text-costumed numbers are invisible as measures -
+          convert them (approved, derived artifact) and the whole board can
+          use them. */}
+      {numCheck && !numDismissed && (
+        <Card className="border-warn/40">
+          <CardBody>
+            <h3 className="text-sm font-semibold">Numbers stored as text?</h3>
+            <p className="mt-0.5 text-[11px] text-ink-dim">
+              These columns look like numbers wearing a text costume - until converted they
+              cannot be ranked, trended, mapped or related. The original file stays
+              untouched; blanks like '-' become missing values, counted honestly.
+            </p>
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+              {numCheck.map((p) => (
+                <label key={p.column} className="flex items-start gap-2 rounded-lg border border-edge bg-panel-2/60 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={numTicks.has(p.column)}
+                    onChange={() =>
+                      setNumTicks((s) => {
+                        const next = new Set(s);
+                        if (next.has(p.column)) next.delete(p.column);
+                        else next.add(p.column);
+                        return next;
+                      })
+                    }
+                    className="mt-0.5 accent-[#1d4ed8]"
+                  />
+                  <span className="min-w-0 text-xs leading-relaxed">
+                    <span className="font-semibold">{p.column}</span>
+                    <span className="text-ink-dim">
+                      {" "}- {p.parse_pct}% numeric
+                      {p.n_blank > 0 ? `, ${p.n_blank} blank` : ""}
+                      {p.samples[0] ? ` (e.g. '${p.samples[0].from}' -> ${p.samples[0].to.toLocaleString()})` : ""}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setNumDismissed(true)}>
+                Keep as is
+              </Button>
+              <Button size="sm" onClick={applyNumbers}
+                disabled={numBusy || numTicks.size === 0}>
+                {numBusy ? <Spinner /> : null} Convert & recompute
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {/* Place Harmonizer: split spellings silently split totals - review

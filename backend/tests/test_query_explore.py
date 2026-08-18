@@ -581,6 +581,56 @@ def test_geo_endpoint_serves_bundled_file():
     assert client.get("/api/geo/nowhere").status_code == 404
 
 
+# ---------- numbers-stored-as-text repair ----------
+
+def test_textnum_detection_and_cleaning():
+    from engine.query.textnum import clean_series, detect_text_numbers
+    df = pd.DataFrame({
+        "district": ["A", "B", "C", "D", "E", "F"],
+        "rural": ["1,97,886", "42068", "-", "Rs. 500", "75%", "12345"],
+        "notes": ["good", "bad", "ok", "fine", "poor", "fair"],  # real text
+        "block_code": ["101", "102", "103", "104", "105", "106"],  # name-coded id
+    })
+    props = detect_text_numbers(df)
+    cols = {p["column"] for p in props}
+    assert "rural" in cols
+    assert "notes" not in cols       # genuine text survives
+    assert "block_code" not in cols  # id/code names are skipped
+    rural = next(p for p in props if p["column"] == "rural")
+    assert rural["n_blank"] >= 1
+    assert any(s["from"] == "1,97,886" and s["to"] == 197886 for s in rural["samples"])
+    cleaned = clean_series(df["rural"])
+    assert cleaned.iloc[0] == 197886 and cleaned.iloc[3] == 500 and cleaned.iloc[4] == 75
+    assert pd.isna(cleaned.iloc[2])
+
+
+def test_fix_numbers_flow_unlocks_measures():
+    df = pd.DataFrame({
+        "district": ["Pune", "Nashik", "Satara", "Nagpur", "Amravati"] * 4,
+        "enrollment": range(20),
+        "rural_pop": [f"{1000 + i * 37:,}" if i % 7 else "-" for i in range(20)],
+    })
+    up2 = client.post("/api/datasets",
+                      files={"file": ("textnum.csv", df.to_csv(index=False).encode(), "text/csv")},
+                      data={"project_id": pid, "assembly": "standalone"}).json()
+    did = up2["dataset_id"]
+    chk = client.get(f"/api/datasets/{did}/number-check").json()
+    assert any(p["column"] == "rural_pop" for p in chk["columns"])
+    r = client.post(f"/api/datasets/{did}/fix-numbers",
+                    json={"columns": ["rural_pop"]})
+    assert r.status_code == 200 and r.json()["converted"] == 1
+    # the previously invisible measure is now explorable
+    run = client.post(f"/api/datasets/{did}/query/run", json={
+        "plan": {"source": "a1", "steps": [
+            {"op": "group_by", "columns": ["district"]},
+            {"op": "aggregate", "column": "rural_pop", "fn": "sum", "alias": "total"},
+            {"op": "sort", "column": "total", "dir": "desc"}]},
+        "question": "rural totals"})
+    assert run.status_code == 200 and run.json()["result"]["table"]
+    # idempotent: nothing left to propose
+    assert client.get(f"/api/datasets/{did}/number-check").json()["columns"] == []
+
+
 # ---------- Question Scout: validated template selections ----------
 
 def test_scout_selections_validated_and_capped():

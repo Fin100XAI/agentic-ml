@@ -398,6 +398,13 @@ export interface DomainsResponse {
   generated_by: string;
 }
 
+export interface TextNumberProposal {
+  column: string;
+  parse_pct: number;
+  n_blank: number;
+  samples: { from: string; to: number }[];
+}
+
 export interface PlaceProposal {
   canonical: string;
   variants: string[];
