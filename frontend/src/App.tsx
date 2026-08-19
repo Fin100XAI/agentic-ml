@@ -201,7 +201,22 @@ function App() {
     return () => clearInterval(timer);
   }, [refreshRuns]);
 
+  // Live mirror of the screen so async handlers can check, after an await,
+  // whether the user is still where they were when the action started -
+  // finished work updates state either way, but never yanks the user
+  // somewhere they navigated away from.
+  const screenRef = useRef<Screen>("projects");
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+  const navIfStill = (from: Screen, target: Screen) => {
+    if (screenRef.current === from) setScreen(target);
+  };
+
+  const busyRef = useRef(false);
   async function guard<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+    if (busyRef.current) return undefined; // one guarded action at a time
+    busyRef.current = true;
     setBusy(true);
     setBusyLabel(label);
     setError(null);
@@ -210,6 +225,7 @@ function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
+      busyRef.current = false;
       setBusy(false);
       refreshRuns();
     }
@@ -217,12 +233,13 @@ function App() {
 
   // EDA step shared by the normal path and the remediation path.
   const continueToEda = async (runId: string) => {
+    const from = screenRef.current;
     setUploadStage("analyzing");
     const r = await api.runEda(runId);
     setRun(r);
     setUploadStage(null);
     if (r.error) setError(r.error);
-    else setScreen("eda");
+    else navIfStill(from, "eda");
   };
 
   // Post-upload continuation shared by the normal path and the PII review path.
@@ -328,6 +345,7 @@ function App() {
   const handleApproveEda = (comment: string) =>
     guard("Recommendation agent thinking…", async () => {
       if (!run) return;
+      const from = screenRef.current;
       const r = await api.approveEda(run.id, comment);
       setRun(r);
       if (r.error) {
@@ -350,7 +368,7 @@ function App() {
         });
         return;
       }
-      setScreen("configure");
+      navIfStill(from, "configure");
       // Agent flags questions the data cannot actually answer.
       if (align && !align.aligned) setMisalignNote(align.note || "The question may not match this dataset.");
     });
@@ -397,11 +415,12 @@ function App() {
   const handleRetryRun = () =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
+      const from = screenRef.current;
       setRunFailure(null);
       const r = await api.execute(run.id);
       setRun(r);
       if (r.error) setRunFailure({ message: r.error, kind: classifyRunError(r.error) });
-      else setScreen("results");
+      else navIfStill(from, "results");
     });
 
   const handleChangeModel = () => {
@@ -423,6 +442,7 @@ function App() {
   }) =>
     guard(`Training & evaluating… (${eta("train", run?.profile?.n_rows ?? 0, true)})`, async () => {
       if (!run) return;
+      const from = screenRef.current;
       const { regressors, ...rest } = config;
       let r = await api.approveConfig(run.id, {
         ...rest,
@@ -432,7 +452,7 @@ function App() {
       r = await api.execute(run.id);
       setRun(r);
       if (r.error) setRunFailure({ message: r.error, kind: classifyRunError(r.error) });
-      else setScreen("results");
+      else navIfStill(from, "results");
     });
 
   const handleCompare = (target: string | null, time_column: string | null) =>
@@ -440,10 +460,11 @@ function App() {
       `Training every model… (${eta("compare", run?.profile?.n_rows ?? 0, true)})`,
       async () => {
         if (!run) return;
+        const from = screenRef.current;
         const r = await api.compare(run.id, target, time_column);
         setRun(r);
         if (r.error) setError(r.error);
-        else setScreen("compare");
+        else navIfStill(from, "compare");
       },
     );
 
@@ -472,7 +493,19 @@ function App() {
     guard("Loading analysis…", async () => {
       const r = await api.getRun(id);
       setRun(r);
-      setScreen(screenForStage(r.stage));
+      // Prefill belongs to the retrain flow only - never to a resumed run.
+      setPreferredModel(undefined);
+      setRetrainPrefill(null);
+      if (r.error) setError(r.error);
+      // Fall down to the deepest screen this run can actually render -
+      // a failed execute must not land on an empty Results page.
+      const has = (sc: Screen): boolean =>
+        sc === "results" ? !!r.result :
+        sc === "compare" ? !!r.comparison :
+        sc === "configure" ? !!r.recommendation :
+        sc === "eda" ? !!r.eda : true;
+      const chain: Screen[] = [screenForStage(r.stage), "configure", "eda", "upload"];
+      setScreen(chain.find(has) ?? "upload");
     });
 
   const goHome = () => {
@@ -501,9 +534,10 @@ function App() {
 
   // A history entry is only usable if the state it needs still exists.
   const canShow = (s: Screen): boolean => {
-    if (s === "eda" || s === "configure" || s === "results" || s === "compare" || s === "report") {
-      return run !== null;
-    }
+    if (s === "eda") return run?.eda != null;
+    if (s === "configure") return run?.recommendation != null;
+    if (s === "results" || s === "report") return run?.result != null;
+    if (s === "compare") return run?.comparison != null;
     if (s === "home") return project !== null;
     if (s === "ask") return askCtx !== null;
     if (s === "analytics") return analyticsCtx !== null;
@@ -563,6 +597,15 @@ function App() {
     setProject(p);
     setRun(null);
     setError(null);
+    // Contexts, history and prefill are project-scoped - carrying them
+    // across would open project A board under project B.
+    setAskCtx(null);
+    setAnalyticsCtx(null);
+    setPast([]);
+    setFuture([]);
+    setPreferredModel(undefined);
+    setRetrainPrefill(null);
+    setRunFailure(null);
     setScreen("home");
     api.listRuns(p.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
   };

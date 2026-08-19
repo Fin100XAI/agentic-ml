@@ -26,7 +26,15 @@ interface ThreadPair {
 
 function loadThread(datasetId: string): ThreadPair[] {
   try {
-    return JSON.parse(sessionStorage.getItem(`ask-thread-${datasetId}`) ?? "[]") as ThreadPair[];
+    const raw = JSON.parse(sessionStorage.getItem(`ask-thread-${datasetId}`) ?? "[]");
+    if (!Array.isArray(raw)) return [];
+    // A thread persisted by an older app version must not crash the render.
+    return raw.filter(
+      (p: any) =>
+        p && typeof p.question === "string" && p.answer &&
+        p.answer.result && Array.isArray(p.answer.result.table) &&
+        Array.isArray(p.answer.result.columns) && p.answer.plan,
+    ) as ThreadPair[];
   } catch {
     return [];
   }
@@ -93,11 +101,14 @@ export function AskScreen({
     setBriefBusy(true);
     setError(null);
     try {
-      const items = [...included].sort((a, b) => a - b).map((i) => ({
-        question: thread[i].question,
-        plan: thread[i].answer.plan,
-        headline: thread[i].answer.headline,
-      }));
+      const items = [...included]
+        .filter((i) => i >= 0 && i < thread.length)
+        .sort((a, b) => a - b)
+        .map((i) => ({
+          question: thread[i].question,
+          plan: thread[i].answer.plan,
+          headline: thread[i].answer.headline,
+        }));
       const r = await api.createQueryBrief(datasetId, items);
       setBriefId(r.brief_id);
     } catch (e) {
@@ -151,6 +162,11 @@ export function AskScreen({
     setPlanResp(null);
     setQuestion("");
     setError(null);
+    // Ticked answers index into the OLD thread - stale indices must never
+    // compile into the next brief.
+    setIncluded(new Set());
+    setBriefId(null);
+    setIndicatorSaved(false);
   };
 
   const rows = answer
@@ -244,7 +260,7 @@ export function AskScreen({
             <input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && interpret()}
+              onKeyDown={(e) => e.key === "Enter" && busy === null && interpret()}
               placeholder={
                 latest
                   ? "e.g. only scheme A, or: same but by month"

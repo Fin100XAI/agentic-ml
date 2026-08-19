@@ -1,6 +1,6 @@
 // Full unified activity log: every file event, agent call, approval,
 // training job and export - filterable, with CSV download.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, ScrollText } from "lucide-react";
 import { api } from "../../api/client";
 import type { ActivityEvent } from "../../types";
@@ -42,13 +42,23 @@ export function ActivityScreen({
     project_id: runScope === "current" ? undefined : projectId,
   };
 
+  // Monotonic request id: quick filter toggles race, and the response for an
+  // OLD filter must never display under the new one.
+  const reqSeq = useRef(0);
   const refresh = useCallback(() => {
+    const seq = ++reqSeq.current;
     setLoading(true);
     api
       .getActivity({ ...filters, limit: 300 })
-      .then((r) => setEvents(r.events))
-      .catch(() => setEvents([]))
-      .finally(() => setLoading(false));
+      .then((r) => {
+        if (reqSeq.current === seq) setEvents(r.events);
+      })
+      .catch(() => {
+        if (reqSeq.current === seq) setEvents([]);
+      })
+      .finally(() => {
+        if (reqSeq.current === seq) setLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventType, runScope, currentRunId]);
 

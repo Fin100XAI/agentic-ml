@@ -3,7 +3,7 @@
 // present the initial findings as chart cards under a dataset KPI strip and
 // an expandable data description. From here the user takes over with their
 // own questions; the whole board downloads as a briefing file.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
   AlertTriangle,
@@ -37,6 +37,12 @@ const inFlight = new Map<string, Promise<ExploreResponse>>();
 const overviewCache = new Map<string, DataOverview>();
 const overviewInFlight = new Map<string, Promise<DataOverview>>();
 const domainsCache = new Map<string, DomainsResponse>();
+// Bumped whenever a repair purges the caches: any exploration still in
+// flight from BEFORE the purge must not re-cache its pre-fix board.
+const purgeEpoch = new Map<string, number>();
+// Repair scans are deduped per dataset (StrictMode double-mounts fire the
+// effect twice).
+const checksInFlight = new Map<string, Promise<unknown>>();
 
 const ROLE_LABEL: Record<string, string> = {
   numeric: "number",
@@ -154,7 +160,9 @@ export function AnalyticsScreen({
       if (cols.length > 0) {
         await api.fixNumbers(datasetId, cols);
       }
-      // Column types changed: every cached view of this dataset is stale.
+      // Column types changed: every cached view of this dataset is stale -
+      // including any exploration still in flight under another key.
+      purgeEpoch.set(datasetId, (purgeEpoch.get(datasetId) ?? 0) + 1);
       for (const k of [...boardCache.keys()]) {
         if (k.startsWith(`${datasetId}|`)) boardCache.delete(k);
       }
@@ -206,7 +214,9 @@ export function AnalyticsScreen({
           await api.harmonizePlaces(datasetId, col.column, mapping);
         }
       }
-      // The data changed: clear caches (every language) and re-explore.
+      // The data changed: clear caches (every language) and re-explore -
+      // and invalidate any exploration still in flight under another key.
+      purgeEpoch.set(datasetId, (purgeEpoch.get(datasetId) ?? 0) + 1);
       for (const k of [...boardCache.keys()]) {
         if (k.startsWith(`${datasetId}|`)) boardCache.delete(k);
       }
@@ -223,28 +233,47 @@ export function AnalyticsScreen({
       if (!(numCheck && !numDismissed)) await explore();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // Some merges may already be applied server-side - never keep serving
+      // the pre-merge board from cache.
+      purgeEpoch.set(datasetId, (purgeEpoch.get(datasetId) ?? 0) + 1);
+      for (const k of [...boardCache.keys()]) {
+        if (k.startsWith(`${datasetId}|`)) boardCache.delete(k);
+      }
     } finally {
       setPlaceBusy(false);
     }
   };
 
+  // The key this screen is CURRENTLY showing - resolutions for any other
+  // key (an abandoned language/focus, or a pre-purge exploration) are
+  // discarded instead of racing the active one.
+  const activeKeyRef = useRef(cacheKey);
+  activeKeyRef.current = cacheKey;
+
   const explore = async () => {
+    const myKey = cacheKey;
+    const myEpoch = purgeEpoch.get(datasetId) ?? 0;
     setBusy(true);
     setError(null);
     try {
-      let p = inFlight.get(cacheKey);
+      let p = inFlight.get(myKey);
       if (!p) {
         p = api.explore(datasetId, lang, focusColumns);
-        inFlight.set(cacheKey, p);
+        inFlight.set(myKey, p);
       }
       const r = await p;
-      boardCache.set(cacheKey, r);
-      setResp(r);
+      if ((purgeEpoch.get(datasetId) ?? 0) !== myEpoch) {
+        return; // a repair purged the caches mid-flight: this board is pre-fix
+      }
+      boardCache.set(myKey, r);
+      if (activeKeyRef.current === myKey) setResp(r);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (activeKeyRef.current === myKey) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
-      inFlight.delete(cacheKey);
-      setBusy(false);
+      inFlight.delete(myKey);
+      if (activeKeyRef.current === myKey) setBusy(false);
     }
   };
 
@@ -252,17 +281,32 @@ export function AnalyticsScreen({
   // exploration. Exploration itself waits for the repair decision (step 2).
   useEffect(() => {
     setChecksReady(false);
-    setNumDismissed(false);
-    setPlaceDismissed(false);
-    setNumOutcome(null);
-    setPlaceOutcome(null);
-    Promise.allSettled([api.numberCheck(datasetId), api.placeCheck(datasetId)])
-      .then(([n, p]) => {
+    // "Keep as is" decisions are remembered for the session, so a return
+    // visit does not re-ask the same questions above a cached board.
+    const keptNum = sessionStorage.getItem(`checkup-num-kept-${datasetId}`) === "1";
+    const keptPlace = sessionStorage.getItem(`checkup-place-kept-${datasetId}`) === "1";
+    setNumDismissed(keptNum);
+    setPlaceDismissed(keptPlace);
+    setNumOutcome(keptNum ? { kind: "kept" } : null);
+    setPlaceOutcome(keptPlace ? { kind: "kept" } : null);
+    let scan = checksInFlight.get(datasetId) as
+      | Promise<[PromiseSettledResult<{ columns: TextNumberProposal[] }>, PromiseSettledResult<PlaceCheck>]>
+      | undefined;
+    if (!scan) {
+      scan = Promise.allSettled([api.numberCheck(datasetId), api.placeCheck(datasetId)]);
+      checksInFlight.set(datasetId, scan);
+      scan.finally(() => checksInFlight.delete(datasetId));
+    }
+    scan.then(([n, p]) => {
         if (n.status === "fulfilled" && n.value.columns.length > 0) {
           setNumCheck(n.value.columns);
           setNumTicks(new Set(n.value.columns.map((x) => x.column)));
         } else {
           setNumCheck(null);
+          if (n.status === "rejected") {
+            // The gate would silently pass - say that the scan itself failed.
+            setError("The numbers-as-text scan failed - exploring the data as uploaded.");
+          }
         }
         if (p.status === "fulfilled" && p.value.columns.length > 0) {
           setPlaceCheck(p.value);
@@ -271,6 +315,9 @@ export function AnalyticsScreen({
             c.proposals.map((x) => `${c.column}|${x.canonical}`))));
         } else {
           setPlaceCheck(null);
+          if (p.status === "rejected") {
+            setError("The place-spelling scan failed - exploring the data as uploaded.");
+          }
         }
         setChecksReady(true);
       });
@@ -522,6 +569,7 @@ export function AnalyticsScreen({
                   onClick={() => {
                     setNumDismissed(true);
                     setNumOutcome({ kind: "kept" });
+                    sessionStorage.setItem(`checkup-num-kept-${datasetId}`, "1");
                   }}
                 >
                   Keep as is
@@ -599,6 +647,7 @@ export function AnalyticsScreen({
                   onClick={() => {
                     setPlaceDismissed(true);
                     setPlaceOutcome({ kind: "kept" });
+                    sessionStorage.setItem(`checkup-place-kept-${datasetId}`, "1");
                   }}
                 >
                   Keep as is

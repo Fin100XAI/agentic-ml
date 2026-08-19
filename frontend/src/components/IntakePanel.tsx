@@ -172,7 +172,7 @@ export function IntakePanel({
                   <button
                     className="ml-auto text-ink-dim hover:text-red-600"
                     title="Delete this rule"
-                    onClick={() => api.deleteIntakeRule(r.id).then(refresh)}
+                    onClick={() => api.deleteIntakeRule(r.id).then(refresh).catch(() => refresh())}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

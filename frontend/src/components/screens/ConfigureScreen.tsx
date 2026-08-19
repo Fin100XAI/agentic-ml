@@ -249,7 +249,11 @@ export function ConfigureScreen({
     .filter((c) => c.role === "datetime" || c.role === "text" || c.role === "identifier")
     .map((c) => c.name);
 
-  if (!selected) return null;
+  if (!selected) {
+    // Models list still loading (or the backend just restarted) - show a
+    // state, never a blank screen.
+    return <Spinner label="Loading the model catalog..." />;
+  }
   const suggestedValues = suggestion?.hyperparams ?? {};
   const disabled = (needsTarget && !target) || busy;
 
