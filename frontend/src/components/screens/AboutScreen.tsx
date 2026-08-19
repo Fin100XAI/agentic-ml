@@ -1,15 +1,15 @@
 // Platform guide: a presentation-grade page for demos and new users - what
 // the platform is, how it works (visual flows), and why it can be trusted.
 // Written for a government audience; readable by tech and non-tech alike.
-// Visual language: RoleSprint (rolesprint.io) - a dark presentation sheet:
-// near-black page, layered dark cards on translucent white hairlines, Plus
-// Jakarta Sans with big tight headlines, periwinkle/teal/violet accent trio,
-// gradient pill CTA. Judgment states keep the green/amber tones (dark-surface
-// variants). Motion: staggered hero entrance, scroll reveals with a 50ms
-// cascade - transform/opacity only, reduced-motion safe.
+// Visual language: RoleSprint (rolesprint.io) - a dark full-bleed page,
+// layered dark cards on translucent hairlines, Plus Jakarta Sans, the
+// periwinkle/teal/violet accent trio, gradient pill CTA. Copy style: short
+// sentences, bullets over paragraphs, big gradient stat numbers. Judgment
+// states keep green/amber tones. Motion: staggered hero, scroll reveals.
 import {
   Activity,
   Bot,
+  Check,
   CheckCircle2,
   Columns3,
   Database,
@@ -17,12 +17,15 @@ import {
   FileUp,
   Gauge,
   GitCompareArrows,
+  Hash,
   Inbox,
   Landmark,
   LineChart,
   Lock,
+  MapPin,
   MonitorSmartphone,
   ScrollText,
+  Search,
   Server,
   ShieldCheck,
   SlidersHorizontal,
@@ -35,11 +38,16 @@ import { Reveal } from "../Reveal";
 
 /* ---------- content ---------- */
 
+// Big and verifiable: 17 agents (roster below), 36 states + 640 districts
+// in the bundled boundary files, en/hi/mr phrasing, ~20 chart + map forms.
 const STATS = [
   { value: "2", label: "ways to work" },
+  { value: "17", label: "AI agents" },
   { value: "12", label: "models on tap" },
-  { value: "14", label: "AI agents" },
-  { value: "100%", label: "of actions logged" },
+  { value: "20+", label: "charts & maps" },
+  { value: "3", label: "languages" },
+  { value: "676", label: "map areas, offline" },
+  { value: "100%", label: "actions logged" },
   { value: "0", label: "numbers invented by AI" },
 ];
 
@@ -47,66 +55,111 @@ const PILLARS = [
   {
     icon: Lock,
     title: "Privacy before analysis",
-    text: "Personal data - mobile numbers, Aadhaar-like IDs, PAN, names, addresses - is detected and masked or dropped BEFORE any analysis or AI call ever sees a row.",
+    text: "Mobile numbers, Aadhaar-like IDs, PAN, names, addresses - caught and masked or dropped BEFORE any analysis or AI call sees a row.",
   },
   {
     icon: ShieldCheck,
     title: "Numbers computed, never guessed",
-    text: "Every figure is calculated deterministically in code. The AI only explains and phrases - it cannot invent a number. Each output is badged AI or heuristic.",
+    text: "Every figure is calculated in code. The AI only explains and phrases. Each output is badged AI or heuristic.",
   },
   {
     icon: CheckCircle2,
-    title: "An officer approves every step",
-    text: "Agents propose; nothing runs without approval - data fixes, the approach, settings, features, thresholds. Authority stays with the human.",
+    title: "You approve every step",
+    text: "Agents propose. Nothing runs without approval - data fixes, the approach, settings, features, thresholds.",
   },
   {
     icon: ScrollText,
     title: "An audit trail fit for review",
-    text: "Every upload, AI call, approval, decline, transformation, training job and export is logged. Originals are stored read-only with a content hash.",
+    text: "Every upload, AI call, approval, training job and export is logged. Originals stay read-only with a content hash.",
+  },
+];
+
+// The two paths, as scannable bullets instead of paragraphs.
+const ASK_PATH = [
+  "A findings board before you type: leaders, trends, year-on-year shifts",
+  "Three scouts read the data first - its shape, its topics, the questions worth asking",
+  "Every question becomes a visible plan you approve before it runs",
+  "District and state results offer a map view; every answer carries its caveats",
+  "Selected answers compile into a critic-checked brief",
+  "Saved questions become indicators that refresh with next month's file",
+  "Phrased in English, Hindi or Marathi",
+];
+
+const MODEL_PATH = [
+  "For what WILL happen: who is at risk, how much, where it is heading",
+  "Health checks, fixes and features - each one approved by you",
+  "The right method recommended and explained in plain language",
+  "Honesty checks on data the model never saw",
+  "A decision brief with a trust rating, already critic-reviewed",
+  "Models become versioned assets that score next month's file",
+];
+
+// Step zero: the data checkup that runs before any exploration.
+const CHECKUP = [
+  {
+    icon: Hash,
+    title: "Numbers in text costumes",
+    text: "'1,234' stored as text cannot be ranked, trended or mapped. Found, shown, converted - with your approval.",
+  },
+  {
+    icon: MapPin,
+    title: "Same place, five spellings",
+    text: "Orissa, Orrisa, ODISHA - split spellings split your totals. Merges proposed; approved spellings are remembered.",
+  },
+  {
+    icon: FileCheck2,
+    title: "The original never changes",
+    text: "Every fix creates a new copy with lineage back to its parent. The file you uploaded stays untouched.",
   },
 ];
 
 // The working rhythm: who does what, in order. actor: ai | you | machine
 const FLOW: { actor: "ai" | "you" | "machine"; title: string; text: string; icon: any }[] = [
   { actor: "you", icon: FileUp, title: "Upload the file", text: "CSV or Excel - multi-sheet workbooks combine in one click." },
-  { actor: "you", icon: Columns3, title: "Approve column names", text: "Fix cryptic headers; the original file stays untouched." },
-  { actor: "machine", icon: Lock, title: "Privacy screen runs", text: "Personal data flagged; you choose mask / drop / keep per column." },
-  { actor: "ai", icon: Bot, title: "Agents explore + propose", text: "The data explained in plain language; fixes and questions proposed; leakage risks flagged." },
-  { actor: "you", icon: UserCheck, title: "Approve the approach", text: "Pick the recommended method or adjust; tick fixes and features; answer each leakage flag." },
-  { actor: "machine", icon: Gauge, title: "Train + honesty checks", text: "The model trains; stability, probability quality and error slices are measured on data it never saw." },
-  { actor: "ai", icon: Sparkles, title: "Brief drafted, critic reviews", text: "Findings and actions written to the evidence level; a critic AI checks every claim against the numbers." },
-  { actor: "you", icon: Landmark, title: "Decide - with cover", text: "Act on a brief you can defend: trust rating, caveats, and the full audit trail behind it." },
+  { actor: "you", icon: Columns3, title: "Approve column names", text: "Fix cryptic headers; the original stays untouched." },
+  { actor: "machine", icon: Lock, title: "Privacy screen runs", text: "Personal data flagged; you choose mask, drop or keep." },
+  { actor: "you", icon: FileCheck2, title: "Decide the data checkup", text: "Text-numbers converted, place spellings merged - your call, first." },
+  { actor: "ai", icon: Bot, title: "Agents explore + propose", text: "Findings charted, fixes proposed, leakage risks flagged." },
+  { actor: "you", icon: UserCheck, title: "Approve the approach", text: "Pick or adjust the method; tick fixes and features." },
+  { actor: "machine", icon: Gauge, title: "Train + honesty checks", text: "Stability, probabilities and error slices - on unseen data." },
+  { actor: "ai", icon: Sparkles, title: "Brief drafted, critic reviews", text: "Every claim checked against the computed numbers." },
+  { actor: "you", icon: Landmark, title: "Decide - with cover", text: "Trust rating, caveats, and the audit trail behind it." },
 ];
 
 const LINEAGE = [
   { icon: FileUp, label: "Original file", note: "read-only + hash" },
   { icon: Columns3, label: "Approved names", note: "rename artifact" },
   { icon: Lock, label: "Privacy mask", note: "PII artifact" },
-  { icon: FileCheck2, label: "Approved fixes", note: "remediation artifact" },
+  { icon: FileCheck2, label: "Approved fixes", note: "checkup artifact" },
   { icon: Sparkles, label: "Engineered features", note: "feature artifact" },
   { icon: Landmark, label: "Trained model", note: "versioned, never overwritten" },
   { icon: Target, label: "Predictions", note: "score artifact" },
 ];
 
 const USE_CASES = [
-  { icon: Users, title: "Who needs attention?", kind: "Classification", example: "Which beneficiaries are at risk of dropping out of a scheme? Which applications need senior review?" },
-  { icon: Target, title: "How much will it be?", kind: "Regression", example: "Estimate property valuations, expected collections per ward, or likely claim amounts." },
-  { icon: GitCompareArrows, title: "What groups exist?", kind: "Clustering", example: "Segment citizens, villages or facilities into natural groups so schemes can be targeted, not blanket." },
-  { icon: LineChart, title: "Where is it heading?", kind: "Forecasting", example: "Project revenue collections, service demand or supply needs - per district, with honest uncertainty." },
+  { icon: Search, title: "What does the data say?", kind: "Answered in seconds", example: "Totals, toppers, trends, shares - charted, mapped and explained the moment you upload." },
+  { icon: MapPin, title: "Which areas stand out?", kind: "Maps + outliers", example: "Results on offline India maps, state or district level. Values that sit far outside the rest get flagged." },
+  { icon: Users, title: "Who needs attention?", kind: "Classification", example: "Beneficiaries at risk of dropping out. Applications that need senior review." },
+  { icon: Target, title: "How much will it be?", kind: "Regression", example: "Property valuations, expected collections per ward, likely claim amounts." },
+  { icon: GitCompareArrows, title: "What groups exist?", kind: "Clustering", example: "Natural segments of citizens, villages or facilities - so schemes target, not blanket." },
+  { icon: LineChart, title: "Where is it heading?", kind: "Forecasting", example: "Revenue, demand and supply projections per district - with honest uncertainty." },
 ];
 
 const LIFECYCLE = [
-  { icon: Landmark, title: "Model registry", text: "Every trained model is a numbered version with its purpose, data fingerprint, settings and scores." },
-  { icon: Target, title: "Score new files", text: "Next month's file gets predictions through the exact training-time preparation - even with renamed columns." },
-  { icon: Activity, title: "Drift monitor", text: "Is new data still like the training data? Degraded is only said when accuracy actually fell." },
-  { icon: SlidersHorizontal, title: "What-if scenarios", text: "Move a driver and watch the prediction respond - with extrapolation warnings and causal caveats." },
-  { icon: Gauge, title: "Decision threshold", text: "Trade missed cases against false alarms on cross-validated numbers; your choice is what scoring uses." },
-  { icon: Inbox, title: "Intake inbox", text: "Recurring files are recognized and queued for one-click review. Nothing ever auto-runs." },
+  { icon: Landmark, title: "Model registry", text: "Every trained model is a numbered version - purpose, data fingerprint, settings, scores." },
+  { icon: Target, title: "Score new files", text: "Next month's file goes through the exact training-time preparation - even with renamed columns." },
+  { icon: Activity, title: "Drift monitor", text: "Degraded is only said when accuracy actually fell." },
+  { icon: SlidersHorizontal, title: "What-if scenarios", text: "Move a driver, watch the prediction respond - with extrapolation warnings." },
+  { icon: Gauge, title: "Decision threshold", text: "Trade missed cases against false alarms; your choice is what scoring uses." },
+  { icon: Inbox, title: "Intake inbox", text: "Recurring files queued for one-click review. Nothing ever auto-runs." },
 ];
 
 const AGENTS = [
   ["EDA agent", "reads and explains your dataset"],
-  ["Explorer agents", "ask and answer the first questions before you type anything"],
+  ["Shape scout", "reads what KIND of dataset this is"],
+  ["Domain scout", "groups columns into topics and suggests a focus"],
+  ["Question scout", "picks diverse opening questions worth asking"],
+  ["Explorer agents", "answer the first questions before you type anything"],
   ["Analyst agent", "explains what each finding means, in your language"],
   ["Anomaly scout", "flags values that sit far outside the rest"],
   ["Place harmonizer", "catches the same place spelled differently"],
@@ -163,6 +216,16 @@ function IconTile({ icon: Icon, accent }: { icon: any; accent: Accent }) {
   );
 }
 
+// One bullet line of a path card.
+function PathItem({ text, accent }: { text: string; accent: Accent }) {
+  return (
+    <li className="flex items-start gap-2 text-xs leading-relaxed text-rs-muted">
+      <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${ACCENTS[accent].text}`} />
+      {text}
+    </li>
+  );
+}
+
 const ACTOR_STYLE = {
   ai: { dot: "bg-rs-blue text-rs-ink", chip: "bg-rs-blue/10 text-rs-blue ring-rs-blue/25", label: "AI proposes" },
   you: { dot: "bg-rs-teal text-rs-ink", chip: "bg-rs-teal/10 text-rs-teal ring-rs-teal/25", label: "You decide" },
@@ -191,23 +254,22 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
             </span>
           </h2>
           <p className="animate-rise mx-auto mt-5 max-w-2xl text-pretty text-sm leading-relaxed text-rs-muted [animation-delay:120ms]">
-            The Agentic ML Workbench turns departmental data - scheme enrollments, revenue
-            collections, service requests, demand histories - into answers an officer can act
-            on and defend. Upload a file and choose your direction: get charted answers to
-            plain-language questions in seconds, or train a model for predictions. Either way,
-            AI agents do the legwork, code computes every number, the officer approves every
-            step, and everything lands on an audit trail.
+            Departmental data in, defensible answers out. Ask in plain language and get
+            charted, mapped answers in seconds - or train a model for predictions with a
+            brief an officer can defend. Agents do the legwork. Code computes every number.
+            You approve every step.
           </p>
-          {/* Stat pills */}
-          <div className="animate-rise mx-auto mt-7 flex flex-wrap items-center justify-center gap-2 [animation-delay:200ms]">
+          {/* Big stat grid */}
+          <div className="animate-rise mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-x-4 gap-y-8 [animation-delay:200ms] sm:grid-cols-4">
             {STATS.map((s) => (
-              <span
-                key={s.label}
-                className="flex items-baseline gap-1.5 rounded-full border border-rs-line bg-rs-raised px-3.5 py-1.5"
-              >
-                <span className="text-sm font-bold tabular-nums text-rs-fg">{s.value}</span>
-                <span className="text-[10px] uppercase tracking-wider text-rs-muted">{s.label}</span>
-              </span>
+              <div key={s.label}>
+                <div className={`${GRADIENT} bg-clip-text text-4xl font-extrabold tabular-nums tracking-tight text-transparent md:text-5xl`}>
+                  {s.value}
+                </div>
+                <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-rs-muted">
+                  {s.label}
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -235,7 +297,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
               eyebrow="The fork"
               accent="blue"
               title="Two ways to work"
-              sub="Every uploaded file gets the same protections - approved column names, the privacy screen, spell-check on place names - and then the officer chooses the direction. Switching later is one click; both directions share the same protected copy of the data."
+              sub="Same protections either way - approved names, the privacy screen, the data checkup. You choose the direction; switching later is one click."
             />
             <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <RsCard className="p-6">
@@ -246,16 +308,11 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                     answers in seconds
                   </span>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-rs-muted">
-                  Exploring agents scan the file and answer the first questions themselves -
-                  leaders and laggards, trends and year-on-year changes, splits and totals -
-                  as charted findings with plain-language meaning, in English, Hindi or
-                  Marathi. Then the officer takes over: every question becomes a visible
-                  step-by-step plan approved before it runs, follow-ups show exactly what
-                  changed, district results offer a map view, and selected answers compile
-                  into a critic-checked brief. Saved questions become dashboard indicators
-                  that refresh when next month's file arrives.
-                </p>
+                <ul className="mt-4 space-y-2">
+                  {ASK_PATH.map((t) => (
+                    <PathItem key={t} text={t} accent="teal" />
+                  ))}
+                </ul>
               </RsCard>
               <RsCard className="p-6">
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -265,15 +322,33 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                     predictions with cover
                   </span>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-rs-muted">
-                  For questions about what WILL happen - who is at risk, how much to expect,
-                  where demand is heading - the full guided path below: health checks and
-                  fixes, a recommended method with honest settings, training with stability
-                  and probability checks on unseen data, and a decision brief with a trust
-                  rating a critic has already reviewed. Trained models become managed,
-                  versioned assets that score next month's file.
-                </p>
+                <ul className="mt-4 space-y-2">
+                  {MODEL_PATH.map((t) => (
+                    <PathItem key={t} text={t} accent="violet" />
+                  ))}
+                </ul>
               </RsCard>
+            </div>
+          </section>
+        </Reveal>
+
+        {/* Step zero: the data checkup */}
+        <Reveal>
+          <section>
+            <GuideSection
+              eyebrow="Step zero"
+              accent="violet"
+              title="First, the data checkup"
+              sub="Real files arrive messy. The checkup runs before ANY analysis - and the agents explore only after your decision, so they read the clean version, once."
+            />
+            <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {CHECKUP.map((c, i) => (
+                <RsCard key={c.title} className="p-5">
+                  <IconTile icon={c.icon} accent={(["violet", "teal", "blue"] as Accent[])[i]} />
+                  <h4 className="mt-3 text-sm font-bold text-rs-fg">{c.title}</h4>
+                  <p className="mt-2 text-[11px] leading-relaxed text-rs-muted">{c.text}</p>
+                </RsCard>
+              ))}
             </div>
           </section>
         </Reveal>
@@ -283,9 +358,9 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <section>
             <GuideSection
               eyebrow="The working rhythm"
-              accent="violet"
+              accent="teal"
               title="How a decision gets made"
-              sub="The division of labor is the design: AI proposes, machines compute, and every consequential step waits for a human. Follow one file down the model path, from upload to decision - the ask path follows the same rhythm with interpret-approve-run on every question."
+              sub="AI proposes. Machines compute. Every consequential step waits for a human. One file, upload to decision - the ask path follows the same rhythm on every question."
             />
             <div className="mb-4 flex flex-wrap items-center gap-3">
               {(Object.keys(ACTOR_STYLE) as (keyof typeof ACTOR_STYLE)[]).map((k) => (
@@ -337,9 +412,9 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <section>
             <GuideSection
               eyebrow="Chain of custody"
-              accent="teal"
+              accent="blue"
               title="What happens to your data"
-              sub="The original file is stored read-only with a fingerprint. Every change creates a NEW copy that points back at its parent - so any number in any brief can be traced to the exact data it came from."
+              sub="The original is read-only with a fingerprint. Every change is a NEW copy pointing back at its parent - any number in any brief traces to the exact data it came from."
             />
             <div className="rounded-3xl border border-rs-line bg-rs-raised p-5">
               <div data-cascade className="flex flex-wrap items-center justify-center gap-y-4">
@@ -361,8 +436,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 ))}
               </div>
               <p className="mt-4 border-t border-rs-line pt-3 text-center text-[11px] text-rs-muted">
-                Every arrow is a recorded step in the audit trail. Nothing is edited in place; the
-                original never changes.
+                Every arrow is a recorded step in the audit trail. Nothing is edited in place.
               </p>
             </div>
           </section>
@@ -371,23 +445,21 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
         {/* Use cases */}
         <Reveal>
           <section>
-            <GuideSection eyebrow="Applications" accent="blue" title="The questions it can answer" />
-            <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <GuideSection eyebrow="Applications" accent="violet" title="The questions it can answer" />
+            <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {USE_CASES.map((u, i) => {
-                const accent = (["blue", "teal", "violet", "blue"] as Accent[])[i];
+                const accent = (["teal", "blue", "violet", "blue", "teal", "violet"] as Accent[])[i];
                 const a = ACCENTS[accent];
                 return (
                   <RsCard key={u.title} className="p-5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <IconTile icon={u.icon} accent={accent} />
-                        <h4 className="text-sm font-bold text-rs-fg">{u.title}</h4>
-                      </div>
+                      <IconTile icon={u.icon} accent={accent} />
                       <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${a.bg} ${a.text} ring-1 ring-inset ${a.ring}`}>
                         {u.kind}
                       </span>
                     </div>
-                    <p className="mt-3 text-xs leading-relaxed text-rs-muted">{u.example}</p>
+                    <h4 className="mt-3 text-sm font-bold text-rs-fg">{u.title}</h4>
+                    <p className="mt-2 text-[11px] leading-relaxed text-rs-muted">{u.example}</p>
                   </RsCard>
                 );
               })}
@@ -400,9 +472,9 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <section>
             <GuideSection
               eyebrow="The deliverable"
-              accent="violet"
+              accent="teal"
               title="What you receive"
-              sub="The output is not a dashboard to interpret - it is a brief to act on, with its confidence stated up front."
+              sub="Not a dashboard to interpret. A brief to act on, confidence stated up front."
             />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
               <div className="lg:col-span-3">
@@ -449,8 +521,8 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                     <div className="flex items-center gap-2 rounded-xl border border-rs-line bg-rs-raised px-3 py-2">
                       <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-rs-teal" />
                       <p className="text-[10px] leading-snug text-rs-muted">
-                        Reviewed by the critic agent - claims checked against the computed numbers,
-                        causal caveats added, hedged to the evidence level.
+                        Critic-reviewed: claims checked against the computed numbers, causal
+                        caveats added, hedged to the evidence level.
                       </p>
                     </div>
                   </div>
@@ -458,10 +530,10 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
               </div>
               <div data-cascade className="space-y-3 lg:col-span-2">
                 {[
-                  ["Plain language first", "Jargon lives behind info buttons; every metric has a one-line explanation."],
-                  ["Charts that explain themselves", "Drivers, segments, forecasts - each with a caption saying what to read off it."],
-                  ["Shareable + printable", "A read-only briefing link for stakeholders, plus markdown and PDF exports."],
-                  ["Ask the data", "A grounded chat answers follow-ups from the run's own numbers - it cannot make things up."],
+                  ["Plain language first", "Jargon lives behind info buttons. Every metric has a one-line explanation."],
+                  ["Charts that explain themselves", "Each chart carries a caption saying what to read off it."],
+                  ["Shareable + printable", "A read-only briefing link, plus markdown and PDF exports."],
+                  ["Ask the data", "A grounded chat answers follow-ups from the run's own numbers. It cannot make things up."],
                 ].map(([t, d]) => (
                   <div key={t} className="lift rounded-2xl border border-rs-line bg-rs-raised p-4 transition-colors hover:border-rs-line-strong">
                     <h5 className="text-xs font-bold text-rs-fg">{t}</h5>
@@ -478,15 +550,15 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <section>
             <GuideSection
               eyebrow="The long run"
-              accent="teal"
+              accent="blue"
               title="After the first analysis"
-              sub="The first analysis is the beginning, not the end - trained models become managed assets."
+              sub="The first analysis is the beginning. Trained models become managed assets."
             />
             <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {LIFECYCLE.map((l, i) => (
                 <RsCard key={l.title} className="p-5">
                   <div className="flex items-center gap-2.5">
-                    <IconTile icon={l.icon} accent={(["teal", "blue", "violet", "blue", "teal", "violet"] as Accent[])[i]} />
+                    <IconTile icon={l.icon} accent={(["blue", "teal", "violet", "teal", "blue", "violet"] as Accent[])[i]} />
                     <h4 className="text-sm font-bold text-rs-fg">{l.title}</h4>
                   </div>
                   <p className="mt-2.5 text-[11px] leading-relaxed text-rs-muted">{l.text}</p>
@@ -500,7 +572,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
         <Reveal>
           <section data-cascade className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <RsCard className="p-6">
-              <GuideSection eyebrow="The workforce" accent="blue" title="The AI team" />
+              <GuideSection eyebrow="The workforce" accent="teal" title="17 agents, one rule" sub="Each one proposes or phrases. None of them computes a number or acts alone." />
               <ul className="space-y-1.5">
                 {AGENTS.map(([name, does]) => (
                   <li key={name} className="flex items-baseline gap-2 text-xs">
@@ -510,32 +582,28 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 ))}
               </ul>
               <p className="mt-3 border-t border-rs-line pt-3 text-[11px] leading-relaxed text-rs-muted">
-                Every agent has a rule-based fallback, so the platform keeps working with no AI
-                connection at all - outputs are simply badged heuristic instead of AI. Heuristic
-                mode is a visible state, never a silent one.
+                Every agent has a rule-based fallback. No AI connection? The platform keeps
+                working - outputs are badged heuristic instead of AI, visibly.
               </p>
             </RsCard>
             <RsCard className="p-6">
-              <GuideSection eyebrow="The character" accent="teal" title="Honest by design" />
-              <ul className="space-y-2.5 text-xs leading-relaxed text-rs-muted">
+              <GuideSection eyebrow="The character" accent="violet" title="Honest by design" />
+              <ul className="space-y-3 text-xs leading-relaxed text-rs-muted">
                 <li>
                   <span className="font-semibold text-rs-fg">Trust ratings, not just scores.</span>{" "}
-                  When the evidence is weak, recommended actions become hypotheses to verify - in
-                  the app, the report and the PDF.
+                  Weak evidence turns recommended actions into hypotheses to verify.
                 </li>
                 <li>
                   <span className="font-semibold text-rs-fg">Cross-validated numbers.</span>{" "}
-                  Headline metrics and decision thresholds are measured on data the model never saw
-                  during training.
+                  Headline metrics come from data the model never saw.
                 </li>
                 <li>
                   <span className="font-semibold text-rs-fg">A critic reviews every brief.</span>{" "}
-                  Claims are checked against the computed numbers before you read them.
+                  Claims are checked before you read them.
                 </li>
                 <li>
                   <span className="font-semibold text-rs-fg">Honest refusals.</span>{" "}
-                  Too little data? The check says skipped and why. A column that gives the answer
-                  away? Flagged, and anything derived from it is blocked.
+                  Too little data? Said openly. A column that gives the answer away? Blocked.
                 </li>
               </ul>
             </RsCard>
@@ -547,9 +615,9 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           <section>
             <GuideSection
               eyebrow="Under the hood"
-              accent="violet"
+              accent="blue"
               title="For the technical evaluator"
-              sub="The architecture is three clean tiers, and the AI is replaceable."
+              sub="Three clean tiers. The AI is replaceable."
             />
             <div className="rounded-3xl border border-rs-line bg-rs-raised p-5">
               <div data-cascade className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
@@ -577,7 +645,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 {[
                   "SQLite (Postgres-portable)", "content-addressed artifact store", "model plugins via @register",
                   "swappable LLM provider + deterministic fallbacks", "typed query plans - the AI never writes code",
-                  "deterministic chart grammar", "bundled offline India boundary maps", "fold-safe validation pipelines",
+                  "deterministic chart grammar", "36 states + 640 districts mapped offline", "fold-safe validation pipelines",
                   "out-of-fold threshold selection", "fixed seed 42", "Windows-friendly (no C++ toolchain)",
                 ].map((chip) => (
                   <span key={chip} className="rounded-full border border-rs-line bg-rs-surface px-2.5 py-1 text-[10px] font-medium text-rs-muted">
@@ -593,10 +661,9 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
         <Reveal>
           <div className="rounded-3xl border border-rs-line bg-rs-raised px-6 py-8 text-center">
             <p className="mx-auto max-w-2xl text-xs leading-relaxed text-rs-muted">
-              This is a proof of concept running locally: single user, no login, data never leaves
-              this machine. Production hardening (roles and sign-in, on-premise or air-gapped
-              deployment, Postgres, backups) is the planned next phase. Sample datasets are included
-              - every feature on this page can be demonstrated with them.
+              A proof of concept running locally: single user, no login, data never leaves this
+              machine. Production hardening - sign-in, air-gapped deployment, Postgres, backups -
+              is the next phase. Sample datasets are included.
             </p>
             {onStart && (
               <button
