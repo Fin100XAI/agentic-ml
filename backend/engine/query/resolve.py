@@ -33,7 +33,12 @@ class ColumnResolutionError(ValueError):
 
 
 def _build_index(actual_columns: list[str]) -> dict[str, str]:
-    return {_normalize(str(c)): str(c) for c in actual_columns}
+    # First occurrence wins on a normalization collision ("Total Amount" vs
+    # "total_amount") so resolution is stable, not last-write-wins.
+    index: dict[str, str] = {}
+    for c in actual_columns:
+        index.setdefault(_normalize(str(c)), str(c))
+    return index
 
 
 def _resolve_one(name: str, index: dict[str, str], derived: dict[str, str]) -> str:

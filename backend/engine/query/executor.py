@@ -35,7 +35,7 @@ class QueryExecutionError(ValueError):
 
 
 def _clean(v: Any) -> Any:
-    if v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
+    if v is None or v is pd.NaT or (isinstance(v, float) and (np.isnan(v) or np.isinf(v))):
         return None
     if isinstance(v, (np.integer,)):
         return int(v)
@@ -55,6 +55,27 @@ def _as_datetime(s: pd.Series) -> pd.Series:
     return pd.to_datetime(s.astype(str), errors="coerce", format="mixed")
 
 
+# Aggregations that only make sense on numbers. min/max stay native (they
+# are meaningful on text, e.g. alphabetical extremes).
+_NUMERIC_FNS = ("sum", "mean", "median")
+
+
+def _numeric_for_agg(s: pd.Series, col: str, fn: str) -> pd.Series:
+    """Coerce a column for a numeric aggregation - never let pandas
+    concatenate strings as a 'sum'. A column that parses to nothing gets a
+    plain-language error pointing at the data checkup."""
+    if pd.api.types.is_numeric_dtype(s) or pd.api.types.is_bool_dtype(s):
+        return s
+    num = pd.to_numeric(s, errors="coerce")
+    if s.notna().any() and not num.notna().any():
+        raise QueryExecutionError(
+            f"'{col}' is stored as text, so it cannot be "
+            f"{'summed' if fn == 'sum' else 'averaged'}. If it holds numbers "
+            "wearing a text costume, apply the data checkup's convert fix first."
+        )
+    return num
+
+
 def _apply_filter(frame: pd.DataFrame, s: FilterStep) -> pd.DataFrame:
     col = frame[s.column]
     op = s.operator
@@ -72,7 +93,19 @@ def _apply_filter(frame: pd.DataFrame, s: FilterStep) -> pd.DataFrame:
             targets = {str(v).strip().lower() for v in values}
             mask = lowered.isin(targets)
         else:
-            mask = col.isin(list(values))
+            # Planner values arrive as strings; coerce them to the column's
+            # world so ["2020", "2021"] matches an integer year column
+            # instead of silently matching nothing.
+            cast: list[Any] = []
+            for v in values:
+                if pd.api.types.is_numeric_dtype(col):
+                    try:
+                        cast.append(float(v))
+                        continue
+                    except (TypeError, ValueError):
+                        pass
+                cast.append(v)
+            mask = col.isin(cast)
         return frame[mask if op == "in" else ~mask]
     # Comparison operators: numeric coercion on the column side.
     value = s.value
@@ -116,9 +149,19 @@ def _apply_time_window(frame: pd.DataFrame, s: TimeWindowStep, notes: list[str])
     ts = _as_datetime(frame[s.column])
     mask = pd.Series(True, index=frame.index)
     if s.start:
-        mask &= ts >= pd.to_datetime(s.start)
+        start = pd.to_datetime(s.start, errors="coerce")
+        if pd.isna(start):
+            raise QueryExecutionError(
+                f"Could not read '{s.start}' as a date for the time window."
+            )
+        mask &= ts >= start
     if s.end:
-        mask &= ts <= pd.to_datetime(s.end)
+        end = pd.to_datetime(s.end, errors="coerce")
+        if pd.isna(end):
+            raise QueryExecutionError(
+                f"Could not read '{s.end}' as a date for the time window."
+            )
+        mask &= ts <= end
     return frame[mask.fillna(False)]
 
 
@@ -142,6 +185,9 @@ def _apply_delta(frame: pd.DataFrame, s: DeltaVsPeriodStep, notes: list[str]) ->
     work = frame.assign(__order=ts if ts.notna().mean() > 0.8 else frame[s.period_column])
     work = work.sort_values("__order")
     delta_name = f"{s.column}__delta"
+    # Both paths need numbers - a text metric raises the plain checkup hint
+    # instead of a raw TypeError from string subtraction.
+    work[s.column] = _numeric_for_agg(work[s.column], s.column, "sum")
     if key_cols:
         work[delta_name] = work.groupby(key_cols, dropna=False)[s.column].diff(s.lag)
         missing = int(work.groupby(key_cols, dropna=False)[delta_name].apply(lambda g: g.isna().all()).sum())
@@ -173,25 +219,53 @@ def execute_plan(plan: QueryPlan, frame: pd.DataFrame) -> dict[str, Any]:
         spec: dict[str, tuple[str, str]] = {}
         for a in pending_aggs:
             alias = a.alias or (f"{a.fn}_{a.column}" if a.fn != "count" else "count")
+            # A non-count aggregate on a column that is gone at this step (for
+            # example consumed by an earlier aggregation) is a plan error,
+            # not a crash.
+            if a.column not in work.columns and a.fn != "count":
+                raise QueryExecutionError(
+                    f"Column '{a.column}' is not available at this step."
+                )
             nulls = int(work[a.column].isna().sum()) if a.column in work.columns else 0
             if a.fn not in ("count",) and nulls:
                 excluded_null_rows[alias] = nulls
             spec[alias] = (a.column, a.fn)
         if group_cols:
-            gb = work.groupby(group_cols, dropna=False)
-            pieces = {}
+            missing = [c for c in group_cols if c not in work.columns]
+            if missing:
+                raise QueryExecutionError(
+                    f"Column '{missing[0]}' is not available at this step."
+                )
+            # Numeric aggregations read a coerced shadow column so text never
+            # 'sums' by string concatenation and never raises a raw TypeError.
+            shadow = work[group_cols].copy()
+            fns: dict[str, str] = {}
             for alias, (col, fn) in spec.items():
-                if fn == "count":
-                    pieces[alias] = gb[col].size() if col not in work.columns else gb[col].count()
-                else:
-                    pieces[alias] = getattr(gb[col], fn)()
+                if col not in work.columns:  # count over missing column = row count
+                    shadow[alias] = 1
+                    fns[alias] = "count"
+                    continue
+                shadow[alias] = (
+                    _numeric_for_agg(work[col], col, fn) if fn in _NUMERIC_FNS else work[col]
+                )
+                fns[alias] = fn
+            gb = shadow.groupby(group_cols, dropna=False)
+            pieces = {alias: getattr(gb[alias], fn)() for alias, fn in fns.items()}
             work = pd.DataFrame(pieces).reset_index()
         else:
             row = {}
             for alias, (col, fn) in spec.items():
+                if col not in work.columns:  # count over missing column
+                    row[alias] = int(len(work))
+                    continue
                 series = work[col]
-                row[alias] = int(series.count()) if fn == "count" else getattr(
-                    pd.to_numeric(series, errors="coerce") if fn != "nunique" else series, fn)()
+                if fn == "count":
+                    row[alias] = int(series.count())
+                elif fn == "nunique":
+                    row[alias] = series.nunique()
+                else:
+                    row[alias] = getattr(_numeric_for_agg(series, col, fn)
+                                         if fn in _NUMERIC_FNS else series, fn)()
             work = pd.DataFrame([row])
         group_cols = []
         pending_aggs = []
@@ -229,6 +303,15 @@ def execute_plan(plan: QueryPlan, frame: pd.DataFrame) -> dict[str, Any]:
         elif isinstance(step, TopNStep):
             work = work.head(step.n)
         elif isinstance(step, PivotStep):
+            needed = [step.index, step.columns, step.values]
+            missing = [c for c in needed if c not in work.columns]
+            if missing:
+                raise QueryExecutionError(
+                    f"Column '{missing[0]}' is not available at this step."
+                )
+            work = work.assign(
+                **{step.values: _numeric_for_agg(work[step.values], step.values, "mean")}
+            )
             work = pd.pivot_table(
                 work, index=step.index, columns=step.columns, values=step.values,
                 aggfunc="mean",

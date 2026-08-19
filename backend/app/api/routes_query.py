@@ -363,6 +363,19 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
 
     ds = _gated_dataset(dataset_id)
     focus_columns = [c for c in focus.split("|") if c] if focus else None
+    if focus_columns:
+        known = {str(c) for c in ds.df.columns}
+        usable_focus = [c for c in focus_columns if c in known]
+        if not usable_focus:
+            # A stale domain (e.g. from before a repair) - fall back to the
+            # general board, visibly in the log rather than silently.
+            store.log_event("Domain scout", "error", dataset_id=ds.id,
+                            mode="fallback",
+                            payload={"context": "focus_invalid",
+                                     "requested": focus[:200]})
+            focus_columns = None
+        else:
+            focus_columns = usable_focus
     # Shape Scout first: WHAT KIND of dataset is this? The classification is
     # deterministic, shown on the board, and steers which questions lead.
     shape = classify_shape(ds.df)
@@ -388,8 +401,16 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
                 plan = QueryPlan.model_validate(cand["plan"])
                 resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
                 result = execute_plan(resolved, ds.df)
-            except Exception:
-                continue  # one broken starter must not sink the board
+            except Exception as exc:
+                # One broken starter must not sink the board - but silent
+                # failures are undebuggable, so each one lands in the log.
+                store.log_event(
+                    "Explorer agents", "error", dataset_id=ds.id, mode="fallback",
+                    payload={"context": "starter_failed",
+                             "question": str(cand.get("question", ""))[:200],
+                             "error": str(exc)[:300]},
+                )
+                continue
             used = plan_columns(resolved)
             caveats = list(result["coverage_notes"])
             caveats += caveats_for_columns(readiness, used)
@@ -588,6 +609,8 @@ def export_answer(dataset_id: str, req: RunRequest):
         result = execute_plan(resolved, ds.df)
     except (ColumnResolutionError, QueryExecutionError) as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, f"That plan is not valid: {exc}") from exc
     import pandas as pd
 
     csv_bytes = pd.DataFrame(result["table"]).to_csv(index=False).encode("utf-8-sig")
@@ -906,6 +929,10 @@ def harmonize_places(dataset_id: str, req: HarmonizeRequest) -> dict:
     ds = _gated_dataset(dataset_id)
     if req.column not in ds.df.columns:
         raise HTTPException(400, f"No column called '{req.column}'.")
+    if ds.df[req.column].dtype != object:
+        raise HTTPException(
+            400, f"'{req.column}' holds numbers, not place names - merging "
+                 "spellings would turn a measure into text.")
     mapping = {str(k): str(v).strip() for k, v in req.mapping.items()
                if str(v).strip() and str(k) != str(v).strip()}
     if not mapping:
@@ -975,6 +1002,8 @@ def save_indicator(dataset_id: str, req: SaveQueryRequest) -> dict:
         result = execute_plan(resolved, ds.df)
     except (ColumnResolutionError, QueryExecutionError) as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(400, f"That plan is not valid: {exc}") from exc
     name = req.name.strip()[:80]
     if not name:
         raise HTTPException(400, "Give the indicator a name.")
@@ -1030,6 +1059,10 @@ def run_indicator(sq_id: str, req: dict | None = None) -> dict:
         raise HTTPException(400, f"'{ds.filename}' does not fit this indicator: {exc}") from exc
     except QueryExecutionError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            400, f"This saved indicator is from an older version and no "
+                 f"longer runs: {exc}") from exc
     chart = choose_chart(result, resolved)
     rec["last_result"] = _indicator_result(result, chart)
     rec["last_run_at"] = datetime.now(timezone.utc).isoformat()
@@ -1063,8 +1096,8 @@ def refresh_all_indicators(project_id: str) -> dict:
                 plan = QueryPlan.model_validate(rec["plan"])
                 resolved = resolve_plan(plan, [str(c) for c in ds.df.columns])
                 result = execute_plan(resolved, ds.df)
-            except (ColumnResolutionError, QueryExecutionError):
-                continue
+            except Exception:
+                continue  # incompatible or stale - the indicator is skipped
             chart = choose_chart(result, resolved)
             rec["last_result"] = _indicator_result(result, chart)
             rec["last_run_at"] = datetime.now(timezone.utc).isoformat()

@@ -107,8 +107,10 @@ def fallback_plan(
                 {"op": "aggregate", "column": group, "fn": "count", "alias": "count"},
                 {"op": "sort", "column": "count", "dir": "desc"},
             ]
-        else:
+        elif columns:
             steps.append({"op": "aggregate", "column": str(columns[0]), "fn": "count", "alias": "count"})
+        else:
+            return None  # nothing left to count in a zero-column dataset
         return {"source": "", "steps": steps}
 
     # average/total of <metric> (by <group>)

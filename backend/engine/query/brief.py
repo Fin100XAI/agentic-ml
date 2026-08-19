@@ -47,7 +47,7 @@ def _allowed_values(table: list[dict], signals: dict[str, Any],
     return vals
 
 
-def _matches(claim: float, allowed: set[float]) -> bool:
+def _matches(claim: float, allowed: set[float], max_count: int = 0) -> bool:
     if claim in allowed or round(claim, 2) in allowed:
         return True
     for a in allowed:
@@ -59,8 +59,10 @@ def _matches(claim: float, allowed: set[float]) -> bool:
         # compact prose: "3.6k" / "1.2 million"
         if abs(claim * 1000 - a) <= abs(a) * 0.03 or abs(claim * 1_000_000 - a) <= abs(a) * 0.03:
             return True
-    # small counts ("top 5", "five districts") up to 31 are structural
-    return claim.is_integer() and 0 <= claim <= 31
+    # Small counts ("top 5", "five districts") are structural ONLY when they
+    # could actually describe this result - i.e. no bigger than the result
+    # itself. "8 districts" with a 3-row table must NOT auto-verify.
+    return claim.is_integer() and 0 <= claim <= min(31, max_count)
 
 
 def verify_claim(text: str, table: list[dict], signals: dict[str, Any],
@@ -68,7 +70,8 @@ def verify_claim(text: str, table: list[dict], signals: dict[str, Any],
     """The deterministic critic: every number in a phrased claim must exist
     in the computed table, the signals, or the row counts."""
     allowed = _allowed_values(table, signals, row_counts)
-    unmatched = [n for n in _claim_numbers(text) if not _matches(n, allowed)]
+    max_count = max([len(table)] + [int(rc.get("rows", 0)) for rc in row_counts or []])
+    unmatched = [n for n in _claim_numbers(text) if not _matches(n, allowed, max_count)]
     return {"verified": not unmatched, "unmatched_numbers": unmatched[:5]}
 
 
