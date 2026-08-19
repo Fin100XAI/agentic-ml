@@ -6,23 +6,36 @@
 // periwinkle/teal/violet accent trio, gradient pill CTA. Copy style: short
 // sentences, bullets over paragraphs, big gradient stat numbers. Judgment
 // states keep green/amber tones. Motion: staggered hero, scroll reveals.
+import { useState } from "react";
 import {
   Activity,
+  AlertTriangle,
+  Ban,
   Bot,
+  Box,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Columns3,
+  Compass,
   Database,
   FileCheck2,
+  FileText,
   FileUp,
   Gauge,
   GitCompareArrows,
   Hash,
+  HelpCircle,
   Inbox,
   Landmark,
+  Layers,
+  Lightbulb,
   LineChart,
+  ListChecks,
   Lock,
   MapPin,
+  MessageSquare,
   MonitorSmartphone,
   ScrollText,
   Search,
@@ -33,6 +46,7 @@ import {
   Target,
   UserCheck,
   Users,
+  Wrench,
 } from "lucide-react";
 import { Reveal } from "../Reveal";
 
@@ -154,24 +168,33 @@ const LIFECYCLE = [
   { icon: Inbox, title: "Intake inbox", text: "Recurring files queued for one-click review. Nothing ever auto-runs." },
 ];
 
-const AGENTS = [
-  ["EDA agent", "reads and explains your dataset"],
-  ["Shape scout", "reads what KIND of dataset this is"],
-  ["Domain scout", "groups columns into topics and suggests a focus"],
-  ["Question scout", "picks diverse opening questions worth asking"],
-  ["Explorer agents", "answer the first questions before you type anything"],
-  ["Analyst agent", "explains what each finding means, in your language"],
-  ["Anomaly scout", "flags values that sit far outside the rest"],
-  ["Place harmonizer", "catches the same place spelled differently"],
-  ["Query planner", "turns plain-language questions into typed, visible plans"],
-  ["Recommendation agent", "picks the method and checks your question fits the data"],
-  ["Remediation agent", "phrases the data-fix proposals"],
-  ["Feature agent", "suggests derived measures worth adding"],
-  ["Interpretation agent", "judges how well the model did"],
-  ["Brief agent", "writes the decision brief to the evidence level"],
-  ["Critic agent", "checks every claim in every brief against the computed numbers"],
-  ["Ask-the-data agent", "answers follow-ups from the run's own facts"],
-  ["Compare summarizer", "explains the model leaderboard"],
+// Compact roster: names on the page, the one-liner lives in the tooltip.
+const AGENTS: { icon: any; name: string; does: string }[] = [
+  { icon: Database, name: "EDA agent", does: "reads and explains your dataset" },
+  { icon: Box, name: "Shape scout", does: "reads what KIND of dataset this is" },
+  { icon: Layers, name: "Domain scout", does: "groups columns into topics and suggests a focus" },
+  { icon: HelpCircle, name: "Question scout", does: "picks diverse opening questions worth asking" },
+  { icon: Compass, name: "Explorer agents", does: "answer the first questions before you type anything" },
+  { icon: Lightbulb, name: "Analyst agent", does: "explains what each finding means, in your language" },
+  { icon: AlertTriangle, name: "Anomaly scout", does: "flags values that sit far outside the rest" },
+  { icon: MapPin, name: "Place harmonizer", does: "catches the same place spelled differently" },
+  { icon: ListChecks, name: "Query planner", does: "turns plain-language questions into typed, visible plans" },
+  { icon: Target, name: "Recommendation agent", does: "picks the method and checks your question fits the data" },
+  { icon: Wrench, name: "Remediation agent", does: "phrases the data-fix proposals" },
+  { icon: Sparkles, name: "Feature agent", does: "suggests derived measures worth adding" },
+  { icon: Gauge, name: "Interpretation agent", does: "judges how well the model did" },
+  { icon: FileText, name: "Brief agent", does: "writes the decision brief to the evidence level" },
+  { icon: ShieldCheck, name: "Critic agent", does: "checks every claim in every brief against the computed numbers" },
+  { icon: MessageSquare, name: "Ask-the-data agent", does: "answers follow-ups from the run's own facts" },
+  { icon: GitCompareArrows, name: "Compare summarizer", does: "explains the model leaderboard" },
+];
+
+// The character, as four chips - full sentence in the tooltip.
+const CHARACTER: { icon: any; name: string; detail: string }[] = [
+  { icon: Gauge, name: "Trust ratings, not just scores", detail: "Weak evidence turns recommended actions into hypotheses to verify." },
+  { icon: CheckCircle2, name: "Cross-validated numbers", detail: "Headline metrics come from data the model never saw." },
+  { icon: ShieldCheck, name: "A critic reviews every brief", detail: "Claims are checked before you read them." },
+  { icon: Ban, name: "Honest refusals", detail: "Too little data? Said openly. A column that gives the answer away? Blocked." },
 ];
 
 /* ---------- small building blocks ---------- */
@@ -237,6 +260,8 @@ const GRADIENT = "bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)]";
 /* ---------- page ---------- */
 
 export function AboutScreen({ onStart }: { onStart?: () => void }) {
+  // Under the hood is for the technical evaluator - hidden until asked for.
+  const [hoodOpen, setHoodOpen] = useState(false);
   return (
     // The whole guide is one full-bleed dark page, edge to edge - the app
     // shell renders it without the centered container.
@@ -568,58 +593,71 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           </section>
         </Reveal>
 
-        {/* Agents + honesty */}
-        <Reveal>
-          <section data-cascade className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <RsCard className="p-6">
-              <GuideSection eyebrow="The workforce" accent="teal" title="17 agents, one rule" sub="Each one proposes or phrases. None of them computes a number or acts alone." />
-              <ul className="space-y-1.5">
-                {AGENTS.map(([name, does]) => (
-                  <li key={name} className="flex items-baseline gap-2 text-xs">
-                    <span className="w-44 shrink-0 font-semibold text-rs-fg">{name}</span>
-                    <span className="text-rs-muted">{does}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 border-t border-rs-line pt-3 text-[11px] leading-relaxed text-rs-muted">
-                Every agent has a rule-based fallback. No AI connection? The platform keeps
-                working - outputs are badged heuristic instead of AI, visibly.
-              </p>
-            </RsCard>
-            <RsCard className="p-6">
-              <GuideSection eyebrow="The character" accent="violet" title="Honest by design" />
-              <ul className="space-y-3 text-xs leading-relaxed text-rs-muted">
-                <li>
-                  <span className="font-semibold text-rs-fg">Trust ratings, not just scores.</span>{" "}
-                  Weak evidence turns recommended actions into hypotheses to verify.
-                </li>
-                <li>
-                  <span className="font-semibold text-rs-fg">Cross-validated numbers.</span>{" "}
-                  Headline metrics come from data the model never saw.
-                </li>
-                <li>
-                  <span className="font-semibold text-rs-fg">A critic reviews every brief.</span>{" "}
-                  Claims are checked before you read them.
-                </li>
-                <li>
-                  <span className="font-semibold text-rs-fg">Honest refusals.</span>{" "}
-                  Too little data? Said openly. A column that gives the answer away? Blocked.
-                </li>
-              </ul>
-            </RsCard>
-          </section>
-        </Reveal>
-
-        {/* For the technical reader */}
+        {/* The workforce: 17 name-only pills, one-liners in the tooltips */}
         <Reveal>
           <section>
             <GuideSection
-              eyebrow="Under the hood"
-              accent="blue"
-              title="For the technical evaluator"
-              sub="Three clean tiers. The AI is replaceable."
+              eyebrow="The workforce"
+              accent="teal"
+              title="17 agents, one rule"
+              sub="Each one proposes or phrases. None computes a number or acts alone. Hover a name for what it does."
             />
-            <div className="rounded-3xl border border-rs-line bg-rs-raised p-5">
+            <div data-cascade className="flex flex-wrap gap-2">
+              {AGENTS.map((a, i) => {
+                const ac = ACCENTS[(["teal", "blue", "violet"] as Accent[])[i % 3]];
+                return (
+                  <span
+                    key={a.name}
+                    title={a.does}
+                    className="lift flex cursor-default items-center gap-1.5 rounded-full border border-rs-line bg-rs-raised px-3 py-1.5 text-xs font-semibold text-rs-fg transition-colors hover:border-rs-line-strong"
+                  >
+                    <a.icon className={`h-3.5 w-3.5 ${ac.text}`} />
+                    {a.name}
+                  </span>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-[11px] text-rs-faint">
+              No AI connection? Everything still works - badged heuristic, visibly.
+            </p>
+          </section>
+        </Reveal>
+
+        {/* The character: four chips, details in the tooltips */}
+        <Reveal>
+          <section>
+            <GuideSection eyebrow="The character" accent="violet" title="Honest by design" />
+            <div data-cascade className="flex flex-wrap gap-2">
+              {CHARACTER.map((c, i) => {
+                const ac = ACCENTS[(["violet", "teal", "blue", "violet"] as Accent[])[i]];
+                return (
+                  <span
+                    key={c.name}
+                    title={c.detail}
+                    className="lift flex cursor-default items-center gap-1.5 rounded-full border border-rs-line bg-rs-raised px-3 py-1.5 text-xs font-semibold text-rs-fg transition-colors hover:border-rs-line-strong"
+                  >
+                    <c.icon className={`h-3.5 w-3.5 ${ac.text}`} />
+                    {c.name}
+                  </span>
+                );
+              })}
+            </div>
+          </section>
+        </Reveal>
+
+        {/* For the technical reader - hidden until asked for */}
+        <Reveal>
+          <section className="text-center">
+            <button
+              onClick={() => setHoodOpen((o) => !o)}
+              className="inline-flex items-center gap-2 rounded-full border border-rs-line bg-rs-raised px-5 py-2.5 text-sm font-semibold text-rs-fg transition-colors duration-150 ease-out hover:border-rs-line-strong active:scale-[0.98]"
+            >
+              <Server className="h-4 w-4 text-rs-blue" />
+              Under the hood
+              {hoodOpen ? <ChevronUp className="h-4 w-4 text-rs-muted" /> : <ChevronDown className="h-4 w-4 text-rs-muted" />}
+            </button>
+            {hoodOpen && (
+            <div className="mt-5 rounded-3xl border border-rs-line bg-rs-raised p-5 text-left">
               <div data-cascade className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
                 {[
                   { icon: MonitorSmartphone, title: "React UI", sub: "TypeScript + Tailwind + Recharts", note: "screens mirror backend types", accent: "teal" as Accent },
@@ -654,27 +692,23 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 ))}
               </div>
             </div>
+            )}
           </section>
         </Reveal>
 
-        {/* Footer / status */}
-        <Reveal>
-          <div className="rounded-3xl border border-rs-line bg-rs-raised px-6 py-8 text-center">
-            <p className="mx-auto max-w-2xl text-xs leading-relaxed text-rs-muted">
-              A proof of concept running locally: single user, no login, data never leaves this
-              machine. Production hardening - sign-in, air-gapped deployment, Postgres, backups -
-              is the next phase. Sample datasets are included.
-            </p>
-            {onStart && (
+        {/* Closing CTA */}
+        {onStart && (
+          <Reveal>
+            <div className="pb-4 text-center">
               <button
                 onClick={onStart}
-                className={`mt-5 inline-flex items-center gap-2 rounded-full ${GRADIENT} px-6 py-3 text-sm font-bold text-rs-ink transition-[transform,box-shadow] duration-150 ease-out hover:shadow-[0_12px_44px_-12px_#6e8bffb3] active:scale-[0.98]`}
+                className={`inline-flex items-center gap-2 rounded-full ${GRADIENT} px-7 py-3.5 text-sm font-bold text-rs-ink transition-[transform,box-shadow] duration-150 ease-out hover:shadow-[0_12px_44px_-12px_#6e8bffb3] active:scale-[0.98]`}
               >
                 Start a new analysis
               </button>
-            )}
-          </div>
-        </Reveal>
+            </div>
+          </Reveal>
+        )}
       </div>
     </div>
   );
