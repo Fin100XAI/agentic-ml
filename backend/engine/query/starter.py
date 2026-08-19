@@ -90,7 +90,8 @@ def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
 # The template menu the Question Scout may fill. The LLM only CHOOSES
 # columns for these shapes - deterministic code builds every plan.
 SCOUT_TEMPLATES = ("top_groups", "bottom_groups", "avg_per_group",
-                   "relationship", "split", "count", "trend", "kpi")
+                   "relationship", "split", "count", "trend", "change",
+                   "trend_by", "kpi")
 
 
 def _build_from_selection(template: str, source: str, df: pd.DataFrame,
@@ -142,6 +143,20 @@ def _build_from_selection(template: str, source: str, df: pd.DataFrame,
         return {"question": f"How does total {_lbl(metric)} move across {_lbl(period)}?",
                 "plan": {"source": source, "steps": [
                     {"op": "group_by", "columns": [period]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": period, "dir": "asc"}]}}
+    if template == "change" and metric and period             and 3 <= int(df[period].nunique(dropna=True)) <= 120:
+        return {"question": f"How did total {_lbl(metric)} change from one {_lbl(period)} to the next?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [period]},
+                    {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
+                    {"op": "sort", "column": period, "dir": "asc"},
+                    {"op": "delta_vs_period", "column": f"total_{metric}",
+                     "period_column": period, "lag": 1}]}}
+    if template == "trend_by" and metric and period and group             and 2 <= int(df[group].nunique(dropna=True)) <= 9:
+        return {"question": f"How does total {_lbl(metric)} move across {_lbl(period)} in each {_lbl(group)}?",
+                "plan": {"source": source, "steps": [
+                    {"op": "group_by", "columns": [period, group]},
                     {"op": "aggregate", "column": metric, "fn": "sum", "alias": f"total_{metric}"},
                     {"op": "sort", "column": period, "dir": "asc"}]}}
     if template == "kpi" and metric:
@@ -233,6 +248,37 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
                                          cv[0][1], rel_group, cv[1][1], period)
             if cand and cand["question"] not in seen:
                 out.insert(min(2, len(out)), cand)
+                seen.add(cand["question"])
+    # Time data deserves time views: with a period column present, guarantee
+    # the change view (diverging bars) and a per-group trend (small
+    # multiples) whenever the data supports them - they replace the last
+    # generic bars rather than growing the board.
+    if period and valid_nums:
+        t_metric = next((c for c in picks["numerics"]), None)
+        if t_metric:
+            if "trend" not in used_templates:
+                cand = _build_from_selection("trend", source, df, t_metric,
+                                             None, None, period)
+                if cand and cand["question"] not in seen:
+                    out.insert(min(2, len(out)), cand)
+                    seen.add(cand["question"])
+            if "change" not in used_templates:
+                cand = _build_from_selection("change", source, df, t_metric,
+                                             None, None, period)
+                if cand and cand["question"] not in seen:
+                    out.insert(min(3, len(out)), cand)
+                    seen.add(cand["question"])
+            if "trend_by" not in used_templates:
+                mult_group = next(
+                    (c for c in picks["cats"]
+                     if 2 <= int(df[c].nunique(dropna=True)) <= 9), None)
+                if mult_group:
+                    cand = _build_from_selection("trend_by", source, df,
+                                                 t_metric, mult_group, None,
+                                                 period)
+                    if cand and cand["question"] not in seen:
+                        out.insert(min(4, len(out)), cand)
+                        seen.add(cand["question"])
     return out[:MAX_STARTERS]
 
 
