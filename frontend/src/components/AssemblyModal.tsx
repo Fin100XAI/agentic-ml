@@ -27,7 +27,7 @@ export function AssemblyModal({
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-xl -translate-x-1/2 -translate-y-1/2 px-4">
-        <Card className="max-h-[85vh] overflow-y-auto bg-white/95">
+        <Card className="max-h-[85vh] overflow-y-auto bg-panel/95">
           <CardBody>
             <div className="flex items-center gap-2">
               <Library className="h-5 w-5 text-accent" />

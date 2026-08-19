@@ -32,7 +32,7 @@ export function LineageBreadcrumb({ artifactId }: { artifactId: string }) {
         <span key={a.id} className="flex items-center gap-1">
           {i > 0 && <ChevronRight className="h-3 w-3 opacity-50" />}
           <span
-            className="cursor-help rounded-full border border-edge bg-white/40 px-2 py-0.5"
+            className="cursor-help rounded-full border border-edge bg-panel-2/60 px-2 py-0.5"
             title={`${a.kind} artifact ${a.id}\nsha256: ${a.sha256}\n${a.created_at.slice(0, 19)}`}
           >
             {a.kind === "original"

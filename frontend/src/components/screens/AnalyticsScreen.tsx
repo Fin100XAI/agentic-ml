@@ -497,7 +497,7 @@ export function AnalyticsScreen({
                           return next;
                         })
                       }
-                      className="mt-0.5 accent-[#4338ca]"
+                      className="mt-0.5 accent-accent"
                     />
                     <span className="min-w-0 text-xs leading-relaxed">
                       <span className="font-semibold">{p.column}</span>
@@ -567,7 +567,7 @@ export function AnalyticsScreen({
                               return next;
                             })
                           }
-                          className="mt-0.5 accent-[#4338ca]"
+                          className="mt-0.5 accent-accent"
                         />
                         <span className="min-w-0 text-xs leading-relaxed">
                           <span className="text-ink-dim">In </span>
@@ -582,7 +582,7 @@ export function AnalyticsScreen({
                             <span className="rounded-md bg-accent-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold text-accent ring-1 ring-inset ring-accent/20">
                               {p.canonical}
                             </span>
-                            <span className="rounded-full bg-slate-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
+                            <span className="rounded-full bg-ink-dim/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
                               {p.source}
                             </span>
                           </span>
@@ -786,7 +786,7 @@ function ColumnCard({ col }: { col: OverviewColumn }) {
         <span className="truncate text-xs font-semibold" title={col.name}>
           {col.display_name ?? col.name}
         </span>
-        <span className="shrink-0 rounded-full bg-slate-500/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
+        <span className="shrink-0 rounded-full bg-ink-dim/10 px-2 py-0.5 text-[9px] uppercase tracking-wider text-ink-dim">
           {ROLE_LABEL[col.role] ?? col.role}
         </span>
       </div>
@@ -828,7 +828,7 @@ function ColumnCard({ col }: { col: OverviewColumn }) {
               <span className="w-20 truncate text-[10px]" title={String(t.value)}>
                 {String(t.value)}
               </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-500/10">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink-dim/10">
                 <div
                   className="h-full rounded-full bg-accent/60"
                   style={{ width: `${(t.count / topMax) * 100}%` }}
@@ -919,7 +919,7 @@ function FindingCard({
                   onAsk(`${metric.replace(/__/g, " ").replace(/_/g, " ")} per ${den} by ${f.chart.x}`)
                 }
                 title={`Reframe this ranking per ${den} - raw totals can flatter big groups`}
-                className="rounded-full bg-slate-500/8 px-2 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-slate-500/15 hover:text-accent"
+                className="rounded-full bg-ink-dim/10 px-2 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-ink-dim/25 hover:text-accent"
               >
                 per {den}
               </button>

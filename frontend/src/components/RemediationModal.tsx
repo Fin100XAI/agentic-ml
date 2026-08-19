@@ -34,7 +34,7 @@ export function RemediationModal({
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 px-4">
-        <Card className="max-h-[85vh] overflow-y-auto bg-white/95">
+        <Card className="max-h-[85vh] overflow-y-auto bg-panel/95">
           <CardBody>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export function RemediationModal({
                     type="checkbox"
                     checked={ticked.has(p.id)}
                     onChange={() => toggle(p.id)}
-                    className="mt-0.5 h-3.5 w-3.5 accent-[#4338ca]"
+                    className="mt-0.5 h-3.5 w-3.5 accent-accent"
                   />
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-1.5">

@@ -52,11 +52,11 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out",
+        "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out",
         "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
         size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
         variant === "primary" &&
-          "bg-accent text-white shadow-sm hover:bg-accent/90 hover:shadow-md active:bg-accent/80",
+          "rounded-full bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] font-semibold text-[#07080c] hover:shadow-[0_10px_36px_-10px_#6e8bff99]",
         variant === "outline" &&
           "border border-edge bg-panel text-ink shadow-sm hover:border-accent/50 hover:text-accent hover:shadow",
         variant === "ghost" && "bg-transparent text-ink-dim hover:bg-panel-2 hover:text-ink",
@@ -78,7 +78,7 @@ export function Badge({
     <span
       className={clsx(
         "inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
-        tone === "neutral" && "bg-slate-500/8 text-ink-dim ring-slate-500/15",
+        tone === "neutral" && "bg-ink-dim/10 text-ink-dim ring-ink-dim/25",
         tone === "accent" && "bg-accent-soft/70 text-accent ring-accent/20",
         tone === "good" && "bg-good/8 text-good ring-good/20",
         tone === "warn" && "bg-warn/8 text-warn ring-warn/20",

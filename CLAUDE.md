@@ -12,11 +12,15 @@ results as a decision brief with charts, trust tiers, and a critic review.
 Trained models live in a versioned registry with scoring, drift monitoring,
 what-if scenarios, and an approval-gated intake inbox for recurring files.
 Every decision lands on a visible timeline and in the unified activity log.
-UI design system: warm editorial look - paper surface (#f4f2ec), white cards,
-stone borders, deep indigo accent (#4338ca), Fraunces serif for page titles
-(font-display), Inter for UI - tokens in frontend/src/index.css, primitives
-in frontend/src/components/ui.tsx. Judgment colors (green/amber/red) stay
-reserved for judgment states.
+UI design system: RoleSprint dark-first language (rolesprint.io) - near-black
+surfaces (#07080c page, #11141d cards), translucent white hairline borders,
+light ink (#eef0f6), periwinkle accent (#6e8bff), teal/violet secondary
+accents, gradient pill CTAs, Plus Jakarta Sans. A light twin theme flips via
+data-theme="light" on <html> (toolbar Sun/Moon toggle, persisted). ALL colors
+flow from semantic tokens in frontend/src/index.css - never hardcode hex in
+components; charts read the --chart-* variables so they flip with the theme.
+Primitives in frontend/src/components/ui.tsx. Judgment colors (green/amber/
+red) stay reserved for judgment states in both themes.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 

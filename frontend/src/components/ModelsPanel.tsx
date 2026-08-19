@@ -112,7 +112,7 @@ export function ModelsPanel({
                               <button
                                 onClick={() => setExpanded(expanded === key ? null : key)}
                                 title="What changed vs the previous version"
-                                className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                className="rounded-full border border-edge bg-panel-2 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
                               >
                                 <History className="h-3 w-3" />
                               </button>
@@ -121,7 +121,7 @@ export function ModelsPanel({
                               <button
                                 onClick={() => openRetrain(m)}
                                 title="Retrain on newer data - creates the next version"
-                                className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                className="rounded-full border border-edge bg-panel-2 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
                               >
                                 <RefreshCw className="h-3 w-3" />
                               </button>
@@ -131,14 +131,14 @@ export function ModelsPanel({
                                 <button
                                   onClick={() => setScoreFor(m)}
                                   title="Score a new file with this version"
-                                  className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                  className="rounded-full border border-edge bg-panel-2 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
                                 >
                                   <Target className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={() => setDriftFor(m)}
                                   title="Drift check: is new data still like the training data?"
-                                  className="rounded-full border border-edge bg-white/50 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
+                                  className="rounded-full border border-edge bg-panel-2 p-1 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
                                 >
                                   <Activity className="h-3 w-3" />
                                 </button>
@@ -148,7 +148,7 @@ export function ModelsPanel({
                         </td>
                       </tr>
                       {expanded === key && m.change_summary && (
-                        <tr className="border-b border-edge/50 bg-white/40">
+                        <tr className="border-b border-edge/50 bg-panel-2/60">
                           <td colSpan={8} className="px-3 py-2.5">
                             <ChangeSummary summary={m.change_summary} />
                           </td>
@@ -169,7 +169,7 @@ export function ModelsPanel({
               </span>
               <select
                 id="retrain-ds"
-                className="rounded-lg border border-edge bg-white/70 px-2 py-1 text-xs"
+                className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs"
                 defaultValue=""
               >
                 <option value="" disabled>choose a dataset</option>

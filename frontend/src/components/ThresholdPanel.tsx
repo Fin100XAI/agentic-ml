@@ -68,7 +68,7 @@ export function ThresholdPanel({
                 step={0.05}
                 value={thr}
                 onChange={(e) => setThr(Number(e.target.value))}
-                className="w-full accent-[#4338ca]"
+                className="w-full accent-accent"
               />
               <span className="w-10 text-sm font-semibold tabular-nums">{point.threshold}</span>
             </div>

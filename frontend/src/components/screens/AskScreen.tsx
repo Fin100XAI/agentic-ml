@@ -214,7 +214,7 @@ export function AskScreen({
               type="checkbox"
               checked={included.has(i)}
               onChange={() => toggleInclude(i)}
-              className="mt-0.5 accent-[#4338ca]"
+              className="mt-0.5 accent-accent"
               title="Include in the brief"
             />
             <div className="min-w-0">
@@ -262,7 +262,7 @@ export function AskScreen({
                 <button
                   key={ex}
                   onClick={() => setQuestion(ex)}
-                  className="rounded-full bg-slate-500/8 px-2.5 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-slate-500/15 hover:text-ink"
+                  className="rounded-full bg-ink-dim/10 px-2.5 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-ink-dim/25 hover:text-ink"
                 >
                   {ex}
                 </button>
@@ -398,7 +398,7 @@ export function AskScreen({
                     type="checkbox"
                     checked={included.has(thread.length - 1)}
                     onChange={() => toggleInclude(thread.length - 1)}
-                    className="accent-[#4338ca]"
+                    className="accent-accent"
                   />
                   In brief
                 </label>

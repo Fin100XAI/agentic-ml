@@ -75,7 +75,7 @@ export function CalibrationPanel({
                   stroke="#94a3b8" strokeDasharray="4 4"
                 />
                 <Line
-                  type="monotone" dataKey="observed" stroke="#4338ca"
+                  type="monotone" dataKey="observed" stroke="var(--color-accent)"
                   strokeWidth={2} dot={{ r: 3 }}
                 />
               </LineChart>

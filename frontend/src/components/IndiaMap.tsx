@@ -16,14 +16,23 @@ function mix(a: number[], b: number[], t: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-const BLUE_LO = [224, 231, 255]; // #e0e7ff
-const BLUE_HI = [67, 56, 202]; // #4338ca
-const ORANGE_LO = [255, 237, 213]; // #ffedd5
-const ORANGE_HI = [234, 88, 12]; // #ea580c
-const AMBER = "#d97706";
-
-function ramp(t: number): string {
-  return mix(BLUE_LO, BLUE_HI, t);
+// Theme-aware ramps: JS color math cannot use CSS vars, so each theme gets
+// its own endpoints. The dark ramp runs dim-navy -> periwinkle; light runs
+// pale -> deep periwinkle. Read per render - the theme toggle re-renders
+// the whole tree.
+function mapColors() {
+  const light = document.documentElement.dataset.theme === "light";
+  return light
+    ? {
+        blueLo: [227, 232, 255], blueHi: [79, 92, 220],
+        orangeLo: [255, 237, 213], orangeHi: [234, 88, 12],
+        amber: "#d97706",
+      }
+    : {
+        blueLo: [34, 42, 77], blueHi: [110, 139, 255],
+        orangeLo: [70, 44, 22], orangeHi: [251, 146, 60],
+        amber: "#fbbf24",
+      };
 }
 
 // Quantile class breaks (5 classes): robust to one giant value washing out
@@ -155,13 +164,15 @@ export function IndiaMap({
   const hi = Math.max(...vals);
   const breaks = quantileBreaks(vals);
   const maxAbs = Math.max(Math.abs(lo), Math.abs(hi)) || 1;
+  const mc = mapColors();
+  const ramp = (t: number): string => mix(mc.blueLo, mc.blueHi, t);
 
   const fillFor = (v: number): string => {
-    if (mode === "judgment") return AMBER; // the selected areas ARE the flagged set
+    if (mode === "judgment") return mc.amber; // the selected areas ARE the flagged set
     if (mode === "diverging") {
       // zero-centered: rises in blue, falls in orange
       const t = Math.min(1, Math.abs(v) / maxAbs);
-      return v >= 0 ? mix(BLUE_LO, BLUE_HI, t) : mix(ORANGE_LO, ORANGE_HI, t);
+      return v >= 0 ? mix(mc.blueLo, mc.blueHi, t) : mix(mc.orangeLo, mc.orangeHi, t);
     }
     // sequential: 5 quantile classes - robust to one giant value
     return ramp(breaks.length ? classOf(v, breaks) / breaks.length : 1);
@@ -181,8 +192,8 @@ export function IndiaMap({
               <path
                 key={p.name}
                 d={p.d}
-                fill={isColored ? fillFor(v) : "#e7e3da"}
-                stroke="#ffffff"
+                fill={isColored ? fillFor(v) : "var(--color-panel-2)"}
+                stroke="var(--color-surface)"
                 strokeWidth={0.6}
                 opacity={hover && hover !== p.name ? 0.55 : 1}
                 onMouseEnter={() => setHover(p.name)}
@@ -204,21 +215,21 @@ export function IndiaMap({
       {/* Legend: always shown, matched to the coloring mode */}
       {mode === "judgment" ? (
         <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: AMBER }} />
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: mc.amber }} />
           flagged by your question{threshold != null ? ` (below ${compact(threshold)})` : ""}
           <span className="ml-auto flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> not in this result
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-panel-2 ring-1 ring-inset ring-edge" /> not in this result
           </span>
         </div>
       ) : mode === "diverging" ? (
         <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-dim">
           <span className="tabular-nums">{compact(-maxAbs)}</span>
           <div className="h-2 w-28 rounded-full"
-            style={{ background: `linear-gradient(to right, ${mix(ORANGE_LO, ORANGE_HI, 1)}, ${mix(ORANGE_LO, ORANGE_HI, 0.1)}, ${mix(BLUE_LO, BLUE_HI, 0.1)}, ${mix(BLUE_LO, BLUE_HI, 1)})` }} />
+            style={{ background: `linear-gradient(to right, ${mix(mc.orangeLo, mc.orangeHi, 1)}, ${mix(mc.orangeLo, mc.orangeHi, 0.1)}, ${mix(mc.blueLo, mc.blueHi, 0.1)}, ${mix(mc.blueLo, mc.blueHi, 1)})` }} />
           <span className="tabular-nums">+{compact(maxAbs)}</span>
           <span className="ml-2">{metricLabel} (fell / rose)</span>
           <span className="ml-auto flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> no data
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-panel-2 ring-1 ring-inset ring-edge" /> no data
           </span>
         </div>
       ) : (
@@ -232,7 +243,7 @@ export function IndiaMap({
           <span className="tabular-nums">{compact(hi)}</span>
           <span className="ml-2">{metricLabel} - darker fifth = higher fifth</span>
           <span className="ml-auto flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#e2e8f0]" /> no data
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-panel-2 ring-1 ring-inset ring-edge" /> no data
           </span>
         </div>
       )}

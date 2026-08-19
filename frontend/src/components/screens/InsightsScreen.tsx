@@ -67,7 +67,7 @@ function StabilityPanel({ v }: { v: Validation }) {
           <div className="flex items-end gap-2">
             {folds.map((f, i) => (
               <div key={i} className="flex flex-col items-center gap-1">
-                <div className="flex h-16 w-9 items-end overflow-hidden rounded-md bg-white/40">
+                <div className="flex h-16 w-9 items-end overflow-hidden rounded-md bg-panel-2/60">
                   <div
                     className="w-full rounded-t-md bg-accent/70"
                     style={{ height: `${Math.max(8, (f / max) * 100)}%` }}
@@ -187,22 +187,22 @@ function DriverChart({ driver }: { driver: Driver }) {
       </p>
       <ResponsiveContainer width="100%" height={Math.max(120, driver.groups.length * 34)}>
         <BarChart data={driver.groups} layout="vertical" margin={{ left: 8, right: 40 }}>
-          <CartesianGrid stroke="#e7e3da" horizontal={false} />
+          <CartesianGrid stroke="var(--chart-grid)" horizontal={false} />
           <XAxis type="number" hide domain={[0, max * 1.15]} />
           <YAxis
             type="category"
             dataKey="label"
             width={90}
-            tick={{ fill: "#78716c", fontSize: 10 }}
-            stroke="#e7e3da"
+            tick={{ fill: "var(--chart-axis)", fontSize: 10 }}
+            stroke="var(--chart-grid)"
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "rgba(255,255,255,0.95)",
-              border: "1px solid #e7e3da",
+              backgroundColor: "var(--chart-tip-bg)",
+              border: "1px solid var(--chart-tip-border)",
               borderRadius: 10,
               fontSize: 12,
-              color: "#0f172a",
+              color: "var(--chart-tip-fg)",
             }}
             formatter={(v) => [`${v}% of group`, "rate"]}
             cursor={{ fill: "rgba(79,70,229,0.06)" }}
@@ -210,10 +210,10 @@ function DriverChart({ driver }: { driver: Driver }) {
           <Bar
             dataKey="rate_pct"
             radius={[0, 4, 4, 0]}
-            label={{ position: "right", fill: "#0f172a", fontSize: 10, formatter: (v) => `${v}%` }}
+            label={{ position: "right", fill: "var(--color-ink)", fontSize: 10, formatter: (v) => `${v}%` }}
           >
             {driver.groups.map((g, i) => (
-              <Cell key={i} fill={g.rate_pct === max ? "#dc2626" : "#4338ca"} />
+              <Cell key={i} fill={g.rate_pct === max ? "var(--color-bad)" : "var(--color-accent)"} />
             ))}
           </Bar>
         </BarChart>

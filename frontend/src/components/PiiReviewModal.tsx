@@ -31,7 +31,7 @@ export function PiiReviewModal({
     <>
       <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 px-4">
-        <Card className="max-h-[85vh] overflow-y-auto bg-white/95">
+        <Card className="max-h-[85vh] overflow-y-auto bg-panel/95">
           <CardBody>
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-warn" />
@@ -62,7 +62,7 @@ export function PiiReviewModal({
                       onChange={(e) =>
                         setActions((a) => ({ ...a, [f.column]: e.target.value }))
                       }
-                      className="rounded-lg border border-edge bg-white/70 px-2 py-1 text-xs"
+                      className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs"
                     >
                       <option value="mask">mask</option>
                       <option value="drop">drop</option>

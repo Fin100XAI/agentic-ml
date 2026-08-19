@@ -74,7 +74,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
             {thread.map((qa, i) => (
               <div key={i} className="space-y-2">
                 <div className="flex items-start gap-2">
-                  <span className="mt-0.5 rounded-full bg-slate-500/10 p-1.5">
+                  <span className="mt-0.5 rounded-full bg-ink-dim/10 p-1.5">
                     <User className="h-3 w-3 text-ink-dim" />
                   </span>
                   <p className="min-w-0 break-words pt-1 text-sm font-medium">{qa.q}</p>

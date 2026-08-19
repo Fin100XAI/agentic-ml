@@ -49,7 +49,7 @@ function ParamField({
           type="checkbox"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
-          className="mt-2 h-4 w-4 accent-[#4338ca]"
+          className="mt-2 h-4 w-4 accent-accent"
         />
       ) : (
         <input
@@ -103,7 +103,7 @@ function PathCard({
       <ol className="mt-3 flex-1 space-y-1.5">
         {steps.map((s, i) => (
           <li key={i} className="flex gap-2 text-[11px] leading-snug text-ink-dim">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-slate-500/10 text-[9px] font-semibold">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ink-dim/10 text-[9px] font-semibold">
               {i + 1}
             </span>
             <span className="min-w-0">{s}</span>
@@ -406,7 +406,7 @@ export function ConfigureScreen({
                         className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                           !excluded
                             ? "border-warn/50 bg-warn/10 font-medium text-warn"
-                            : "border-edge bg-white/50 text-ink-dim"
+                            : "border-edge bg-panel-2 text-ink-dim"
                         }`}
                       >
                         keep
@@ -416,7 +416,7 @@ export function ConfigureScreen({
                         className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                           excluded
                             ? "border-good/50 bg-good/10 font-medium text-good"
-                            : "border-edge bg-white/50 text-ink-dim"
+                            : "border-edge bg-panel-2 text-ink-dim"
                         }`}
                       >
                         exclude
@@ -466,7 +466,7 @@ export function ConfigureScreen({
                       type="checkbox"
                       checked={on}
                       onChange={() => toggleFeature(f.id)}
-                      className="mt-0.5 h-3.5 w-3.5 accent-[#4338ca]"
+                      className="mt-0.5 h-3.5 w-3.5 accent-accent"
                     />
                     <span className="min-w-0">
                       <span className="flex flex-wrap items-center gap-1.5">
@@ -623,7 +623,7 @@ export function ConfigureScreen({
                           className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                             regressors.has(c)
                               ? "border-accent/50 bg-accent-soft/40 font-medium text-accent"
-                              : "border-edge bg-white/50 text-ink-dim"
+                              : "border-edge bg-panel-2 text-ink-dim"
                           }`}
                         >
                           {c}
@@ -649,7 +649,7 @@ export function ConfigureScreen({
                               return next;
                             })
                           }
-                          className="mt-0.5 accent-[#4338ca]"
+                          className="mt-0.5 accent-accent"
                         />
                         <span>
                           Will you know <span className="font-semibold">{c}</span>'s future values
@@ -676,7 +676,7 @@ export function ConfigureScreen({
                     <select
                       value={groupColumn ?? ""}
                       onChange={(e) => setGroupColumn(e.target.value || null)}
-                      className="mt-1 w-full rounded-lg border border-edge bg-white/70 px-3 py-1.5 text-sm outline-none focus:border-accent"
+                      className="mt-1 w-full rounded-lg border border-edge bg-panel-2 px-3 py-1.5 text-sm outline-none focus:border-accent"
                     >
                       <option value="">- one combined series -</option>
                       {recommendation.group_candidates!.map((g) => (
@@ -695,7 +695,7 @@ export function ConfigureScreen({
                             type="radio"
                             checked={groupAgg === a}
                             onChange={() => setGroupAgg(a)}
-                            className="accent-[#4338ca]"
+                            className="accent-accent"
                           />
                           {a === "sum" ? "total across groups" : "average per group"}
                         </label>

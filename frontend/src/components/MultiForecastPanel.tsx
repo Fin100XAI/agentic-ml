@@ -64,7 +64,7 @@ export function MultiForecastPanel({ multi }: { multi: NonNullable<RunResult["ar
                     </td>
                   </tr>
                   {open === g.name && g.series && g.forecast && (
-                    <tr key={`${g.name}-chart`} className="border-b border-edge/40 bg-white/40">
+                    <tr key={`${g.name}-chart`} className="border-b border-edge/40 bg-panel-2/60">
                       <td colSpan={6} className="px-2 py-3">
                         <ForecastChart
                           series={g.series}

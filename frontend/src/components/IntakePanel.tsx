@@ -114,7 +114,7 @@ export function IntakePanel({
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] uppercase tracking-wider text-ink-dim">Model version</span>
                 <select
-                  className="rounded-lg border border-edge bg-white/70 px-2 py-1.5 text-xs"
+                  className="rounded-lg border border-edge bg-panel-2 px-2 py-1.5 text-xs"
                   value={formModel}
                   onChange={(e) => setFormModel(e.target.value)}
                 >
@@ -129,7 +129,7 @@ export function IntakePanel({
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] uppercase tracking-wider text-ink-dim">When a matching file arrives</span>
                 <select
-                  className="rounded-lg border border-edge bg-white/70 px-2 py-1.5 text-xs"
+                  className="rounded-lg border border-edge bg-panel-2 px-2 py-1.5 text-xs"
                   value={formAction}
                   onChange={(e) => setFormAction(e.target.value)}
                 >
@@ -141,7 +141,7 @@ export function IntakePanel({
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] uppercase tracking-wider text-ink-dim">Expected cadence</span>
                 <select
-                  className="rounded-lg border border-edge bg-white/70 px-2 py-1.5 text-xs"
+                  className="rounded-lg border border-edge bg-panel-2 px-2 py-1.5 text-xs"
                   value={formCadence}
                   onChange={(e) => setFormCadence(e.target.value)}
                 >

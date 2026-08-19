@@ -87,8 +87,8 @@ export function ActivityScreen({
                   onClick={() => setEventType(t)}
                   className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                     eventType === t
-                      ? "border-[#4338ca]/40 bg-[#4338ca]/10 font-medium text-[#4338ca]"
-                      : "border-edge bg-white/50 text-ink-dim"
+                      ? "border-accent/40 bg-accent/10 font-medium text-accent"
+                      : "border-edge bg-panel-2 text-ink-dim"
                   }`}
                 >
                   {t.replace("_", " ")}
@@ -101,7 +101,7 @@ export function ActivityScreen({
                 <select
                   value={runScope}
                   onChange={(e) => setRunScope(e.target.value as "all" | "current")}
-                  className="rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px] text-ink"
+                  className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px] text-ink"
                 >
                   <option value="all">everything</option>
                   <option value="current">this analysis</option>
@@ -153,7 +153,7 @@ export function ActivityScreen({
                           <summary className="cursor-pointer truncate text-ink-dim">
                             {summarize(e.payload)}
                           </summary>
-                          <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-white/50 p-2 text-[10px] leading-snug">
+                          <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-panel-2 p-2 text-[10px] leading-snug">
                             {JSON.stringify(e.payload, null, 2)}
                           </pre>
                         </details>

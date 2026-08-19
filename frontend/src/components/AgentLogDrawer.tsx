@@ -5,7 +5,7 @@ import { Badge } from "./ui";
 import { genLabel } from "../lib/labels";
 
 const AGENT_COLOR: Record<string, string> = {
-  Profiler: "bg-slate-500",
+  Profiler: "bg-ink-dim",
   "EDA agent": "bg-indigo-500",
   "Recommendation agent": "bg-violet-500",
   "Settings suggester": "bg-cyan-600",
@@ -37,7 +37,7 @@ export function AgentLogDrawer({
             <h3 className="text-sm font-semibold">Agent activity</h3>
             <Badge tone="neutral">{entries.length} steps</Badge>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-ink-dim transition-colors hover:bg-slate-500/10 hover:text-ink">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-ink-dim transition-colors hover:bg-ink-dim/10 hover:text-ink">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -52,7 +52,7 @@ export function AgentLogDrawer({
               {entries.map((e, i) => (
                 <li key={i} className="relative pl-6">
                   <span
-                    className={`absolute left-0 top-1.5 h-[15px] w-[15px] rounded-full border-2 border-white ${AGENT_COLOR[e.agent] ?? "bg-slate-400"}`}
+                    className={`absolute left-0 top-1.5 h-[15px] w-[15px] rounded-full border-2 border-white ${AGENT_COLOR[e.agent] ?? "bg-ink-dim"}`}
                   />
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-xs font-semibold">{e.agent}</span>

@@ -25,14 +25,14 @@ import { InfoTip } from "../InfoTip";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner, Stat } from "../ui";
 import { genLabel } from "../../lib/labels";
 
-const AXIS = { fill: "#78716c", fontSize: 10 };
-const GRID = "#e7e3da";
+const AXIS = { fill: "var(--chart-axis)", fontSize: 10 };
+const GRID = "var(--chart-grid)";
 const TOOLTIP_STYLE = {
-  backgroundColor: "rgba(255,255,255,0.95)",
-  border: "1px solid #e7e3da",
+  backgroundColor: "var(--chart-tip-bg)",
+  border: "1px solid var(--chart-tip-border)",
   borderRadius: 10,
   fontSize: 12,
-  color: "#0f172a",
+  color: "var(--chart-tip-fg)",
 };
 
 const ROLE_TONE: Record<string, "accent" | "good" | "warn" | "neutral" | "bad"> = {
@@ -94,7 +94,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
             labelFormatter={(_, p) => (p?.[0]?.payload as { label?: string })?.label ?? ""}
             cursor={{ fill: "rgba(79,70,229,0.06)" }}
           />
-          <Bar dataKey="count" fill="#4338ca" radius={[3, 3, 0, 0]} opacity={0.75} />
+          <Bar dataKey="count" fill="var(--color-accent)" radius={[3, 3, 0, 0]} opacity={0.75} />
         </BarChart>
       </ResponsiveContainer>
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-ink-dim">
@@ -137,10 +137,10 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
           <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
           <Bar
             dataKey="count"
-            fill="#059669"
+            fill="var(--chart-2)"
             radius={[0, 3, 3, 0]}
             opacity={0.75}
-            label={{ position: "right", fill: "#78716c", fontSize: 9 }}
+            label={{ position: "right", fill: "var(--chart-axis)", fontSize: 9 }}
           />
         </BarChart>
       </ResponsiveContainer>
@@ -186,7 +186,7 @@ function MissingnessCard({ profile }: { profile: Profile }) {
             tickFormatter={(v: string) => (v.length > 12 ? v.slice(0, 11) + "…" : v)}
           />
           <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}% missing`, ""]} cursor={{ fill: "rgba(217,119,6,0.06)" }} />
-          <Bar dataKey="pct" fill="#d97706" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "#78716c", fontSize: 9, formatter: (v) => `${v}%` }} />
+          <Bar dataKey="pct" fill="var(--color-warn)" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "var(--chart-axis)", fontSize: 9, formatter: (v) => `${v}%` }} />
         </BarChart>
       </ResponsiveContainer>
       <p className="mt-1.5 border-t border-edge/60 pt-1.5 text-[10px] leading-snug text-ink-dim">
@@ -212,7 +212,7 @@ function CorrelationChart({ profile }: { profile: Profile }) {
           type="category"
           dataKey="pair"
           width={130}
-          tick={{ fill: "#78716c", fontSize: 9 }}
+          tick={{ fill: "var(--chart-axis)", fontSize: 9 }}
           stroke={GRID}
           tickFormatter={(v: string) => (v.length > 22 ? v.slice(0, 21) + "…" : v)}
         />
@@ -224,10 +224,10 @@ function CorrelationChart({ profile }: { profile: Profile }) {
         <Bar
           dataKey="corr"
           radius={[0, 3, 3, 0]}
-          label={{ position: "right", fill: "#78716c", fontSize: 9 }}
+          label={{ position: "right", fill: "var(--chart-axis)", fontSize: 9 }}
         >
           {data.map((d, i) => (
-            <Cell key={i} fill={d.corr >= 0 ? "#059669" : "#dc2626"} opacity={0.35 + Math.abs(d.corr) * 0.6} />
+            <Cell key={i} fill={d.corr >= 0 ? "var(--chart-2)" : "var(--color-bad)"} opacity={0.35 + Math.abs(d.corr) * 0.6} />
           ))}
         </Bar>
       </BarChart>
@@ -303,12 +303,12 @@ function TypeComposition({ profile }: { profile: Profile }) {
   const entries = Object.entries(counts);
   const total = profile.columns.length || 1;
   const COLORS: Record<string, string> = {
-    numeric: "#4338ca",
-    categorical: "#059669",
-    datetime: "#d97706",
-    boolean: "#0891b2",
+    numeric: "var(--color-accent)",
+    categorical: "var(--chart-2)",
+    datetime: "var(--color-warn)",
+    boolean: "var(--chart-4)",
     identifier: "#94a3b8",
-    text: "#c026d3",
+    text: "var(--chart-8)",
   };
   return (
     <div>

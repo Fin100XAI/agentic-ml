@@ -252,7 +252,7 @@ function PathItem({ text, accent }: { text: string; accent: Accent }) {
 const ACTOR_STYLE = {
   ai: { dot: "bg-rs-blue text-rs-ink", chip: "bg-rs-blue/10 text-rs-blue ring-rs-blue/25", label: "AI proposes" },
   you: { dot: "bg-rs-teal text-rs-ink", chip: "bg-rs-teal/10 text-rs-teal ring-rs-teal/25", label: "You decide" },
-  machine: { dot: "bg-rs-faint text-rs-ink", chip: "bg-white/5 text-rs-muted ring-white/10", label: "Machine computes" },
+  machine: { dot: "bg-rs-faint text-rs-ink", chip: "bg-rs-fg/5 text-rs-muted ring-rs-fg/10", label: "Machine computes" },
 } as const;
 
 const GRADIENT = "bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)]";
@@ -520,26 +520,26 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-rs-blue">Executive summary</p>
                       <div className="mt-1 space-y-1">
-                        <div className="h-2 w-full rounded bg-white/10" />
-                        <div className="h-2 w-11/12 rounded bg-white/10" />
-                        <div className="h-2 w-4/5 rounded bg-white/5" />
+                        <div className="h-2 w-full rounded bg-rs-fg/10" />
+                        <div className="h-2 w-11/12 rounded bg-rs-fg/10" />
+                        <div className="h-2 w-4/5 rounded bg-rs-fg/5" />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-rs-blue">Key findings</p>
                         <div className="mt-1 space-y-1">
-                          <div className="h-2 w-full rounded bg-white/10" />
-                          <div className="h-2 w-5/6 rounded bg-white/5" />
-                          <div className="h-2 w-4/6 rounded bg-white/5" />
+                          <div className="h-2 w-full rounded bg-rs-fg/10" />
+                          <div className="h-2 w-5/6 rounded bg-rs-fg/5" />
+                          <div className="h-2 w-4/6 rounded bg-rs-fg/5" />
                         </div>
                       </div>
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-wider text-rs-blue">Recommended actions</p>
                         <div className="mt-1 space-y-1">
-                          <div className="h-2 w-full rounded bg-white/10" />
-                          <div className="h-2 w-5/6 rounded bg-white/5" />
-                          <div className="h-2 w-3/6 rounded bg-white/5" />
+                          <div className="h-2 w-full rounded bg-rs-fg/10" />
+                          <div className="h-2 w-5/6 rounded bg-rs-fg/5" />
+                          <div className="h-2 w-3/6 rounded bg-rs-fg/5" />
                         </div>
                       </div>
                     </div>

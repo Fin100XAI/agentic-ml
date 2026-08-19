@@ -18,26 +18,26 @@ import {
 } from "recharts";
 import type { RunResult } from "../types";
 
-const AXIS = { stroke: "#78716c", fontSize: 11 };
-const GRID = "#e7e3da";
+const AXIS = { stroke: "var(--chart-axis)", fontSize: 11 };
+const GRID = "var(--chart-grid)";
 const PALETTE = [
-  "#4338ca",
-  "#059669",
-  "#d97706",
-  "#dc2626",
-  "#ca8a04",
-  "#0891b2",
-  "#ea580c",
-  "#c026d3",
-  "#78716c",
+  "var(--color-accent)",
+  "var(--chart-2)",
+  "var(--color-warn)",
+  "var(--color-bad)",
+  "var(--chart-6)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-8)",
+  "var(--chart-axis)",
 ];
 
 const TOOLTIP_STYLE = {
-  backgroundColor: "rgba(255,255,255,0.95)",
-  border: "1px solid #e7e3da",
+  backgroundColor: "var(--chart-tip-bg)",
+  border: "1px solid var(--chart-tip-border)",
   borderRadius: 10,
   fontSize: 12,
-  color: "#0f172a",
+  color: "var(--chart-tip-fg)",
   boxShadow: "0 8px 24px rgba(15,23,42,0.08)",
 };
 
@@ -117,7 +117,7 @@ export function FeatureImportanceChart({
           cursor={{ fill: "rgba(79,70,229,0.06)" }}
           formatter={(v, _n, item) => [v, (item?.payload as { feature?: string })?.feature ?? ""]}
         />
-        <Bar dataKey="importance" fill="#4338ca" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="importance" fill="var(--color-accent)" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -159,7 +159,7 @@ export function ClusterScatter({
               onClick={() => toggle(c)}
               title={off ? "Click to show this group" : "Click to hide this group"}
               className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-all ${
-                off ? "border-edge opacity-40" : "border-edge bg-white/50"
+                off ? "border-edge opacity-40" : "border-edge bg-panel-2"
               }`}
             >
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorOf(c, i) }} />
@@ -212,7 +212,7 @@ export function ClusterScatter({
             max={12}
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
-            className="w-28 accent-[#4338ca]"
+            className="w-28 accent-accent"
           />
           <span className="w-5 tabular-nums">{size}px</span>
         </label>
@@ -224,7 +224,7 @@ export function ClusterScatter({
             max={100}
             value={Math.round(opacity * 100)}
             onChange={(e) => setOpacity(Number(e.target.value) / 100)}
-            className="w-28 accent-[#4338ca]"
+            className="w-28 accent-accent"
           />
         </label>
         <span className="text-[10px] text-ink-dim">
@@ -336,9 +336,9 @@ export function ForecastChart({
     });
 
   const LINES: { key: string; label: string; color: string }[] = [
-    { key: "actual", label: "actual", color: "#78716c" },
-    { key: "predicted", label: "holdout check", color: "#d97706" },
-    { key: "forecast", label: "forecast", color: "#4338ca" },
+    { key: "actual", label: "actual", color: "var(--chart-axis)" },
+    { key: "predicted", label: "holdout check", color: "var(--color-warn)" },
+    { key: "forecast", label: "forecast", color: "var(--color-accent)" },
   ];
 
   return (
@@ -352,8 +352,8 @@ export function ForecastChart({
               onClick={() => setView(v.key)}
               className={`rounded-full border px-2.5 py-1 text-[11px] transition-all ${
                 view === v.key
-                  ? "border-[#4338ca]/40 bg-[#4338ca]/10 font-medium text-[#4338ca]"
-                  : "border-edge bg-white/50 text-ink-dim"
+                  ? "border-accent/40 bg-accent/10 font-medium text-accent"
+                  : "border-edge bg-panel-2 text-ink-dim"
               }`}
             >
               {v.label}
@@ -369,7 +369,7 @@ export function ForecastChart({
                 onClick={() => toggle(l.key)}
                 title={off ? "Click to show this line" : "Click to hide this line"}
                 className={`flex items-center gap-1.5 rounded-full border border-edge px-2.5 py-1 text-[11px] transition-all ${
-                  off ? "opacity-40" : "bg-white/50"
+                  off ? "opacity-40" : "bg-panel-2"
                 }`}
               >
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
@@ -384,7 +384,7 @@ export function ForecastChart({
             <select
               value={companion}
               onChange={(e) => setCompanion(e.target.value)}
-              className="rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px] text-ink"
+              className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px] text-ink"
             >
               <option value="">none</option>
               {context.map((c) => (
@@ -409,7 +409,7 @@ export function ForecastChart({
           />
           <YAxis yAxisId="left" tick={AXIS} stroke={GRID} domain={["auto", "auto"]} />
           {companion && (
-            <YAxis yAxisId="right" orientation="right" tick={{ ...AXIS, fill: "#0891b2" }} stroke={GRID} domain={["auto", "auto"]} />
+            <YAxis yAxisId="right" orientation="right" tick={{ ...AXIS, fill: "var(--chart-4)" }} stroke={GRID} domain={["auto", "auto"]} />
           )}
           <Tooltip contentStyle={TOOLTIP_STYLE} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -418,7 +418,7 @@ export function ForecastChart({
               yAxisId="left"
               dataKey="band"
               stroke="none"
-              fill="#4338ca"
+              fill="var(--color-accent)"
               fillOpacity={0.1}
               isAnimationActive={false}
               name={`likely range (+/- ${pct}%)`}
@@ -426,11 +426,11 @@ export function ForecastChart({
               tooltipType="none"
             />
           )}
-          <Line yAxisId="left" type="monotone" dataKey="actual" stroke="#78716c" dot={false} strokeWidth={1.5} name="actual" hide={hidden.has("actual")} isAnimationActive={false} />
-          <Line yAxisId="left" type="monotone" dataKey="predicted" stroke="#d97706" dot={false} strokeWidth={2} name="holdout check" hide={hidden.has("predicted")} isAnimationActive={false} />
-          <Line yAxisId="left" type="monotone" dataKey="forecast" stroke="#4338ca" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" hide={hidden.has("forecast")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="actual" stroke="var(--chart-axis)" dot={false} strokeWidth={1.5} name="actual" hide={hidden.has("actual")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="predicted" stroke="var(--color-warn)" dot={false} strokeWidth={2} name="holdout check" hide={hidden.has("predicted")} isAnimationActive={false} />
+          <Line yAxisId="left" type="monotone" dataKey="forecast" stroke="var(--color-accent)" dot={false} strokeWidth={2} strokeDasharray="6 3" name="forecast" hide={hidden.has("forecast")} isAnimationActive={false} />
           {companion && (
-            <Line yAxisId="right" type="monotone" dataKey="companion" stroke="#0891b2" dot={false} strokeWidth={1.5} strokeDasharray="2 3" name={companionLabel} connectNulls isAnimationActive={false} />
+            <Line yAxisId="right" type="monotone" dataKey="companion" stroke="var(--chart-4)" dot={false} strokeWidth={1.5} strokeDasharray="2 3" name={companionLabel} connectNulls isAnimationActive={false} />
           )}
         </ComposedChart>
       </ResponsiveContainer>
@@ -472,9 +472,9 @@ export function PredictedVsActualChart({
         <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
         <Line dataKey="predicted" stroke="#94a3b8" strokeDasharray="5 4" dot={false} isAnimationActive={false} legendType="none" tooltipType="none" />
         <Scatter
-          data={points} fill="#4338ca" isAnimationActive={false}
+          data={points} fill="var(--color-accent)" isAnimationActive={false}
           shape={(props: { cx?: number; cy?: number }) => (
-            <circle cx={props.cx} cy={props.cy} r={2.5} fill="#4338ca" fillOpacity={0.55} />
+            <circle cx={props.cx} cy={props.cy} r={2.5} fill="var(--color-accent)" fillOpacity={0.55} />
           )}
         />
       </ComposedChart>
@@ -493,7 +493,7 @@ export function ResidualHistChart({ data }: { data: { mid: number; count: number
         <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
         <Bar dataKey="count" radius={[3, 3, 0, 0]}>
           {named.map((d, i) => (
-            <Cell key={i} fill={d.mid < 0 ? "#d97706" : "#4338ca"} />
+            <Cell key={i} fill={d.mid < 0 ? "var(--color-warn)" : "var(--color-accent)"} />
           ))}
         </Bar>
       </BarChart>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, ScrollText } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, Moon, ScrollText, Sun } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -99,6 +99,15 @@ export default function Root() {
 
 function App() {
   const [screen, setScreen] = useState<Screen>("projects");
+  // Theme: RoleSprint dark by default; the toolbar button flips to the
+  // white twin. Applied as data-theme on <html> so every token swaps.
+  const [theme, setTheme] = useState<"dark" | "light">(
+    () => (localStorage.getItem("theme") === "light" ? "light" : "dark"),
+  );
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
   const [project, setProject] = useState<Project | null>(null);
   const [run, setRun] = useState<Run | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -577,7 +586,7 @@ function App() {
   return (
     <div className="min-h-full">
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-edge bg-white shadow-sm shadow-slate-900/5">
+      <header className="sticky top-0 z-20 border-b border-edge bg-panel shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
@@ -740,6 +749,14 @@ function App() {
                 {llmEnabled === null ? "offline" : !llmEnabled || llmOk === false ? "heuristic" : "AI connected"}
               </span>
             </span>
+            {/* Black <-> white background toggle */}
+            <button
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+              title={theme === "dark" ? "Switch to white background" : "Switch to dark background"}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-edge bg-panel-2 text-ink-dim transition-colors duration-150 hover:border-edge-strong hover:text-ink active:scale-[0.97]"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
           </div>
         </div>
 
@@ -963,7 +980,7 @@ function App() {
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4">
-            <Card className="border-accent/40 bg-white/95">
+            <Card className="border-accent/40 bg-panel/95">
               <CardBody>
                 <h3 className="text-sm font-semibold">
                   {pathOffer.filename} is ready - how do you want to work with it?
@@ -1008,7 +1025,7 @@ function App() {
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
-            <Card className="border-accent/40 bg-white/95">
+            <Card className="border-accent/40 bg-panel/95">
               <CardBody>
                 <h3 className="text-sm font-semibold">
                   {routeOffer.route === "both"
@@ -1041,7 +1058,7 @@ function App() {
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
-            <Card className={runFailure.kind === "data" ? "border-warn/50 bg-white/95" : "border-bad/40 bg-white/95"}>
+            <Card className={runFailure.kind === "data" ? "border-warn/50 bg-panel/95" : "border-bad/40 bg-panel/95"}>
               <CardBody>
                 <h3 className="text-sm font-semibold">
                   {runFailure.kind === "data"
@@ -1087,7 +1104,7 @@ function App() {
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
-            <Card className="border-warn/50 bg-white/90">
+            <Card className="border-warn/50 bg-panel/90">
               <CardBody>
                 <h3 className="text-sm font-semibold">Your question may not match this data</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink-dim">{misalignNote}</p>
@@ -1172,7 +1189,7 @@ function App() {
         <>
           <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
-            <Card className="bg-white/90">
+            <Card className="bg-panel/90">
               <CardBody>
                 <h3 className="text-sm font-semibold">Which sheet should we analyze?</h3>
                 <p className="mt-1 text-xs text-ink-dim">

@@ -260,7 +260,7 @@ export function HomeScreen({
                 <select
                   value={diffA}
                   onChange={(e) => setDiffA(e.target.value)}
-                  className="max-w-40 rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px]"
+                  className="max-w-40 rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px]"
                 >
                   <option value="">earlier run…</option>
                   {completedRuns.map((r) => (
@@ -271,7 +271,7 @@ export function HomeScreen({
                 <select
                   value={diffB}
                   onChange={(e) => setDiffB(e.target.value)}
-                  className="max-w-40 rounded-lg border border-edge bg-white/60 px-2 py-1 text-[11px]"
+                  className="max-w-40 rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px]"
                 >
                   <option value="">later run…</option>
                   {completedRuns.map((r) => (
