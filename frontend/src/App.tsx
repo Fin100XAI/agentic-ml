@@ -772,9 +772,11 @@ function App() {
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl px-6 py-6">
-        {/* Compact decision timeline */}
-        {screen !== "home" && run && run.decisions.length > 0 && (
+      {/* The Guide is a full-bleed dark page; every other screen lives in the
+          centered container. */}
+      <main className={screen === "about" ? "" : "mx-auto max-w-7xl px-6 py-6"}>
+        {/* Compact decision timeline (not on the full-bleed Guide) */}
+        {screen !== "home" && screen !== "about" && run && run.decisions.length > 0 && (
           <div className="mb-6 rounded-2xl border border-edge bg-panel shadow-sm">
             <div className="flex items-center justify-between border-b border-edge/60 px-4 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
@@ -788,7 +790,7 @@ function App() {
           </div>
         )}
 
-        {error && (
+        {error && screen !== "about" && (
           <div className="mb-6 rounded-lg border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
             {error}
           </div>

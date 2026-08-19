@@ -175,8 +175,9 @@ const GRADIENT = "bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)]";
 
 export function AboutScreen({ onStart }: { onStart?: () => void }) {
   return (
-    // The whole guide is one dark presentation sheet inside the app.
-    <div className="font-jakarta -mx-4 rounded-3xl bg-rs-ink px-4 py-10 sm:mx-0 sm:px-8 md:px-12">
+    // The whole guide is one full-bleed dark page, edge to edge - the app
+    // shell renders it without the centered container.
+    <div className="font-jakarta min-h-screen bg-rs-ink px-4 py-12 sm:px-8 md:px-12">
       <div className="mx-auto max-w-5xl space-y-16">
         {/* Hero */}
         <div className="pt-2 text-center">
