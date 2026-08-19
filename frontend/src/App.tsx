@@ -589,6 +589,15 @@ function App() {
       <header className="sticky top-0 z-20 border-b border-edge bg-panel shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
+            {/* Back - anchored at the toolbar's left edge */}
+            <button
+              onClick={goBack}
+              disabled={!past.some(canShow)}
+              title="Back"
+              className="shrink-0 rounded-full border border-edge bg-panel-2 p-2 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
             <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
               <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
               <div>
@@ -600,24 +609,9 @@ function App() {
                 </p>
               </div>
             </button>
-            {/* Back / forward / home - always visible */}
+            {/* Home - next to the brand; back/forward live at the toolbar's
+                far left and far right edges */}
             <span className="ml-1 flex items-center gap-1">
-              <button
-                onClick={goBack}
-                disabled={!past.some(canShow)}
-                title="Back"
-                className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={goForward}
-                disabled={!future.some(canShow)}
-                title="Forward"
-                className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
               {project && screen !== "home" && screen !== "projects" && (
                 <button
                   onClick={goHome}
@@ -756,6 +750,15 @@ function App() {
               className="flex h-8 w-8 items-center justify-center rounded-full border border-edge bg-panel-2 text-ink-dim transition-colors duration-150 hover:border-edge-strong hover:text-ink active:scale-[0.97]"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            {/* Forward - anchored at the toolbar's right edge */}
+            <button
+              onClick={goForward}
+              disabled={!future.some(canShow)}
+              title="Forward"
+              className="shrink-0 rounded-full border border-edge bg-panel-2 p-2 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-30 disabled:hover:border-edge disabled:hover:text-ink-dim"
+            >
+              <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>

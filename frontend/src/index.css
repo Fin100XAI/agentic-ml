@@ -179,6 +179,44 @@ select, input, textarea {
 .reveal[data-shown="true"] [data-cascade] > :nth-child(7) { transition-delay: 340ms; }
 .reveal[data-shown="true"] [data-cascade] > :nth-child(n + 8) { transition-delay: 390ms; }
 
+/* Glass surface: translucent panel with backdrop blur - real depth where
+   gradients or content sit behind, quiet elsewhere. */
+.glass {
+  background: color-mix(in srgb, var(--color-panel) 78%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  backdrop-filter: blur(16px) saturate(1.35);
+}
+
+/* Fluid tile: visible depth at rest, accent glow on lift, icon glides.
+   transform/opacity only; hover gated for touch. */
+.tile {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.2),
+    0 12px 32px -16px rgb(0 0 0 / 0.45);
+  transition:
+    transform 200ms var(--ease-out-strong),
+    box-shadow 200ms var(--ease-out-strong),
+    border-color 200ms var(--ease-out-strong);
+}
+.tile-icon {
+  transition: transform 250ms var(--ease-out-strong);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover {
+    transform: translateY(-3px);
+    border-color: var(--color-edge-strong);
+    box-shadow:
+      0 2px 4px rgb(0 0 0 / 0.2),
+      0 20px 48px -16px color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+  .tile:hover .tile-icon {
+    transform: scale(1.14) rotate(-3deg);
+  }
+}
+.tile:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
 /* Hover lift for cards - gated so touch taps don't trigger false hovers */
 @media (hover: hover) and (pointer: fine) {
   .lift {

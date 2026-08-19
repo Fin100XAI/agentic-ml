@@ -124,14 +124,20 @@ export function HomeScreen({
 
   return (
     <div className="space-y-10">
-      {/* Hero: staggered entrance, one idea per line */}
-      <div className="rounded-2xl border border-edge bg-gradient-to-b from-accent-soft/25 via-panel to-panel px-8 py-14 text-center shadow-sm">
-        <p className="animate-rise text-xs font-bold uppercase tracking-[0.18em] text-accent">
+      {/* Hero: glass sheet with a gradient glow, staggered entrance */}
+      <div className="glass relative overflow-hidden rounded-3xl border border-edge px-8 py-14 text-center">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-28 left-1/2 h-64 w-[42rem] -translate-x-1/2 rounded-full bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] opacity-20 blur-3xl"
+        />
+        <p className="animate-rise text-xs font-bold uppercase tracking-[0.2em] text-accent">
           Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
         </p>
-        <h2 className="font-display animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
-          Evidence for every decision.
-          <span className="text-accent"> Accountability at every step.</span>
+        <h2 className="animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-extrabold leading-tight tracking-tight [animation-delay:60ms] md:text-4xl">
+          Evidence for every decision.{" "}
+          <span className="bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] bg-clip-text text-transparent">
+            Accountability at every step.
+          </span>
         </h2>
         <p className="animate-rise mx-auto mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-ink-dim [animation-delay:120ms]">
           Decision support built for government. Upload departmental data - scheme
@@ -159,7 +165,7 @@ export function HomeScreen({
           {PIPELINE.map((p, i) => (
             <div key={p.label} className="flex items-center gap-2">
               {i > 0 && <div className="h-px w-5 bg-edge" />}
-              <div className="flex items-center gap-1.5 rounded-full border border-edge bg-panel px-3 py-1.5 text-[11px] text-ink-dim">
+              <div className="glass flex items-center gap-1.5 rounded-full border border-edge px-3 py-1.5 text-[11px] text-ink-dim">
                 <span className="text-[10px] font-bold tabular-nums text-accent/70">{i + 1}</span>
                 <p.icon className="h-3.5 w-3.5 text-accent" />
                 {p.label}
@@ -176,11 +182,11 @@ export function HomeScreen({
           <SectionLabel>The questions you can answer</SectionLabel>
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {QUESTIONS.map((q) => (
-              <Card key={q.title} className="lift hover:border-accent/50">
+              <Card key={q.title} className="tile">
                 <CardBody>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <span className="rounded-lg bg-accent-soft p-2">
+                      <span className="tile-icon rounded-lg bg-accent/10 p-2 ring-1 ring-inset ring-accent/25">
                         <q.icon className="h-4 w-4 text-accent" />
                       </span>
                       <h4 className="text-sm font-semibold">{q.title}</h4>
@@ -206,10 +212,10 @@ export function HomeScreen({
           <SectionLabel>Meet your agents</SectionLabel>
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {AGENTS.map((a) => (
-              <Card key={a.name} className="lift hover:border-accent/50">
+              <Card key={a.name} className="tile">
                 <CardBody>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-lg bg-accent-soft p-2">
+                    <span className="tile-icon rounded-lg bg-accent/10 p-2 ring-1 ring-inset ring-accent/25">
                       <a.icon className="h-4 w-4 text-accent" />
                     </span>
                     <h4 className="text-sm font-semibold">{a.name}</h4>
