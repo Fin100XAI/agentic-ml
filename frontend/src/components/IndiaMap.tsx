@@ -29,8 +29,10 @@ function mapColors() {
         amber: "#d97706",
       }
     : {
-        blueLo: [34, 42, 77], blueHi: [110, 139, 255],
-        orangeLo: [70, 44, 22], orangeHi: [251, 146, 60],
+        // LIGHT colors on the dark page - a dim-navy ramp disappears into
+        // the near-black background; pale-to-vivid periwinkle pops on it.
+        blueLo: [208, 217, 255], blueHi: [110, 139, 255],
+        orangeLo: [255, 226, 195], orangeHi: [251, 146, 60],
         amber: "#fbbf24",
       };
 }
@@ -241,7 +243,7 @@ export function IndiaMap({
             ))}
           </div>
           <span className="tabular-nums">{compact(hi)}</span>
-          <span className="ml-2">{metricLabel} - darker fifth = higher fifth</span>
+          <span className="ml-2">{metricLabel} - deeper colour = higher fifth</span>
           <span className="ml-auto flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-sm bg-panel-2 ring-1 ring-inset ring-edge" /> no data
           </span>

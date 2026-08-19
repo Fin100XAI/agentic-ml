@@ -14,7 +14,7 @@ _SYSTEM = (
     "Rules: cite only numbers present in the provided context - never invent or estimate "
     "figures. If the question cannot be answered from the context, say so and state what "
     "additional analysis or data would answer it. Keep answers short (2-6 sentences) "
-    "unless the question genuinely needs more. Style rule: use plain hyphens (-) only; "
+    "unless the question genuinely needs more. Style rule: use plain hyphens (-) only in prose - but put a colon, never a hyphen, before a number (a hyphen reads as minus); "
     "never use em dashes or en dashes in your output."
 )
 

@@ -211,7 +211,7 @@ def diff_two_runs(req: dict) -> dict:
                 "You explain the difference between two analyses to a policy maker in "
                 "3-5 plain sentences: what changed in the data, the approach, the "
                 "results, and what that means for decisions. Never invent numbers - "
-                "only use the facts given. Style rule: use plain hyphens (-) only; "
+                "only use the facts given. Style rule: use plain hyphens (-) only in prose - but put a colon, never a hyphen, before a number (a hyphen reads as minus); "
                 "never use em dashes or en dashes.",
                 f"Computed deltas: {diff}\nDeterministic summary: {narrative}",
                 max_tokens=400,

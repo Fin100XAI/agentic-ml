@@ -20,7 +20,7 @@ _SYSTEM = (
     "If the profile contains a 'glossary' section, those are the user's OWN "
     "definitions from their data dictionary - always prefer them over your own "
     "guess about what a column means, and use their wording in labels and "
-    "findings. Style rule: use plain hyphens (-) only; never use em dashes or "
+    "findings. Style rule: use plain hyphens (-) only in prose - but put a colon, never a hyphen, before a number (a hyphen reads as minus); never use em dashes or "
     "en dashes in your output."
 )
 

@@ -190,7 +190,8 @@ def _headline(question: str, plan: QueryPlan, result: dict[str, Any]) -> tuple[s
         text = provider.complete_text(
             "You phrase a data query answer in 1-2 plain sentences for a "
             "government officer. Use ONLY the numbers in the table - never "
-            "compute or invent new ones. Style: plain hyphens only.",
+            "compute or invent new ones. Style: plain hyphens only in prose. "
+            "Numbers rule: put a colon before every number ('total: 6,750'), NEVER a hyphen next to a number - it reads as a minus sign. ",
             f"Question: {question}\nAnswer table (first rows): "
             f"{_json.dumps(table[:12])}\nRow count: {len(table)}",
             max_tokens=200,
@@ -574,7 +575,8 @@ def _batch_narrative(findings: list[dict[str, Any]], lang: str = "en") -> dict[s
             "present in the item's table or signals - NEVER compute new ones. "
             "Note honest limits (a gap is not proof of cause). 'synthesis' is "
             "2-3 sentences: the overall story across all items plus ONE "
-            "suggested next question. Style: plain hyphens only, no jargon."
+            "suggested next question. Style: plain hyphens only in prose, no "
+            "jargon. Numbers rule: put a colon before every number ('total: 6,750'), NEVER a hyphen next to a number - it reads as a minus sign. "
             + lang_note,
             f"Items: {_json.dumps(compact)}",
             {"type": "object", "properties": {

@@ -16,13 +16,14 @@ import {
   Database,
   Download,
   Hash,
+  Languages,
   Lightbulb,
   MapPin,
   MessageSquareText,
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api/client";
-import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck, TextNumberProposal } from "../../types";
+import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck, QueryAnswer, QueryPlanResponse, TextNumberProposal } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
 import { QueryChartWithMap } from "../QueryChart";
@@ -60,6 +61,146 @@ function fmt(v: number | null | undefined): string {
   if (abs >= 10_000) return `${(v / 1_000).toFixed(0)}k`;
   if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
   return `${Math.round(v * 100) / 100}`;
+}
+
+// Refine a finding WITHOUT leaving the board: edit the question, see the
+// interpretation (rule 12), run it, and optionally add the answer as a new
+// tile on this board. The full conversation still lives in Ask.
+function RefineModal({
+  datasetId,
+  base,
+  onClose,
+  onAddToBoard,
+}: {
+  datasetId: string;
+  base: { question: string; plan: Record<string, unknown> };
+  onClose: () => void;
+  onAddToBoard: (f: ExploreFinding) => void;
+}) {
+  const [text, setText] = useState(base.question);
+  const [planResp, setPlanResp] = useState<QueryPlanResponse | null>(null);
+  const [answer, setAnswer] = useState<QueryAnswer | null>(null);
+  const [busy, setBusy] = useState<"plan" | "run" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
+
+  const interpret = async () => {
+    if (!text.trim() || busy) return;
+    setBusy("plan");
+    setError(null);
+    setAnswer(null);
+    setAdded(false);
+    try {
+      setPlanResp(await api.queryPlan(datasetId, text.trim(), base.plan));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const run = async () => {
+    const cand = planResp?.plans?.[0];
+    if (!cand || busy) return;
+    setBusy("run");
+    setError(null);
+    try {
+      setAnswer(await api.queryRun(datasetId, cand.plan, text.trim()));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/55 p-4 pt-12">
+      <Card className="w-full max-w-2xl">
+        <CardHeader
+          title="Refine this question"
+          subtitle="The interpretation is shown before anything runs; add the answer to this board when it is worth keeping."
+          right={
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Close
+            </Button>
+          }
+        />
+        <CardBody className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && busy === null && interpret()}
+              className="min-w-0 flex-1 rounded-lg border border-edge bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent"
+              placeholder="Reword or narrow the question..."
+            />
+            <Button size="sm" onClick={interpret} disabled={busy !== null || !text.trim()}>
+              {busy === "plan" ? <Spinner /> : null} Interpret
+            </Button>
+          </div>
+
+          {error && <p className="text-xs text-bad">{error}</p>}
+
+          {planResp?.plans?.[0] && !answer && (
+            <div className="space-y-2 rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+                Interpreted as
+              </p>
+              {(planResp.plans[0].sentences ?? []).map((sen, i) => (
+                <p key={i} className="text-xs leading-relaxed text-ink">
+                  {i + 1}. {sen}
+                </p>
+              ))}
+              <div className="flex justify-end">
+                <Button size="sm" onClick={run} disabled={busy !== null}>
+                  {busy === "run" ? <Spinner /> : null} Run this
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {answer && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium leading-relaxed">{answer.headline}</p>
+              {answer.caveats.length > 0 && (
+                <div className="space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2">
+                  {answer.caveats.map((c, i) => (
+                    <p key={i} className="text-[11px] leading-relaxed text-warn">{c}</p>
+                  ))}
+                </div>
+              )}
+              <QueryChartWithMap spec={answer.chart} result={answer.result} />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={onClose}>
+                  Done
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={added}
+                  onClick={() => {
+                    setAdded(true);
+                    onAddToBoard({
+                      question: text.trim(),
+                      plan: answer.plan,
+                      sentences: answer.sentences,
+                      result: answer.result,
+                      chart: answer.chart,
+                      caveats: answer.caveats,
+                      headline: answer.headline,
+                      meaning: "",
+                      signals: {},
+                    });
+                  }}
+                >
+                  {added ? "Added ✓" : "Add to board"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+    </div>
+  );
 }
 
 // One row of the data checkup: a status line (scanning / needs a decision /
@@ -117,6 +258,11 @@ export function AnalyticsScreen({
 }) {
   // Phrasing language (AI-only; heuristic fallback stays English, badged).
   const [lang, setLang] = useState(() => sessionStorage.getItem("board-lang") ?? "en");
+  // Language changes are confirmed first: the popup makes clear the board
+  // is re-PHRASED, never re-computed.
+  const [langPending, setLangPending] = useState<string | null>(null);
+  // Refine-in-place: a popup on this screen instead of jumping to Ask.
+  const [refineCtx, setRefineCtx] = useState<{ question: string; plan: Record<string, unknown> } | null>(null);
   // Focus: "" = general overview; otherwise a domain name from the scout.
   const [focusDomain, setFocusDomain] = useState("");
   const [domains, setDomains] = useState<DomainsResponse | null>(
@@ -405,19 +551,6 @@ export function AnalyticsScreen({
           <span className="hidden text-sm font-normal text-ink-dim sm:inline">· {filename}</span>
         </h2>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <select
-            value={lang}
-            onChange={(e) => {
-              setLang(e.target.value);
-              sessionStorage.setItem("board-lang", e.target.value);
-            }}
-            title="Language for the AI-written headlines and takeaways (numbers stay as computed; without AI the fallback text is English)"
-            className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px] text-ink outline-none focus:border-accent"
-          >
-            <option value="en">English</option>
-            <option value="hi">हिंदी</option>
-            <option value="mr">मराठी</option>
-          </select>
           {resp && resp.findings.length > 0 && (
             <Button variant="outline" size="sm" onClick={downloadBoard} disabled={exporting}>
               {exporting ? <Spinner /> : <Download className="h-3.5 w-3.5" />} Briefing
@@ -433,18 +566,37 @@ export function AnalyticsScreen({
         </div>
       </div>
 
-      {/* Shape Scout: what kind of dataset this reads as - shown, never hidden */}
-      {resp?.shape && (
-        <p className="text-[11px] text-ink-dim" title={resp.shape.reasoning}>
-          Reading this as{" "}
-          <span className="font-semibold text-ink">{resp.shape.label}</span>
-          <span className="text-ink-dim/70">
-            {" "}- questions {resp.questions_by === "claude"
-              ? "chosen by the AI scout across the data's topics"
-              : "from the built-in playbook"} (hover for why).
-          </span>
-        </p>
-      )}
+      {/* Meta row: what the data reads as (left) + phrasing language (right) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {resp?.shape ? (
+          <p className="text-[11px] text-ink-dim" title={resp.shape.reasoning}>
+            Reading this as{" "}
+            <span className="font-semibold text-ink">{resp.shape.label}</span>
+            <span className="text-ink-dim/70">
+              {" "}- questions {resp.questions_by === "claude"
+                ? "chosen by the AI scout across the data's topics"
+                : "from the built-in playbook"} (hover for why).
+            </span>
+          </p>
+        ) : (
+          <span />
+        )}
+        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+          <Languages className="h-3.5 w-3.5" />
+          <select
+            value={lang}
+            onChange={(e) => {
+              if (e.target.value !== lang) setLangPending(e.target.value);
+            }}
+            title="Language for the AI-written headlines and takeaways"
+            className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-[11px] text-ink outline-none focus:border-accent"
+          >
+            <option value="en">English</option>
+            <option value="hi">हिंदी</option>
+            <option value="mr">मराठी</option>
+          </select>
+        </label>
+      </div>
 
       {/* Dataset KPI strip */}
       {prof && (
@@ -791,7 +943,7 @@ export function AnalyticsScreen({
               <FindingCard
                 finding={f}
                 generatedBy={resp.generated_by}
-                onAsk={onAsk}
+                onRefine={(q) => setRefineCtx({ question: q, plan: f.plan })}
                 numericColumns={prof?.columns.filter((c) => c.role === "numeric").map((c) => c.name) ?? []}
               />
             </div>
@@ -808,6 +960,58 @@ export function AnalyticsScreen({
             </Button>
           </CardBody>
         </Card>
+      )}
+
+      {/* Language change confirmation: rephrased, never recomputed */}
+      {langPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <Card className="w-full max-w-md">
+            <CardBody className="space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <Languages className="h-4 w-4 text-accent" /> Change the board's language?
+              </h3>
+              <p className="text-xs leading-relaxed text-ink-dim">
+                The headlines and takeaways will be rephrased in{" "}
+                <span className="font-semibold text-ink">
+                  {langPending === "hi" ? "हिंदी" : langPending === "mr" ? "मराठी" : "English"}
+                </span>{" "}
+                by the AI analyst. Every number stays exactly as computed -
+                nothing in the data is recalculated or changed.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setLangPending(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setLang(langPending);
+                    sessionStorage.setItem("board-lang", langPending);
+                    setLangPending(null);
+                  }}
+                >
+                  Rephrase the board
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+      )}
+
+      {/* Refine in place: interpret, run and add to this board */}
+      {refineCtx && (
+        <RefineModal
+          datasetId={datasetId}
+          base={refineCtx}
+          onClose={() => setRefineCtx(null)}
+          onAddToBoard={(finding) => {
+            if (!resp) return;
+            const next = { ...resp, findings: [...resp.findings, finding] };
+            setResp(next);
+            boardCache.set(cacheKey, next);
+            setRefineCtx(null);
+          }}
+        />
       )}
     </div>
   );
@@ -902,12 +1106,12 @@ function ColumnCard({ col }: { col: OverviewColumn }) {
 function FindingCard({
   finding,
   generatedBy,
-  onAsk,
+  onRefine,
   numericColumns = [],
 }: {
   finding: ExploreFinding;
   generatedBy: string;
-  onAsk: (question?: string) => void;
+  onRefine: (question: string) => void;
   numericColumns?: string[];
 }) {
   const [showTable, setShowTable] = useState(false);
@@ -965,7 +1169,7 @@ function FindingCard({
               <button
                 key={den}
                 onClick={() =>
-                  onAsk(`${metric.replace(/__/g, " ").replace(/_/g, " ")} per ${den} by ${f.chart.x}`)
+                  onRefine(`${metric.replace(/__/g, " ").replace(/_/g, " ")} per ${den} by ${f.chart.x}`)
                 }
                 title={`Reframe this ranking per ${den} - raw totals can flatter big groups`}
                 className="rounded-full bg-ink-dim/10 px-2 py-0.5 text-[10px] text-ink-dim ring-1 ring-inset ring-ink-dim/25 hover:text-accent"
@@ -975,7 +1179,7 @@ function FindingCard({
             ))}
           </span>
           <button
-            onClick={() => onAsk(f.question)}
+            onClick={() => onRefine(f.question)}
             className="text-[11px] text-accent underline-offset-2 hover:underline"
           >
             Refine this question
