@@ -106,12 +106,22 @@ export default function Root() {
 function App() {
   const [screen, setScreen] = useState<Screen>("projects");
   // Theme: RoleSprint dark by default; the toolbar button flips to the
-  // white twin. Applied as data-theme on <html> so every token swaps.
-  const [theme, setTheme] = useState<"dark" | "light">(
-    () => (localStorage.getItem("theme") === "light" ? "light" : "dark"),
-  );
+  // white twin. The data-theme attribute must be set SYNCHRONOUSLY (in the
+  // initializer and in the toggle handler, not an effect) because the map
+  // computes its color ramps from it during render - an effect would leave
+  // the ramps one theme behind.
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    const t = localStorage.getItem("theme") === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    return t;
+  });
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      return next;
+    });
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
   }, [theme]);
   const [project, setProject] = useState<Project | null>(null);
@@ -794,7 +804,7 @@ function App() {
             </span>
             {/* Black <-> white background toggle */}
             <button
-              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+              onClick={toggleTheme}
               title={theme === "dark" ? "Switch to white background" : "Switch to dark background"}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-edge bg-panel-2 text-ink-dim transition-colors duration-150 hover:border-edge-strong hover:text-ink active:scale-[0.97]"
             >
