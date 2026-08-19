@@ -172,9 +172,9 @@ export function ScenarioPanel({ modelId, version }: { modelId: string; version: 
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={curve.points} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
                 <CartesianGrid stroke="var(--chart-grid)" />
-                <XAxis dataKey="x" tick={{ stroke: "var(--chart-axis)", fontSize: 10 }} tickFormatter={(v) => String(Math.round(v * 100) / 100)} />
-                <YAxis tick={{ stroke: "var(--chart-axis)", fontSize: 10 }} domain={["auto", "auto"]} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10 }} />
+                <XAxis dataKey="x" tick={{ fill: "var(--chart-axis)", fontSize: 10 }} tickFormatter={(v) => String(Math.round(v * 100) / 100)} />
+                <YAxis tick={{ fill: "var(--chart-axis)", fontSize: 10 }} domain={["auto", "auto"]} />
+                <Tooltip contentStyle={{ backgroundColor: "var(--chart-tip-bg)", border: "1px solid var(--chart-tip-border)", borderRadius: 10, fontSize: 12, color: "var(--chart-tip-fg)" }} />
                 <Line type="monotone" dataKey="y" stroke="var(--color-accent)" strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>

@@ -83,6 +83,12 @@ function screenForStage(stage: string): Screen {
 export default function Root() {
   // Unlisted read-only briefing route: #/brief/{runId} renders without any
   // analyst chrome. Everything else is the normal workbench.
+  // The saved theme applies here too - the standalone brief routes return
+  // before App mounts, so without this they would ignore the preference.
+  useEffect(() => {
+    document.documentElement.dataset.theme =
+      localStorage.getItem("theme") === "light" ? "light" : "dark";
+  }, []);
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);
@@ -1024,7 +1030,7 @@ function App() {
       {/* The post-upload fork: two clearly separated directions (logged). */}
       {pathOffer && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4">
             <Card className="border-accent/40 bg-panel/95">
               <CardBody>
@@ -1069,7 +1075,7 @@ function App() {
       {/* QUERY-PATH: the direction-stage route offer (rule 10 touch point a) */}
       {routeOffer && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
             <Card className="border-accent/40 bg-panel/95">
               <CardBody>
@@ -1102,7 +1108,7 @@ function App() {
           when the data itself does not fit the chosen method. */}
       {runFailure && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 px-4">
             <Card className={runFailure.kind === "data" ? "border-warn/50 bg-panel/95" : "border-bad/40 bg-panel/95"}>
               <CardBody>
@@ -1148,7 +1154,7 @@ function App() {
 
       {misalignNote && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
             <Card className="border-warn/50 bg-panel/90">
               <CardBody>
@@ -1233,7 +1239,7 @@ function App() {
       {/* Excel sheet picker */}
       {sheetChoice && (
         <>
-          <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" />
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
           <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2">
             <Card className="bg-panel/90">
               <CardBody>

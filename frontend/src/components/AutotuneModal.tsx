@@ -25,7 +25,7 @@ export function AutotuneModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-sm" onClick={running ? undefined : onClose} />
+      <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" onClick={running ? undefined : onClose} />
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-edge bg-panel/90 p-6 shadow-2xl shadow-slate-900/20 backdrop-blur-2xl">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-sm font-semibold">

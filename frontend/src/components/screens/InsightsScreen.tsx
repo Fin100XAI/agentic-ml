@@ -205,7 +205,7 @@ function DriverChart({ driver }: { driver: Driver }) {
               color: "var(--chart-tip-fg)",
             }}
             formatter={(v) => [`${v}% of group`, "rate"]}
-            cursor={{ fill: "rgba(79,70,229,0.06)" }}
+            cursor={{ fill: "var(--chart-cursor)" }}
           />
           <Bar
             dataKey="rate_pct"

@@ -59,6 +59,7 @@
   --chart-tip-bg: #161a25;
   --chart-tip-border: #ffffff24;
   --chart-tip-fg: #eef0f6;
+  --chart-cursor: #ffffff0f;
 }
 
 /* The white twin: same language, light surfaces. Flipped by the toolbar
@@ -105,6 +106,7 @@
   --chart-tip-bg: #ffffff;
   --chart-tip-border: #0f172a1c;
   --chart-tip-fg: #0f172a;
+  --chart-cursor: #0f172a0f;
 }
 
 @keyframes rise {
@@ -186,6 +188,11 @@ select, input, textarea {
   -webkit-backdrop-filter: blur(16px) saturate(1.35);
   backdrop-filter: blur(16px) saturate(1.35);
 }
+@supports not (backdrop-filter: blur(1px)) {
+  .glass {
+    background: var(--color-panel);
+  }
+}
 
 /* Fluid tile: visible depth at rest, accent glow on lift, icon glides.
    transform/opacity only; hover gated for touch. */
@@ -254,8 +261,40 @@ select, input, textarea {
 }
 
 @media print {
+  /* Paper is white: printing forces the LIGHT token set regardless of the
+     on-screen theme, so briefs and reports never print pale-on-white. */
+  :root,
+  [data-theme="dark"] {
+    --color-surface: #ffffff;
+    --color-panel: #ffffff;
+    --color-panel-2: #f1f4f9;
+    --color-edge: #0f172a1c;
+    --color-edge-strong: #0f172a2e;
+    --color-ink: #0f172a;
+    --color-ink-dim: #5b6478;
+    --color-accent: #4353b8;
+    --color-accent-soft: #e3e8ff;
+    --color-good: #059669;
+    --color-warn: #b45309;
+    --color-bad: #dc2626;
+    --color-rs-ink: #ffffff;
+    --color-rs-fg: #0f172a;
+    --color-rs-muted: #55607a;
+    --color-rs-faint: #8a92a6;
+    --chart-axis: #5b6478;
+    --chart-grid: #0f172a14;
+    --chart-ref: #8a92a6;
+    --chart-tip-bg: #ffffff;
+    --chart-tip-border: #0f172a1c;
+    --chart-tip-fg: #0f172a;
+  }
   body {
     background: white;
+  }
+  .glass {
+    background: white;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   .no-print {
     display: none !important;

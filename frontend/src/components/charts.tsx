@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import type { RunResult } from "../types";
 
-const AXIS = { stroke: "var(--chart-axis)", fontSize: 11 };
+const AXIS = { fill: "var(--chart-axis)", fontSize: 11 };
 const GRID = "var(--chart-grid)";
 const PALETTE = [
   "var(--color-accent)",
@@ -114,7 +114,7 @@ export function FeatureImportanceChart({
         />
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
-          cursor={{ fill: "rgba(79,70,229,0.06)" }}
+          cursor={{ fill: "var(--chart-cursor)" }}
           formatter={(v, _n, item) => [v, (item?.payload as { feature?: string })?.feature ?? ""]}
         />
         <Bar dataKey="importance" fill="var(--color-accent)" radius={[0, 4, 4, 0]} />
@@ -145,7 +145,7 @@ export function ClusterScatter({
       return next;
     });
 
-  const colorOf = (c: number, i: number) => (c === -1 ? "#94a3b8" : PALETTE[i % PALETTE.length]);
+  const colorOf = (c: number, i: number) => (c === -1 ? "var(--chart-ref)" : PALETTE[i % PALETTE.length]);
 
   return (
     <div>
@@ -250,12 +250,12 @@ export function ClusterSizesChart({
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="name" tick={AXIS} stroke={GRID} />
         <YAxis tick={AXIS} stroke={GRID} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {named.map((d, i) => (
             <Cell
               key={i}
-              fill={d.name === "noise" ? "#94a3b8" : PALETTE[i % PALETTE.length]}
+              fill={d.name === "noise" ? "var(--chart-ref)" : PALETTE[i % PALETTE.length]}
             />
           ))}
         </Bar>
@@ -470,7 +470,7 @@ export function PredictedVsActualChart({
           domain={[lo, hi]} tickFormatter={(v) => compact(v)}
         />
         <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ strokeDasharray: "3 3" }} />
-        <Line dataKey="predicted" stroke="#94a3b8" strokeDasharray="5 4" dot={false} isAnimationActive={false} legendType="none" tooltipType="none" />
+        <Line dataKey="predicted" stroke="var(--chart-ref)" strokeDasharray="5 4" dot={false} isAnimationActive={false} legendType="none" tooltipType="none" />
         <Scatter
           data={points} fill="var(--color-accent)" isAnimationActive={false}
           shape={(props: { cx?: number; cy?: number }) => (
@@ -490,7 +490,7 @@ export function ResidualHistChart({ data }: { data: { mid: number; count: number
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="name" tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} />
         <YAxis tick={AXIS} stroke={GRID} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
         <Bar dataKey="count" radius={[3, 3, 0, 0]}>
           {named.map((d, i) => (
             <Cell key={i} fill={d.mid < 0 ? "var(--color-warn)" : "var(--color-accent)"} />
@@ -520,7 +520,7 @@ export function ClassDistributionChart({
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="label" tick={AXIS} stroke={GRID} />
         <YAxis tick={AXIS} stroke={GRID} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {data.map((_, i) => (
             <Cell key={i} fill={PALETTE[i % PALETTE.length]} />

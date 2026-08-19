@@ -702,7 +702,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
             <div className="pb-4 text-center">
               <button
                 onClick={onStart}
-                className={`inline-flex items-center gap-2 rounded-full ${GRADIENT} px-7 py-3.5 text-sm font-bold text-rs-ink transition-[transform,box-shadow] duration-150 ease-out hover:shadow-[0_12px_44px_-12px_#6e8bffb3] active:scale-[0.98]`}
+                className={`inline-flex items-center gap-2 rounded-full ${GRADIENT} px-7 py-3.5 text-sm font-bold text-[#07080c] transition-[transform,box-shadow] duration-150 ease-out hover:shadow-[0_12px_44px_-12px_#6e8bffb3] active:scale-[0.98]`}
               >
                 Start a new analysis
               </button>

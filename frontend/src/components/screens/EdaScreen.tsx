@@ -92,7 +92,7 @@ function HistogramCard({ col }: { col: ColumnProfile }) {
             contentStyle={TOOLTIP_STYLE}
             formatter={(v) => [`${v} rows`, ""]}
             labelFormatter={(_, p) => (p?.[0]?.payload as { label?: string })?.label ?? ""}
-            cursor={{ fill: "rgba(79,70,229,0.06)" }}
+            cursor={{ fill: "var(--chart-cursor)" }}
           />
           <Bar dataKey="count" fill="var(--color-accent)" radius={[3, 3, 0, 0]} opacity={0.75} />
         </BarChart>
@@ -134,7 +134,7 @@ function TopValuesCard({ col }: { col: ColumnProfile }) {
             stroke={GRID}
             tickFormatter={(v: string) => (v.length > 11 ? v.slice(0, 10) + "…" : v)}
           />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(79,70,229,0.06)" }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
           <Bar
             dataKey="count"
             fill="var(--chart-2)"
@@ -185,7 +185,7 @@ function MissingnessCard({ profile }: { profile: Profile }) {
             stroke={GRID}
             tickFormatter={(v: string) => (v.length > 12 ? v.slice(0, 11) + "…" : v)}
           />
-          <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}% missing`, ""]} cursor={{ fill: "rgba(217,119,6,0.06)" }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}% missing`, ""]} cursor={{ fill: "var(--chart-cursor)" }} />
           <Bar dataKey="pct" fill="var(--color-warn)" radius={[0, 3, 3, 0]} opacity={0.8} label={{ position: "right", fill: "var(--chart-axis)", fontSize: 9, formatter: (v) => `${v}%` }} />
         </BarChart>
       </ResponsiveContainer>
@@ -219,7 +219,7 @@ function CorrelationChart({ profile }: { profile: Profile }) {
         <Tooltip
           contentStyle={TOOLTIP_STYLE}
           formatter={(v) => [v, "correlation"]}
-          cursor={{ fill: "rgba(79,70,229,0.06)" }}
+          cursor={{ fill: "var(--chart-cursor)" }}
         />
         <Bar
           dataKey="corr"
@@ -307,7 +307,7 @@ function TypeComposition({ profile }: { profile: Profile }) {
     categorical: "var(--chart-2)",
     datetime: "var(--color-warn)",
     boolean: "var(--chart-4)",
-    identifier: "#94a3b8",
+    identifier: "var(--chart-ref)",
     text: "var(--chart-8)",
   };
   return (
@@ -316,7 +316,7 @@ function TypeComposition({ profile }: { profile: Profile }) {
         {entries.map(([role, n]) => (
           <div
             key={role}
-            style={{ width: `${(n / total) * 100}%`, backgroundColor: COLORS[role] ?? "#94a3b8" }}
+            style={{ width: `${(n / total) * 100}%`, backgroundColor: COLORS[role] ?? "var(--chart-ref)" }}
             title={`${n} ${ROLE_LABEL[role] ?? role}`}
           />
         ))}
@@ -324,7 +324,7 @@ function TypeComposition({ profile }: { profile: Profile }) {
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {entries.map(([role, n]) => (
           <span key={role} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[role] ?? "#94a3b8" }} />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: COLORS[role] ?? "var(--chart-ref)" }} />
             {n} {ROLE_LABEL[role] ?? role}
           </span>
         ))}

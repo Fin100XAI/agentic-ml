@@ -55,24 +55,24 @@ export function CalibrationPanel({
           <div className="h-52 min-w-64 flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis
                   dataKey="predicted" type="number" domain={[0, 1]}
-                  tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                  tick={{ fontSize: 10, fill: "var(--chart-axis)" }} tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
                   label={{ value: "model said", position: "insideBottom", offset: -2, fontSize: 10 }}
                 />
                 <YAxis
                   type="number" domain={[0, 1]}
-                  tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+                  tick={{ fontSize: 10, fill: "var(--chart-axis)" }} tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
                   label={{ value: "actually happened", angle: -90, position: "insideLeft", offset: 24, fontSize: 10 }}
                 />
-                <Tooltip
+                <Tooltip contentStyle={{ backgroundColor: "var(--chart-tip-bg)", border: "1px solid var(--chart-tip-border)", borderRadius: 10, fontSize: 12, color: "var(--chart-tip-fg)" }}
                   formatter={(v) => `${Math.round(Number(v) * 100)}%`}
                   labelFormatter={(v) => `model said ${Math.round(Number(v) * 100)}%`}
                 />
                 <ReferenceLine
                   segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]}
-                  stroke="#94a3b8" strokeDasharray="4 4"
+                  stroke="var(--chart-ref)" strokeDasharray="4 4"
                 />
                 <Line
                   type="monotone" dataKey="observed" stroke="var(--color-accent)"

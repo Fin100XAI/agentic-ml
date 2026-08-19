@@ -23,7 +23,7 @@ import { useState } from "react";
 import type { ChartSpec, QueryResult } from "../types";
 import { IndiaMap } from "./IndiaMap";
 
-const AXIS = { stroke: "var(--chart-axis)", fontSize: 11 };
+const AXIS = { fill: "var(--chart-axis)", fontSize: 11 };
 const GRID = "var(--chart-grid)";
 const BLUE = "var(--color-accent)";
 // Colorblind-safe series palette; amber/red stay reserved for judgment.
@@ -113,7 +113,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
         {spec.y.map((col) => {
           const v = rows[0]?.[col];
           return (
-            <div key={col} className="min-w-[140px] flex-1 rounded-xl border border-accent/25 bg-gradient-to-br from-accent-soft/50 via-white to-white p-4 shadow-sm">
+            <div key={col} className="min-w-[140px] flex-1 rounded-xl border border-accent/25 bg-gradient-to-br from-accent-soft/60 via-panel to-panel p-4 shadow-sm">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-accent/80">{niceLabel(col)}</div>
               <div className="mt-1 text-2xl font-bold tabular-nums text-ink">
                 {typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(v ?? "-")}
@@ -172,7 +172,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 10 }} stroke={GRID} />
           <YAxis tick={AXIS} stroke={GRID} domain={[0, "auto"]} tickFormatter={(v) => compact(Number(v))} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {spec.y.map((col, i) => (
             <Bar key={col} dataKey={col} stackId="whole" fill={PALETTE[i % PALETTE.length]} isAnimationActive={false} name={niceLabel(col)} />
@@ -257,7 +257,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 9 }} stroke={GRID} interval={0} angle={data.length > 8 ? -30 : 0} textAnchor={data.length > 8 ? "end" : "middle"} height={data.length > 8 ? 55 : 30} />
           <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
           <ReferenceLine y={0} stroke="var(--chart-axis)" />
           <Bar dataKey={y} isAnimationActive={false} name={niceLabel(y)} radius={[3, 3, 0, 0]}>
             {data.map((r, i) => (
@@ -277,7 +277,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           {/* Bars start at zero - honest lengths (rule 14). */}
           <XAxis type="number" tick={AXIS} stroke={GRID} domain={[0, "auto"]} tickFormatter={(v) => compact(Number(v))} />
           <YAxis type="category" dataKey={x} tick={{ ...AXIS, fontSize: 10 }} stroke={GRID} width={130} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
           {spec.threshold != null && (
             <ReferenceLine x={spec.threshold} stroke="var(--color-warn)" strokeDasharray="5 4"
               label={{ value: compact(spec.threshold), fontSize: 10, fill: "var(--color-warn)" }} />
@@ -294,7 +294,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
             {/* On-chart callouts: each bar carries its value */}
             <LabelList dataKey={y} position="right"
               formatter={(v) => compact(Number(v))}
-              style={{ fontSize: 9, fill: "#334155" }} />
+              style={{ fontSize: 9, fill: "var(--color-ink)" }} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -307,7 +307,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey={x} tick={{ ...AXIS, fontSize: 10 }} stroke={GRID} interval={0} angle={data.length > 8 ? -30 : 0} textAnchor={data.length > 8 ? "end" : "middle"} height={data.length > 8 ? 60 : 30} />
         <YAxis tick={AXIS} stroke={GRID} domain={[0, "auto"]} tickFormatter={(v) => compact(Number(v))} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(29,78,216,0.06)" }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "var(--chart-cursor)" }} />
         {spec.threshold != null && (
           <ReferenceLine y={spec.threshold} stroke="var(--color-warn)" strokeDasharray="5 4"
             label={{ value: `threshold ${compact(spec.threshold)}`, fontSize: 10, fill: "var(--color-warn)", position: "insideTopRight" }} />
@@ -322,7 +322,7 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
           ))}
           <LabelList dataKey={y} position="top"
             formatter={(v) => compact(Number(v))}
-            style={{ fontSize: 9, fill: "#334155" }} />
+            style={{ fontSize: 9, fill: "var(--color-ink)" }} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
