@@ -165,6 +165,13 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
     out: list[dict[str, Any]] = []
     metric_uses: dict[str, int] = {}
     seen: set[str] = set()
+    # Template diversity is enforced HERE too: ranked questions (top/bottom)
+    # dominate an all-bar board if left unchecked, and "highest X" plus
+    # "lowest X" of the SAME metric is one insight wearing two tiles.
+    _RANKED = ("top_groups", "bottom_groups")
+    ranked_used = 0
+    ranked_metrics: set[str] = set()
+    used_templates: set[str] = set()
     for sel in selections:
         template = str(sel.get("template", ""))
         metric = sel.get("metric") or None
@@ -180,6 +187,11 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
             continue
         if metric and metric_uses.get(metric, 0) >= 2:
             continue
+        if template in _RANKED:
+            if ranked_used >= 3:
+                continue
+            if metric and metric in ranked_metrics:
+                continue
         cand = _build_from_selection(template, source, df, metric, group,
                                      second, period)
         # The scout may phrase the question naturally (its proper role);
@@ -190,8 +202,37 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
         if cand and cand["question"] not in seen:
             seen.add(cand["question"])
             out.append(cand)
+            used_templates.add(template)
             if metric:
                 metric_uses[metric] = metric_uses.get(metric, 0) + 1
+            if template in _RANKED:
+                ranked_used += 1
+                if metric:
+                    ranked_metrics.add(metric)
+    # Guarantee a relationship (scatter) when the data offers one and the
+    # scout skipped it - deterministically: the two highest-variation
+    # measures the metric cap still allows.
+    if "relationship" not in used_templates and len(valid_nums) >= 2:
+        cv: list[tuple[float, str]] = []
+        for c in picks["numerics"]:
+            s = pd.to_numeric(df[c], errors="coerce")
+            m = s.mean()
+            sd = s.std()
+            if m and sd == sd and metric_uses.get(c, 0) < 2:
+                cv.append((abs(sd / m), c))
+        cv.sort(reverse=True)
+        # The template scatters per-group averages, so it needs a grouping
+        # column - prefer one with enough distinct points to show a pattern.
+        rel_group = next(
+            (c for c in picks["cats"]
+             if 5 <= int(df[c].nunique(dropna=True)) <= 60),
+            picks["cats"][0] if picks["cats"] else None,
+        )
+        if len(cv) >= 2 and rel_group:
+            cand = _build_from_selection("relationship", source, df,
+                                         cv[0][1], rel_group, cv[1][1], period)
+            if cand and cand["question"] not in seen:
+                out.insert(min(2, len(out)), cand)
     return out[:MAX_STARTERS]
 
 
