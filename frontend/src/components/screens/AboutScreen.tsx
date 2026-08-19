@@ -1,8 +1,11 @@
 // Platform guide: a presentation-grade page for demos and new users - what
 // the platform is, how it works (visual flows), and why it can be trusted.
 // Written for a government audience; readable by tech and non-tech alike.
-// Motion: hero enters staggered on load; each section reveals once on scroll
-// with a 50ms cascade - transform/opacity only, reduced-motion safe.
+// Visual language: Maha AI sovereign style (mahaai.fin100x.ai) - deep navy
+// hero bands, gold authority accents and card rails, saffron CTAs, serif
+// headings, white cards on hairline borders. Judgment colors (green/amber/
+// red) stay reserved for judgment states. Motion: staggered hero entrance,
+// scroll reveals with a 50ms cascade - transform/opacity, reduced-motion safe.
 import {
   Activity,
   Bot,
@@ -28,7 +31,6 @@ import {
   Users,
 } from "lucide-react";
 import { Reveal } from "../Reveal";
-import { Badge, Button, Card, CardBody, SectionLabel } from "../ui";
 
 /* ---------- content ---------- */
 
@@ -120,10 +122,37 @@ const AGENTS = [
 
 /* ---------- small building blocks ---------- */
 
+// Section head, Maha style: gold uppercase eyebrow over a large serif title.
+function GuideSection({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+  return (
+    <div className="mb-5">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold-deep">{eyebrow}</p>
+      <h3 className="font-serif mt-1 text-2xl font-semibold tracking-tight text-navy-ink md:text-3xl">
+        {title}
+      </h3>
+      {sub && <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ink-dim">{sub}</p>}
+    </div>
+  );
+}
+
+// White card on hairline border with the soft navy shadow; goldRail adds the
+// signature gold left edge.
+function MahaCard({ goldRail, className = "", children }: { goldRail?: boolean; className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={`lift rounded-2xl border border-hair bg-white shadow-soft ${
+        goldRail ? "border-l-[3px] border-l-gold" : ""
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 const ACTOR_STYLE = {
-  ai: { dot: "bg-accent", chip: "bg-accent-soft/70 text-accent ring-accent/20", label: "AI proposes" },
-  you: { dot: "bg-good", chip: "bg-good/10 text-good ring-good/20", label: "You decide" },
-  machine: { dot: "bg-slate-400", chip: "bg-slate-500/10 text-ink-dim ring-slate-500/15", label: "Machine computes" },
+  ai: { dot: "bg-navy text-white", chip: "bg-navy/5 text-navy ring-navy/15", label: "AI proposes" },
+  you: { dot: "bg-gold text-navy-ink", chip: "bg-gold/10 text-gold-deep ring-gold/25", label: "You decide" },
+  machine: { dot: "bg-slate-400 text-white", chip: "bg-slate-500/10 text-ink-dim ring-slate-500/15", label: "Machine computes" },
 } as const;
 
 /* ---------- page ---------- */
@@ -131,15 +160,17 @@ const ACTOR_STYLE = {
 export function AboutScreen({ onStart }: { onStart?: () => void }) {
   return (
     <div className="mx-auto max-w-5xl space-y-14 pb-12">
-      {/* Hero + stat band: staggered entrance on load */}
-      <div className="overflow-hidden rounded-2xl border border-edge bg-gradient-to-b from-accent-soft/25 via-panel to-panel shadow-sm">
-        <div className="px-8 py-12 text-center">
-          <p className="animate-rise text-xs font-bold uppercase tracking-[0.18em] text-accent">Platform guide</p>
-          <h2 className="font-display animate-rise mx-auto mt-3 max-w-3xl text-balance text-3xl font-bold leading-tight [animation-delay:60ms] md:text-4xl">
+      {/* Hero: deep navy sovereign band + stat strip */}
+      <div className="overflow-hidden rounded-2xl bg-[radial-gradient(130%_100%_at_76%_8%,#28427a_0%,#1a2e5e_44%,#13234c_100%)] shadow-soft-lg">
+        <div className="px-8 py-14 text-center">
+          <p className="animate-rise text-xs font-bold uppercase tracking-[0.2em] text-gold-soft">
+            Platform guide
+          </p>
+          <h2 className="font-serif animate-rise mx-auto mt-3 max-w-3xl text-balance text-3xl font-semibold leading-tight tracking-tight text-white [animation-delay:60ms] md:text-5xl">
             Decision support for government,
-            <span className="text-accent"> with accountability built in.</span>
+            <span className="text-gold-bright"> with accountability built in.</span>
           </h2>
-          <p className="animate-rise mx-auto mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-ink-dim [animation-delay:120ms]">
+          <p className="animate-rise mx-auto mt-5 max-w-2xl text-pretty text-sm leading-relaxed text-mist/80 [animation-delay:120ms]">
             The Agentic ML Workbench turns departmental data - scheme enrollments, revenue
             collections, service requests, demand histories - into answers an officer can act
             on and defend. Upload a file and choose your direction: get charted answers to
@@ -148,11 +179,11 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
             step, and everything lands on an audit trail.
           </p>
         </div>
-        <div className="animate-rise grid grid-cols-2 divide-x divide-edge border-t border-edge bg-panel-2/60 [animation-delay:200ms] sm:grid-cols-5">
+        <div className="animate-rise grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 bg-navy-ink/60 [animation-delay:200ms] sm:grid-cols-5">
           {STATS.map((s) => (
             <div key={s.label} className="px-3 py-4 text-center">
-              <div className="text-2xl font-bold tabular-nums text-accent">{s.value}</div>
-              <div className="mt-0.5 text-[10px] uppercase tracking-wider text-ink-dim">{s.label}</div>
+              <div className="font-serif text-2xl font-semibold tabular-nums text-gold-soft">{s.value}</div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-wider text-mist/60">{s.label}</div>
             </div>
           ))}
         </div>
@@ -161,18 +192,16 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* Trust pillars */}
       <Reveal>
         <section>
-          <SectionLabel>Why a government can trust it</SectionLabel>
+          <GuideSection eyebrow="The foundations" title="Why a government can trust it" />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {PILLARS.map((p) => (
-              <Card key={p.title} className="lift hover:border-accent/40">
-                <CardBody>
-                  <span className="inline-flex rounded-lg bg-accent-soft p-2">
-                    <p.icon className="h-4 w-4 text-accent" />
-                  </span>
-                  <h4 className="mt-2.5 text-sm font-semibold">{p.title}</h4>
-                  <p className="mt-2 text-[11px] leading-relaxed text-ink-dim">{p.text}</p>
-                </CardBody>
-              </Card>
+              <MahaCard key={p.title} goldRail className="p-5">
+                <span className="inline-flex rounded-lg bg-navy-deep p-2">
+                  <p.icon className="h-4 w-4 text-gold-soft" />
+                </span>
+                <h4 className="mt-2.5 text-sm font-semibold text-navy-ink">{p.title}</h4>
+                <p className="mt-2 text-[11px] leading-relaxed text-ink-dim">{p.text}</p>
+              </MahaCard>
             ))}
           </div>
         </section>
@@ -181,50 +210,52 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* The fork: two ways to work */}
       <Reveal>
         <section>
-          <SectionLabel sub="Every uploaded file gets the same protections - approved column names, the privacy screen, spell-check on place names - and then the officer chooses the direction. Switching later is one click; both directions share the same protected copy of the data.">
-            Two ways to work
-          </SectionLabel>
+          <GuideSection
+            eyebrow="The fork"
+            title="Two ways to work"
+            sub="Every uploaded file gets the same protections - approved column names, the privacy screen, spell-check on place names - and then the officer chooses the direction. Switching later is one click; both directions share the same protected copy of the data."
+          />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Card className="lift border-accent/40">
-              <CardBody>
-                <div className="flex items-center gap-2.5">
-                  <span className="rounded-lg bg-accent-soft p-2">
-                    <Sparkles className="h-4 w-4 text-accent" />
-                  </span>
-                  <h4 className="text-sm font-semibold">Understand & ask</h4>
-                  <Badge tone="accent">answers in seconds</Badge>
-                </div>
-                <p className="mt-3 text-xs leading-relaxed text-ink-dim">
-                  Exploring agents scan the file and answer the first questions themselves -
-                  leaders and laggards, trends and year-on-year changes, splits and totals -
-                  as charted findings with plain-language meaning, in English, Hindi or
-                  Marathi. Then the officer takes over: every question becomes a visible
-                  step-by-step plan approved before it runs, follow-ups show exactly what
-                  changed, district results offer a map view, and selected answers compile
-                  into a critic-checked brief. Saved questions become dashboard indicators
-                  that refresh when next month's file arrives.
-                </p>
-              </CardBody>
-            </Card>
-            <Card className="lift">
-              <CardBody>
-                <div className="flex items-center gap-2.5">
-                  <span className="rounded-lg bg-accent-soft p-2">
-                    <Landmark className="h-4 w-4 text-accent" />
-                  </span>
-                  <h4 className="text-sm font-semibold">Train a model</h4>
-                  <Badge tone="neutral">predictions with cover</Badge>
-                </div>
-                <p className="mt-3 text-xs leading-relaxed text-ink-dim">
-                  For questions about what WILL happen - who is at risk, how much to expect,
-                  where demand is heading - the full guided path below: health checks and
-                  fixes, a recommended method with honest settings, training with stability
-                  and probability checks on unseen data, and a decision brief with a trust
-                  rating a critic has already reviewed. Trained models become managed,
-                  versioned assets that score next month's file.
-                </p>
-              </CardBody>
-            </Card>
+            <MahaCard goldRail className="p-5">
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-lg bg-navy-deep p-2">
+                  <Sparkles className="h-4 w-4 text-gold-soft" />
+                </span>
+                <h4 className="text-sm font-semibold text-navy-ink">Understand & ask</h4>
+                <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold-deep ring-1 ring-inset ring-gold/25">
+                  answers in seconds
+                </span>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+                Exploring agents scan the file and answer the first questions themselves -
+                leaders and laggards, trends and year-on-year changes, splits and totals -
+                as charted findings with plain-language meaning, in English, Hindi or
+                Marathi. Then the officer takes over: every question becomes a visible
+                step-by-step plan approved before it runs, follow-ups show exactly what
+                changed, district results offer a map view, and selected answers compile
+                into a critic-checked brief. Saved questions become dashboard indicators
+                that refresh when next month's file arrives.
+              </p>
+            </MahaCard>
+            <MahaCard className="p-5">
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-lg bg-navy-deep p-2">
+                  <Landmark className="h-4 w-4 text-gold-soft" />
+                </span>
+                <h4 className="text-sm font-semibold text-navy-ink">Train a model</h4>
+                <span className="rounded-full bg-navy/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-navy ring-1 ring-inset ring-navy/15">
+                  predictions with cover
+                </span>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+                For questions about what WILL happen - who is at risk, how much to expect,
+                where demand is heading - the full guided path below: health checks and
+                fixes, a recommended method with honest settings, training with stability
+                and probability checks on unseen data, and a decision brief with a trust
+                rating a critic has already reviewed. Trained models become managed,
+                versioned assets that score next month's file.
+              </p>
+            </MahaCard>
           </div>
         </section>
       </Reveal>
@@ -232,20 +263,22 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* The working rhythm: timeline with actor lanes */}
       <Reveal>
         <section>
-          <SectionLabel sub="The division of labor is the design: AI proposes, machines compute, and every consequential step waits for a human. Follow one file down the model path, from upload to decision - the ask path follows the same rhythm with interpret-approve-run on every question.">
-            How a decision gets made
-          </SectionLabel>
+          <GuideSection
+            eyebrow="The working rhythm"
+            title="How a decision gets made"
+            sub="The division of labor is the design: AI proposes, machines compute, and every consequential step waits for a human. Follow one file down the model path, from upload to decision - the ask path follows the same rhythm with interpret-approve-run on every question."
+          />
           <div className="mb-4 flex flex-wrap items-center gap-3">
             {(Object.keys(ACTOR_STYLE) as (keyof typeof ACTOR_STYLE)[]).map((k) => (
               <span key={k} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-                <span className={`h-2.5 w-2.5 rounded-full ${ACTOR_STYLE[k].dot}`} />
+                <span className={`h-2.5 w-2.5 rounded-full ${ACTOR_STYLE[k].dot.split(" ")[0]}`} />
                 {ACTOR_STYLE[k].label}
               </span>
             ))}
           </div>
           <div className="relative">
             {/* center spine */}
-            <div className="absolute bottom-4 left-4 top-1 w-px bg-edge md:left-1/2" />
+            <div className="absolute bottom-4 left-4 top-1 w-px bg-gold/30 md:left-1/2" />
             <div data-cascade className="space-y-3">
               {FLOW.map((s, i) => {
                 const st = ACTOR_STYLE[s.actor];
@@ -258,13 +291,13 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                         left ? "md:left-auto md:right-0 md:translate-x-1/2" : "md:-translate-x-1/2"
                       }`}
                     >
-                      <span className="text-[11px] font-bold text-white">{i + 1}</span>
+                      <span className="text-[11px] font-bold">{i + 1}</span>
                     </span>
                     <div className={`ml-12 flex-1 md:ml-0 ${left ? "md:mr-8" : "md:ml-8"}`}>
-                      <div className="lift rounded-2xl border border-edge bg-panel p-4 shadow-sm">
+                      <div className="lift rounded-xl border border-hair bg-white p-4 shadow-soft">
                         <div className="flex flex-wrap items-center gap-2">
-                          <s.icon className="h-4 w-4 text-accent" />
-                          <h4 className="text-sm font-semibold">{s.title}</h4>
+                          <s.icon className="h-4 w-4 text-navy" />
+                          <h4 className="text-sm font-semibold text-navy-ink">{s.title}</h4>
                           <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${st.chip}`}>
                             {st.label}
                           </span>
@@ -283,29 +316,31 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* Data lineage chain */}
       <Reveal>
         <section>
-          <SectionLabel sub="The original file is stored read-only with a fingerprint. Every change creates a NEW copy that points back at its parent - so any number in any brief can be traced to the exact data it came from.">
-            What happens to your data
-          </SectionLabel>
-          <div className="rounded-2xl border border-edge bg-panel p-5 shadow-sm">
+          <GuideSection
+            eyebrow="Chain of custody"
+            title="What happens to your data"
+            sub="The original file is stored read-only with a fingerprint. Every change creates a NEW copy that points back at its parent - so any number in any brief can be traced to the exact data it came from."
+          />
+          <div className="rounded-2xl border border-hair bg-white p-5 shadow-soft">
             <div data-cascade className="flex flex-wrap items-center justify-center gap-y-4">
               {LINEAGE.map((l, i) => (
                 <div key={l.label} className="flex items-center">
                   <div className="flex w-28 flex-col items-center text-center">
-                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${i === 0 ? "bg-accent text-white" : "bg-accent-soft text-accent"}`}>
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${i === 0 ? "bg-navy-deep text-gold-soft" : "bg-gold/10 text-navy"}`}>
                       <l.icon className="h-4.5 w-4.5" />
                     </span>
-                    <span className="mt-1.5 text-[11px] font-semibold leading-tight">{l.label}</span>
+                    <span className="mt-1.5 text-[11px] font-semibold leading-tight text-navy-ink">{l.label}</span>
                     <span className="text-[9px] uppercase tracking-wide text-ink-dim">{l.note}</span>
                   </div>
                   {i < LINEAGE.length - 1 && (
-                    <svg className="mx-0.5 h-4 w-6 shrink-0 text-edge" viewBox="0 0 24 16" fill="none">
+                    <svg className="mx-0.5 h-4 w-6 shrink-0 text-gold/50" viewBox="0 0 24 16" fill="none">
                       <path d="M0 8h18m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.6" />
                     </svg>
                   )}
                 </div>
               ))}
             </div>
-            <p className="mt-4 border-t border-edge pt-3 text-center text-[11px] text-ink-dim">
+            <p className="mt-4 border-t border-hair pt-3 text-center text-[11px] text-ink-dim">
               Every arrow is a recorded step in the audit trail. Nothing is edited in place; the
               original never changes.
             </p>
@@ -316,23 +351,23 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* Use cases */}
       <Reveal>
         <section>
-          <SectionLabel>The questions it can answer</SectionLabel>
+          <GuideSection eyebrow="Applications" title="The questions it can answer" />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {USE_CASES.map((u) => (
-              <Card key={u.title} className="lift hover:border-accent/40">
-                <CardBody>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <span className="rounded-lg bg-accent-soft p-2">
-                        <u.icon className="h-4 w-4 text-accent" />
-                      </span>
-                      <h4 className="text-sm font-semibold">{u.title}</h4>
-                    </div>
-                    <Badge tone="accent">{u.kind}</Badge>
+              <MahaCard key={u.title} className="p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="rounded-lg bg-navy-deep p-2">
+                      <u.icon className="h-4 w-4 text-gold-soft" />
+                    </span>
+                    <h4 className="text-sm font-semibold text-navy-ink">{u.title}</h4>
                   </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-dim">{u.example}</p>
-                </CardBody>
-              </Card>
+                  <span className="rounded-full bg-navy/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-navy ring-1 ring-inset ring-navy/15">
+                    {u.kind}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-ink-dim">{u.example}</p>
+              </MahaCard>
             ))}
           </div>
         </section>
@@ -341,17 +376,21 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* What you receive: brief mockup */}
       <Reveal>
         <section>
-          <SectionLabel sub="The output is not a dashboard to interpret - it is a brief to act on, with its confidence stated up front.">
-            What you receive
-          </SectionLabel>
+          <GuideSection
+            eyebrow="The deliverable"
+            title="What you receive"
+            sub="The output is not a dashboard to interpret - it is a brief to act on, with its confidence stated up front."
+          />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             <div className="lg:col-span-3">
               {/* stylized decision brief */}
-              <div className="rounded-2xl border border-edge bg-panel p-6 shadow-sm">
-                <div className="flex items-center justify-between border-b border-edge pb-3">
+              <div className="rounded-2xl border border-hair border-l-[3px] border-l-gold bg-white p-6 shadow-soft">
+                <div className="flex items-center justify-between border-b border-hair pb-3">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-ink-dim">Decision brief</p>
-                    <h4 className="text-sm font-bold">Which beneficiaries are at risk of dropping out?</h4>
+                    <p className="text-[10px] uppercase tracking-wider text-gold-deep">Decision brief</p>
+                    <h4 className="font-serif text-base font-semibold text-navy-ink">
+                      Which beneficiaries are at risk of dropping out?
+                    </h4>
                   </div>
                   <span className="rounded-full bg-good/10 px-2.5 py-1 text-[10px] font-semibold text-good ring-1 ring-inset ring-good/20">
                     evidence: strong
@@ -359,33 +398,33 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 </div>
                 <div className="mt-3 space-y-2.5">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Executive summary</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-navy">Executive summary</p>
                     <div className="mt-1 space-y-1">
-                      <div className="h-2 w-full rounded bg-slate-200/80" />
-                      <div className="h-2 w-11/12 rounded bg-slate-200/80" />
-                      <div className="h-2 w-4/5 rounded bg-slate-200/60" />
+                      <div className="h-2 w-full rounded bg-mist" />
+                      <div className="h-2 w-11/12 rounded bg-mist" />
+                      <div className="h-2 w-4/5 rounded bg-mist/70" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Key findings</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-navy">Key findings</p>
                       <div className="mt-1 space-y-1">
-                        <div className="h-2 w-full rounded bg-slate-200/80" />
-                        <div className="h-2 w-5/6 rounded bg-slate-200/60" />
-                        <div className="h-2 w-4/6 rounded bg-slate-200/60" />
+                        <div className="h-2 w-full rounded bg-mist" />
+                        <div className="h-2 w-5/6 rounded bg-mist/70" />
+                        <div className="h-2 w-4/6 rounded bg-mist/70" />
                       </div>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-accent">Recommended actions</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-navy">Recommended actions</p>
                       <div className="mt-1 space-y-1">
-                        <div className="h-2 w-full rounded bg-slate-200/80" />
-                        <div className="h-2 w-5/6 rounded bg-slate-200/60" />
-                        <div className="h-2 w-3/6 rounded bg-slate-200/60" />
+                        <div className="h-2 w-full rounded bg-mist" />
+                        <div className="h-2 w-5/6 rounded bg-mist/70" />
+                        <div className="h-2 w-3/6 rounded bg-mist/70" />
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 rounded-lg border border-edge bg-panel-2 px-3 py-2">
-                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-accent" />
+                  <div className="flex items-center gap-2 rounded-lg border border-gold/25 bg-gold/[0.06] px-3 py-2">
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-gold-deep" />
                     <p className="text-[10px] leading-snug text-ink-dim">
                       Reviewed by the critic agent - claims checked against the computed numbers,
                       causal caveats added, hedged to the evidence level.
@@ -401,8 +440,8 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 ["Shareable + printable", "A read-only briefing link for stakeholders, plus markdown and PDF exports."],
                 ["Ask the data", "A grounded chat answers follow-ups from the run's own numbers - it cannot make things up."],
               ].map(([t, d]) => (
-                <div key={t} className="lift rounded-2xl border border-edge bg-panel p-4 shadow-sm">
-                  <h5 className="text-xs font-semibold">{t}</h5>
+                <div key={t} className="lift rounded-xl border border-hair bg-white p-4 shadow-soft">
+                  <h5 className="text-xs font-semibold text-navy-ink">{t}</h5>
                   <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">{d}</p>
                 </div>
               ))}
@@ -414,20 +453,20 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* Lifecycle */}
       <Reveal>
         <section>
-          <SectionLabel sub="The first analysis is the beginning, not the end - trained models become managed assets.">
-            After the first analysis
-          </SectionLabel>
+          <GuideSection
+            eyebrow="The long run"
+            title="After the first analysis"
+            sub="The first analysis is the beginning, not the end - trained models become managed assets."
+          />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {LIFECYCLE.map((l) => (
-              <Card key={l.title} className="lift hover:border-accent/40">
-                <CardBody>
-                  <div className="flex items-center gap-2">
-                    <l.icon className="h-4 w-4 text-accent" />
-                    <h4 className="text-sm font-semibold">{l.title}</h4>
-                  </div>
-                  <p className="mt-2 text-[11px] leading-relaxed text-ink-dim">{l.text}</p>
-                </CardBody>
-              </Card>
+              <MahaCard key={l.title} className="p-5">
+                <div className="flex items-center gap-2">
+                  <l.icon className="h-4 w-4 text-navy" />
+                  <h4 className="text-sm font-semibold text-navy-ink">{l.title}</h4>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-ink-dim">{l.text}</p>
+              </MahaCard>
             ))}
           </div>
         </section>
@@ -436,60 +475,58 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
       {/* Agents + honesty */}
       <Reveal>
         <section data-cascade className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card>
-            <CardBody>
-              <SectionLabel>The AI team</SectionLabel>
-              <ul className="space-y-1.5">
-                {AGENTS.map(([name, does]) => (
-                  <li key={name} className="flex items-baseline gap-2 text-xs">
-                    <span className="w-44 shrink-0 font-semibold">{name}</span>
-                    <span className="text-ink-dim">{does}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 border-t border-edge pt-3 text-[11px] leading-relaxed text-ink-dim">
-                Every agent has a rule-based fallback, so the platform keeps working with no AI
-                connection at all - outputs are simply badged heuristic instead of AI. Heuristic
-                mode is a visible state, never a silent one.
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <SectionLabel>Honest by design</SectionLabel>
-              <ul className="space-y-2.5 text-xs leading-relaxed text-ink-dim">
-                <li>
-                  <span className="font-semibold text-ink">Trust ratings, not just scores.</span>{" "}
-                  When the evidence is weak, recommended actions become hypotheses to verify - in
-                  the app, the report and the PDF.
+          <MahaCard className="p-5">
+            <GuideSection eyebrow="The workforce" title="The AI team" />
+            <ul className="space-y-1.5">
+              {AGENTS.map(([name, does]) => (
+                <li key={name} className="flex items-baseline gap-2 text-xs">
+                  <span className="w-44 shrink-0 font-semibold text-navy-ink">{name}</span>
+                  <span className="text-ink-dim">{does}</span>
                 </li>
-                <li>
-                  <span className="font-semibold text-ink">Cross-validated numbers.</span>{" "}
-                  Headline metrics and decision thresholds are measured on data the model never saw
-                  during training.
-                </li>
-                <li>
-                  <span className="font-semibold text-ink">A critic reviews every brief.</span>{" "}
-                  Claims are checked against the computed numbers before you read them.
-                </li>
-                <li>
-                  <span className="font-semibold text-ink">Honest refusals.</span>{" "}
-                  Too little data? The check says skipped and why. A column that gives the answer
-                  away? Flagged, and anything derived from it is blocked.
-                </li>
-              </ul>
-            </CardBody>
-          </Card>
+              ))}
+            </ul>
+            <p className="mt-3 border-t border-hair pt-3 text-[11px] leading-relaxed text-ink-dim">
+              Every agent has a rule-based fallback, so the platform keeps working with no AI
+              connection at all - outputs are simply badged heuristic instead of AI. Heuristic
+              mode is a visible state, never a silent one.
+            </p>
+          </MahaCard>
+          <MahaCard goldRail className="p-5">
+            <GuideSection eyebrow="The character" title="Honest by design" />
+            <ul className="space-y-2.5 text-xs leading-relaxed text-ink-dim">
+              <li>
+                <span className="font-semibold text-navy-ink">Trust ratings, not just scores.</span>{" "}
+                When the evidence is weak, recommended actions become hypotheses to verify - in
+                the app, the report and the PDF.
+              </li>
+              <li>
+                <span className="font-semibold text-navy-ink">Cross-validated numbers.</span>{" "}
+                Headline metrics and decision thresholds are measured on data the model never saw
+                during training.
+              </li>
+              <li>
+                <span className="font-semibold text-navy-ink">A critic reviews every brief.</span>{" "}
+                Claims are checked against the computed numbers before you read them.
+              </li>
+              <li>
+                <span className="font-semibold text-navy-ink">Honest refusals.</span>{" "}
+                Too little data? The check says skipped and why. A column that gives the answer
+                away? Flagged, and anything derived from it is blocked.
+              </li>
+            </ul>
+          </MahaCard>
         </section>
       </Reveal>
 
       {/* For the technical reader */}
       <Reveal>
         <section>
-          <SectionLabel sub="One page for the technical evaluator: the architecture is three clean tiers, and the AI is replaceable.">
-            Under the hood
-          </SectionLabel>
-          <div className="rounded-2xl border border-edge bg-panel p-5 shadow-sm">
+          <GuideSection
+            eyebrow="Under the hood"
+            title="For the technical evaluator"
+            sub="The architecture is three clean tiers, and the AI is replaceable."
+          />
+          <div className="rounded-2xl border border-hair bg-white p-5 shadow-soft">
             <div data-cascade className="flex flex-col items-stretch gap-2 md:flex-row md:items-center">
               {[
                 { icon: MonitorSmartphone, title: "React UI", sub: "TypeScript + Tailwind + Recharts", note: "screens mirror backend types" },
@@ -497,28 +534,28 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 { icon: Database, title: "Python engine", sub: "pandas / scikit-learn / XGBoost / statsmodels", note: "pure - no web imports; every number computed here" },
               ].map((t, i, arr) => (
                 <div key={t.title} className="flex flex-1 items-center">
-                  <div className="flex-1 rounded-xl border border-accent/30 bg-accent-soft/20 p-4 text-center">
-                    <t.icon className="mx-auto h-5 w-5 text-accent" />
-                    <h4 className="mt-1.5 text-sm font-bold">{t.title}</h4>
-                    <p className="text-[11px] text-ink-dim">{t.sub}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wide text-ink-dim/80">{t.note}</p>
+                  <div className="flex-1 rounded-xl bg-[radial-gradient(120%_120%_at_70%_0%,#1e355e_0%,#13234c_100%)] p-4 text-center ring-1 ring-inset ring-gold/25">
+                    <t.icon className="mx-auto h-5 w-5 text-gold-soft" />
+                    <h4 className="font-serif mt-1.5 text-sm font-semibold text-white">{t.title}</h4>
+                    <p className="text-[11px] text-mist/70">{t.sub}</p>
+                    <p className="mt-1 text-[10px] uppercase tracking-wide text-mist/50">{t.note}</p>
                   </div>
                   {i < arr.length - 1 && (
-                    <svg className="mx-1 hidden h-4 w-8 shrink-0 text-edge md:block" viewBox="0 0 32 16" fill="none">
+                    <svg className="mx-1 hidden h-4 w-8 shrink-0 text-gold/50 md:block" viewBox="0 0 32 16" fill="none">
                       <path d="M0 8h26m0 0-5-5m5 5-5 5M6 8l5-5M6 8l5 5" stroke="currentColor" strokeWidth="1.6" />
                     </svg>
                   )}
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap justify-center gap-1.5 border-t border-edge pt-3.5">
+            <div className="mt-4 flex flex-wrap justify-center gap-1.5 border-t border-hair pt-3.5">
               {[
                 "SQLite (Postgres-portable)", "content-addressed artifact store", "model plugins via @register",
                 "swappable LLM provider + deterministic fallbacks", "typed query plans - the AI never writes code",
                 "deterministic chart grammar", "bundled offline India boundary maps", "fold-safe validation pipelines",
                 "out-of-fold threshold selection", "fixed seed 42", "Windows-friendly (no C++ toolchain)",
               ].map((chip) => (
-                <span key={chip} className="rounded-full bg-slate-500/8 px-2.5 py-1 text-[10px] font-medium text-ink-dim ring-1 ring-inset ring-slate-500/15">
+                <span key={chip} className="rounded-full bg-navy/5 px-2.5 py-1 text-[10px] font-medium text-navy-deep ring-1 ring-inset ring-navy/10">
                   {chip}
                 </span>
               ))}
@@ -527,19 +564,22 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
         </section>
       </Reveal>
 
-      {/* Footer / status */}
+      {/* Footer / status: navy band with saffron CTA */}
       <Reveal>
-        <div className="rounded-2xl border border-edge bg-panel-2 px-6 py-5 text-center">
-          <p className="text-xs leading-relaxed text-ink-dim">
+        <div className="rounded-2xl bg-[radial-gradient(130%_100%_at_50%_0%,#1e355e_0%,#13234c_100%)] px-6 py-8 text-center shadow-soft-lg">
+          <p className="mx-auto max-w-2xl text-xs leading-relaxed text-mist/75">
             This is a proof of concept running locally: single user, no login, data never leaves
             this machine. Production hardening (roles and sign-in, on-premise or air-gapped
             deployment, Postgres, backups) is the planned next phase. Sample datasets are included
             - every feature on this page can be demonstrated with them.
           </p>
           {onStart && (
-            <Button className="mt-4 px-5" onClick={onStart}>
+            <button
+              onClick={onStart}
+              className="mt-5 inline-flex items-center gap-2 rounded bg-saffron px-6 py-3 text-[13px] font-medium uppercase tracking-[0.65px] text-white transition-[transform,background-color] duration-150 ease-out hover:bg-saffron-deep active:scale-[0.98]"
+            >
               Start a new analysis
-            </Button>
+            </button>
           )}
         </div>
       </Reveal>
