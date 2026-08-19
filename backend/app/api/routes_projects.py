@@ -95,6 +95,8 @@ async def upload_glossary(project_id: str, file: UploadFile) -> dict:
     text with 'term: definition' / 'term - definition' lines."""
     _require_project(project_id)
     raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(413, "Codebook files are capped at 5 MB.")
     name = (file.filename or "").lower()
     entries: list[dict] = []
     try:

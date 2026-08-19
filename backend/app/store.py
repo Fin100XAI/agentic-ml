@@ -109,7 +109,7 @@ class Store:
     def __init__(self, db_path: Path = DB_PATH) -> None:
         self.datasets: dict[str, Dataset] = {}
         self.runs: dict[str, Run] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS datasets ("
@@ -242,8 +242,10 @@ class Store:
                     project_id=proj_id,
                     renames=json.loads(renames_json) if renames_json else None,
                 )
-            except Exception:
-                continue  # skip unreadable rows rather than failing startup
+            except Exception as exc:
+                # A silent skip looks like data loss - say what was skipped.
+                print(f"[store] WARNING: skipping unreadable dataset row: {exc!r}")
+                continue
         for run_id, ds_id, _created, blob in self._db.execute(
             "SELECT id, dataset_id, created_at, state FROM runs"
         ):
@@ -266,7 +268,8 @@ class Store:
                     except Exception:
                         pass  # fall back to the dataset frame
                 self.runs[run_id] = run
-            except Exception:
+            except Exception as exc:
+                print(f"[store] WARNING: skipping unreadable run {run_id}: {exc!r}")
                 continue
 
     # -- datasets --------------------------------------------------------------
@@ -287,8 +290,11 @@ class Store:
     def _persist_dataset(self, ds: Dataset) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO datasets (id, filename, frame, artifact_id, pii, project_id, renames) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO datasets (id, filename, frame, artifact_id, pii, project_id, renames) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+                "filename=excluded.filename, frame=excluded.frame, "
+                "artifact_id=excluded.artifact_id, pii=excluded.pii, "
+                "project_id=excluded.project_id, renames=excluded.renames",
                 (
                     ds.id, ds.filename, pickle.dumps(ds.df), ds.artifact_id,
                     json.dumps(ds.pii, default=str) if ds.pii else None,
@@ -315,8 +321,10 @@ class Store:
         ds = self.datasets.get(run.dataset_id)
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO runs (id, dataset_id, created_at, state, project_id) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO runs (id, dataset_id, created_at, state, project_id) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET "
+                "dataset_id=excluded.dataset_id, created_at=excluded.created_at, "
+                "state=excluded.state, project_id=excluded.project_id",
                 (run.id, run.dataset_id, run.created_at, pickle.dumps(state),
                  ds.project_id if ds else None),
             )
@@ -365,13 +373,18 @@ class Store:
             self._db.execute("DELETE FROM projects WHERE id = ?", (proj.id,))
             self._db.commit()
 
+    _default_project_lock = threading.Lock()
+
     def default_project_id(self) -> str:
-        for proj in self.projects.values():
-            if proj.name == self.DEFAULT_PROJECT_NAME:
-                return proj.id
-        if self.projects:
-            return next(iter(self.projects))
-        return self.add_project(self.DEFAULT_PROJECT_NAME, "Everything from before projects existed, plus quick one-off analyses.").id
+        # Atomic: two concurrent first-ever uploads must not each create a
+        # "Default Project" and split the data between them.
+        with self._default_project_lock:
+            for proj in self.projects.values():
+                if proj.name == self.DEFAULT_PROJECT_NAME:
+                    return proj.id
+            if self.projects:
+                return next(iter(self.projects))
+            return self.add_project(self.DEFAULT_PROJECT_NAME, "Everything from before projects existed, plus quick one-off analyses.").id
 
     def runs_for_project(self, project_id: str) -> list[Run]:
         out = []
@@ -533,7 +546,8 @@ class Store:
                 if not term or not definition:
                     continue
                 self._db.execute(
-                    "INSERT OR REPLACE INTO glossary (project_id, term, definition) VALUES (?, ?, ?)",
+                    "INSERT INTO glossary (project_id, term, definition) VALUES (?, ?, ?) "
+                    "ON CONFLICT(project_id, term) DO UPDATE SET definition=excluded.definition",
                     (project_id, term, definition),
                 )
                 added += 1
@@ -728,6 +742,9 @@ class Store:
         # Model identity: same project + problem + algorithm = same model_id.
         ident = f"{project_id}|{run.config['use_case']}|{run.config.get('target')}|{run.config['model_key']}"
         model_id = hashlib.sha256(ident.encode()).hexdigest()[:12]
+        # Provisional read for the change-summary lookup; the AUTHORITATIVE
+        # version is re-computed inside the lock below so two concurrent
+        # trainings cannot collide on (model_id, version).
         (prev_max,) = self._db.execute(
             "SELECT MAX(version) FROM model_registry WHERE model_id = ?", (model_id,)
         ).fetchone()
@@ -791,21 +808,33 @@ class Store:
                 )
             except Exception:
                 pass  # a missing summary must not block registration
-        values = [
-            json.dumps(row[c], default=str) if c in self._REGISTRY_JSON_COLS else row[c]
-            for c in self._REGISTRY_COLS
-        ]
         with self._lock:
-            self._db.execute(
-                "UPDATE model_registry SET status = 'superseded' "
-                "WHERE model_id = ? AND status = 'active'", (model_id,),
-            )
-            self._db.execute(
-                f"INSERT INTO model_registry ({', '.join(self._REGISTRY_COLS)}) "
-                f"VALUES ({', '.join('?' * len(self._REGISTRY_COLS))})",
-                values,
-            )
-            self._db.commit()
+            (prev_max,) = self._db.execute(
+                "SELECT MAX(version) FROM model_registry WHERE model_id = ?",
+                (model_id,),
+            ).fetchone()
+            version = (prev_max or 0) + 1
+            row["version"] = version
+            values = [
+                json.dumps(row[c], default=str) if c in self._REGISTRY_JSON_COLS else row[c]
+                for c in self._REGISTRY_COLS
+            ]
+            try:
+                self._db.execute(
+                    "UPDATE model_registry SET status = 'superseded' "
+                    "WHERE model_id = ? AND status = 'active'", (model_id,),
+                )
+                self._db.execute(
+                    f"INSERT INTO model_registry ({', '.join(self._REGISTRY_COLS)}) "
+                    f"VALUES ({', '.join('?' * len(self._REGISTRY_COLS))})",
+                    values,
+                )
+                self._db.commit()
+            except Exception:
+                # Never leave a half-applied supersede pending on the shared
+                # connection - that would strip the model of its active version.
+                self._db.rollback()
+                raise
         self.log_event(
             "system", "train", run_id=run.id, dataset_id=run.dataset_id,
             project_id=project_id,
@@ -887,8 +916,11 @@ class Store:
                          payload: dict) -> None:
         with self._lock:
             self._db.execute(
-                "INSERT OR REPLACE INTO query_briefs (id, dataset_id, project_id, "
-                "created_at, payload) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO query_briefs (id, dataset_id, project_id, "
+                "created_at, payload) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET dataset_id=excluded.dataset_id, "
+                "project_id=excluded.project_id, created_at=excluded.created_at, "
+                "payload=excluded.payload",
                 (brief_id, dataset_id, project_id, created_at,
                  json.dumps(payload, default=str)),
             )
@@ -906,8 +938,9 @@ class Store:
         with self._lock:
             for variant, canonical in mapping.items():
                 self._db.execute(
-                    "INSERT OR REPLACE INTO place_aliases (project_id, variant, canonical) "
-                    "VALUES (?, ?, ?)",
+                    "INSERT INTO place_aliases (project_id, variant, canonical) "
+                    "VALUES (?, ?, ?) ON CONFLICT(project_id, variant) "
+                    "DO UPDATE SET canonical=excluded.canonical",
                     (project_id or "", variant.strip().lower(), canonical),
                 )
             self._db.commit()
@@ -926,8 +959,10 @@ class Store:
     def save_saved_query(self, rec: dict) -> None:
         with self._lock:
             self._db.execute(
-                f"INSERT OR REPLACE INTO saved_queries ({', '.join(self._SQ_COLS)}) "
-                f"VALUES ({', '.join('?' * len(self._SQ_COLS))})",
+                f"INSERT INTO saved_queries ({', '.join(self._SQ_COLS)}) "
+                f"VALUES ({', '.join('?' * len(self._SQ_COLS))}) "
+                "ON CONFLICT(id) DO UPDATE SET "
+                + ", ".join(f"{c}=excluded.{c}" for c in self._SQ_COLS if c != "id"),
                 tuple(json.dumps(rec[c], default=str)
                       if c in ("plan", "last_result") and rec.get(c) is not None
                       else rec.get(c) for c in self._SQ_COLS),
@@ -937,7 +972,8 @@ class Store:
     def list_saved_queries(self, project_id: str | None) -> list[dict]:
         rows = self._db.execute(
             f"SELECT {', '.join(self._SQ_COLS)} FROM saved_queries "
-            "WHERE project_id IS ? OR project_id = ? ORDER BY created_at DESC",
+            "WHERE (project_id = ? OR (? IS NULL AND project_id IS NULL)) "
+            "ORDER BY created_at DESC",
             (project_id, project_id),
         ).fetchall()
         out = []

@@ -104,6 +104,10 @@ def delete_rule(rule_id: str) -> dict:
     return {"deleted": rule_id}
 
 
+_resolving: set[str] = set()
+_resolving_lock = __import__("threading").Lock()
+
+
 @router.post("/intake/{item_id}/resolve")
 def resolve_item(item_id: str, req: ResolveRequest) -> dict:
     if req.decision not in ("approve", "decline"):
@@ -114,6 +118,19 @@ def resolve_item(item_id: str, req: ResolveRequest) -> dict:
         raise HTTPException(404, str(exc)) from exc
     if item["status"] != "pending":
         raise HTTPException(409, f"This intake item is already {item['status']}.")
+    # Atomic claim: two concurrent approvals must not both execute the action.
+    with _resolving_lock:
+        if item_id in _resolving:
+            raise HTTPException(409, "This intake item is already being resolved.")
+        _resolving.add(item_id)
+    try:
+        return _resolve_item_inner(item_id, req, item)
+    finally:
+        with _resolving_lock:
+            _resolving.discard(item_id)
+
+
+def _resolve_item_inner(item_id: str, req: ResolveRequest, item: dict) -> dict:
 
     if req.decision == "decline":
         store.resolve_intake_item(item_id, "declined")

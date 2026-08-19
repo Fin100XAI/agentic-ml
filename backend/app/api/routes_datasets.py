@@ -36,6 +36,8 @@ async def upload_dataset(
     name = (file.filename or "").lower()
     if not name.endswith((".csv", *EXCEL_EXT)):
         raise HTTPException(400, "Please upload a .csv or .xlsx file.")
+    if getattr(file, "size", None) and file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File exceeds the 50 MB POC limit.")
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File exceeds the 50 MB POC limit.")
@@ -313,6 +315,12 @@ def review_pii(dataset_id: str, req: PiiReviewRequest) -> dict:
         actions.setdefault(f["column"], f["proposed_action"])
 
     effective = {c: a for c, a in actions.items() if a != "keep"}
+    n_dropped = sum(1 for a in effective.values() if a == "drop")
+    if n_dropped >= ds.df.shape[1]:
+        raise HTTPException(
+            400, "This review would drop every column - nothing would be left "
+                 "to analyze. Mask columns instead of dropping them, or keep "
+                 "at least one.")
     if effective:
         masked = apply_pii_actions(ds.df, findings, effective)
         art = store.add_derived_artifact(

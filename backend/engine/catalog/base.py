@@ -74,15 +74,27 @@ class ModelPlugin(ABC):
             spec = specs[k]
             try:
                 if spec.type == "int":
-                    out[k] = int(v)
+                    val: Any = int(v)
                 elif spec.type == "float":
-                    out[k] = float(v)
+                    val = float(v)
                 elif spec.type == "bool":
-                    out[k] = bool(v)
+                    val = bool(v)
                 else:
-                    out[k] = v
+                    val = v
             except (TypeError, ValueError):
-                pass  # keep the default on bad input
+                continue  # keep the default on bad input
+            # The declared bounds/options are the contract the UI renders -
+            # enforce them here too so a raw API call cannot smuggle a
+            # billion estimators or an unknown option into training.
+            if spec.type in ("int", "float"):
+                if spec.min is not None and val < spec.min:
+                    val = spec.min
+                if spec.max is not None and val > spec.max:
+                    val = spec.max
+            opts = getattr(spec, "options", None)
+            if spec.type == "select" and opts and val not in opts:
+                continue  # unknown option: keep the default
+            out[k] = val
         return out
 
     @abstractmethod

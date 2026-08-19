@@ -1,6 +1,8 @@
 """Run endpoints: the approval-gated agent pipeline."""
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse, Response
 
@@ -254,10 +256,18 @@ def approve_config(run_id: str, req: ApproveConfigRequest) -> dict:
             req.time_column, req.feature_ids, req.excluded_columns,
             req.group_column, req.group_agg,
         )
-    except KeyError as exc:
+    except (KeyError, ValueError) as exc:
+        # ValueError carries the purpose-written messages (e.g. an approved
+        # feature colliding with a leakage-excluded column) - surface them,
+        # never a 500.
         raise HTTPException(400, str(exc)) from exc
     store.save_run(run)
     return run.to_dict()
+
+
+# Double-click guard: one training per run at a time, ever.
+_executing: set[str] = set()
+_executing_lock = threading.Lock()
 
 
 @router.post("/runs/{run_id}/execute")
@@ -265,6 +275,17 @@ def execute(run_id: str) -> dict:
     run = _get_run(run_id)
     if not run.config:
         raise HTTPException(409, "Approve a model configuration before executing.")
-    _orchestrator().execute(run)
-    store.save_run(run)
+    if run.stage in ("interpret", "compare"):
+        raise HTTPException(409, "This run has already been trained - retrain "
+                                 "from the registry to produce a new version.")
+    with _executing_lock:
+        if run.id in _executing:
+            raise HTTPException(409, "This run is already training.")
+        _executing.add(run.id)
+    try:
+        _orchestrator().execute(run)
+        store.save_run(run)
+    finally:
+        with _executing_lock:
+            _executing.discard(run.id)
     return run.to_dict()

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from app.api.routes_datasets import MAX_UPLOAD_BYTES
 from app.store import store
 from app.telemetry import instrumented_orchestrator, instrumented_provider, set_run_context
 from engine.orchestrator import Run
@@ -115,6 +116,8 @@ async def score_new_data(model_id: str, version: int, file: UploadFile) -> dict:
 
     name = (file.filename or "").lower()
     raw = await file.read()
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File exceeds the 50 MB POC limit.")
     try:
         if name.endswith((".xlsx", ".xls")):
             new_df = pd.read_excel(io.BytesIO(raw))
@@ -126,6 +129,12 @@ async def score_new_data(model_id: str, version: int, file: UploadFile) -> dict:
         return score_frame(entry, train_run, new_df, file.filename or "upload")
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except Exception:
+        # Corrupt checkpoints / wildly mistyped columns: a clean message,
+        # never a 500 with internals or file paths in it.
+        raise HTTPException(
+            400, "Scoring failed - the file's columns do not fit this model "
+                 "version, or its checkpoint could not be loaded.")
 
 
 def score_frame(entry: dict, train_run, new_df: pd.DataFrame, source_name: str) -> dict:
@@ -205,6 +214,8 @@ async def check_drift(model_id: str, version: int, file: UploadFile) -> dict:
 
     name = (file.filename or "").lower()
     raw = await file.read()
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File exceeds the 50 MB POC limit.")
     try:
         new_df = (pd.read_excel(io.BytesIO(raw)) if name.endswith((".xlsx", ".xls"))
                   else pd.read_csv(io.BytesIO(raw)))
