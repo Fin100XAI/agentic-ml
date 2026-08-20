@@ -60,6 +60,7 @@ class CleanRequest(BaseModel):
     drop_columns: list[str] = []
     drop_empty_rows: bool = False
     drop_total_rows: bool = False
+    drop_footer_rows: bool = False
 
 
 class FinishRequest(BaseModel):
@@ -156,21 +157,29 @@ async def add_file(sid: str, file: UploadFile = File(...)) -> dict:
 
 def _install_sheet(s: dict[str, Any], key: str, rawdf: pd.DataFrame) -> None:
     """Keep the raw header-less frame (for manual re-headering) and install
-    the parsed frame using the detected header row."""
-    header_row = prep.detect_header_row(rawdf)
+    the parsed frame using the detected header row(s) - including two-tier
+    merged headers (month blocks over CGST/SGST/... columns)."""
+    hdr = prep.detect_header(rawdf)
     s.setdefault("raw", {})[key] = rawdf
-    s.setdefault("header_rows", {})[key] = header_row
-    s["frames"][key] = prep.reheader(rawdf, header_row)
+    s.setdefault("header_rows", {})[key] = hdr
+    s["frames"][key] = prep.reheader(rawdf, hdr["row"], hdr["tiers"])
 
 
 def _inventory(s: dict[str, Any]) -> list[dict[str, Any]]:
     inv = prep.sheet_inventory(s["frames"])
     for item in inv:
-        hr = s.get("header_rows", {}).get(item["name"], 0)
-        item["header_row"] = hr
-        if hr > 0:
-            item["note"] = (f"Header found on row {hr + 1} - the {hr} row(s) "
-                            "above looked like a title banner and were skipped.")
+        hdr = s.get("header_rows", {}).get(item["name"], {"row": 0, "tiers": 1})
+        item["header_row"] = hdr["row"]
+        item["header_tiers"] = hdr["tiers"]
+        bits = []
+        if hdr["row"] > 0:
+            bits.append(f"header found on row {hdr['row'] + 1} - the "
+                        f"{hdr['row']} row(s) above looked like a title banner")
+        if hdr["tiers"] == 2:
+            bits.append("a two-row merged header was combined into single "
+                        "column names (e.g. 'Apr-2018 CGST')")
+        if bits:
+            item["note"] = "; ".join(bits).capitalize() + "."
     return inv
 
 
@@ -187,8 +196,9 @@ def set_header(sid: str, name: str, req: HeaderRequest) -> dict:
         raise HTTPException(404, "No such sheet in this session.")
     if not 0 <= req.header_row < min(len(rawdf), 20):
         raise HTTPException(400, "Header row must be within the first 20 rows.")
-    s["header_rows"][name] = req.header_row
-    s["frames"][name] = prep.reheader(rawdf, req.header_row)
+    hdr = prep.detect_header(rawdf, force_row=req.header_row)
+    s["header_rows"][name] = hdr
+    s["frames"][name] = prep.reheader(rawdf, hdr["row"], hdr["tiers"])
     s["combined"] = None
     _log(s, "You", "approval", {"context": "prep_header", "sheet": name,
                                 "header_row": req.header_row})
@@ -333,8 +343,9 @@ def clean(sid: str, req: CleanRequest) -> dict:
         if col in df.columns and mapping:
             df[col] = df[col].astype(str).replace(mapping)
             applied.append(f"merged {len(mapping)} spelling(s) in '{col}'")
-    if req.drop_empty_rows or req.drop_total_rows:
-        df, n = prep.drop_junk(df, req.drop_empty_rows, req.drop_total_rows)
+    if req.drop_empty_rows or req.drop_total_rows or req.drop_footer_rows:
+        df, n = prep.drop_junk(df, req.drop_empty_rows, req.drop_total_rows,
+                               drop_footer=req.drop_footer_rows)
         if n:
             applied.append(f"removed {n} junk row(s)")
     s["combined"] = df

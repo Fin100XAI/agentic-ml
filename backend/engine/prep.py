@@ -6,6 +6,7 @@ PREP-STUDIO prototype: additive module, nothing existing imports it.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import re
 from typing import Any
 
@@ -13,6 +14,11 @@ import pandas as pd
 
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
 _TOTAL_RE = re.compile(r"^\s*(grand\s+)?(total|all|overall|india|sum)\b", re.I)
+# Summary rows label themselves mid-string too: 'IGST on Import - All India',
+# 'Gross Revenue', 'Sub Total' - searched anywhere in the row label.
+_SUMMARY_RE = re.compile(
+    r"grand\s+total|all\s+india|sub\s*total|gross\s+revenue|aggregate|net\s+total",
+    re.I)
 
 
 def normalize_col(name: str) -> str:
@@ -26,6 +32,56 @@ def year_guess(label: str) -> int | None:
         return None
     y = int(m.group(0))
     return y if 1900 <= y <= 2100 else None
+
+
+def _fmt_label(v: Any) -> str:
+    """Month columns in government workbooks are often real datetimes next
+    to strings like 'Apr-18' - format them as compact period labels."""
+    if isinstance(v, (pd.Timestamp, _dt.datetime, _dt.date)):
+        return v.strftime("%b-%Y")
+    return str(v).strip()
+
+
+def _labels_single(raw: pd.DataFrame, h: int) -> list:
+    return [None if pd.isna(v) or str(v).strip() == "" else _fmt_label(v)
+            for v in raw.iloc[h]]
+
+
+def _labels_pair(raw: pd.DataFrame, h: int) -> list:
+    """Two-tier merged header: the top row carries block labels merged across
+    several columns (forward-filled), the bottom row the per-column names -
+    'Apr-18' + 'CGST' becomes 'Apr-18 CGST'."""
+    # Manual forward-fill of the merged block labels (object dtype safe).
+    top = []
+    last = None
+    for v in raw.iloc[h]:
+        if pd.notna(v) and str(v).strip() != "":
+            last = v
+        top.append(last)
+    bot = raw.iloc[h + 1]
+    out = []
+    for t, b in zip(top, bot):
+        tl = None if pd.isna(t) or str(t).strip() == "" else _fmt_label(t)
+        bl = None if pd.isna(b) or str(b).strip() == "" else _fmt_label(b)
+        if tl and bl and tl != bl:
+            out.append(f"{tl} {bl}")
+        else:
+            out.append(bl or tl)
+    return out
+
+
+def _label_score(labels: list) -> float:
+    """How usable a candidate set of column names is: filled, unique, text."""
+    vals = [l for l in labels if l]
+    if len(vals) < 2:
+        return 0.0
+    uniq = len(set(vals)) / len(vals)
+    nonnum = sum(
+        1 for l in vals
+        if not l.replace(",", "").replace(".", "", 1).lstrip("-").isdigit()
+    ) / len(vals)
+    fill = len(vals) / max(1, len(labels))
+    return 0.35 * uniq + 0.3 * nonnum + 0.35 * fill
 
 
 def _header_score(row: pd.Series) -> float:
@@ -43,28 +99,61 @@ def _header_score(row: pd.Series) -> float:
     return 0.35 * uniq + 0.3 * nonnum + 0.35 * fill
 
 
-def detect_header_row(raw: pd.DataFrame, scan: int = 8) -> int:
-    """Government exports often open with a title banner (one merged cell,
-    the rest blank) and an empty spacer before the real header. Find the row
-    that actually names the columns; 0 means the file is normal."""
+def detect_header(raw: pd.DataFrame, scan: int = 10,
+                  force_row: int | None = None) -> dict:
+    """Find the row(s) that actually name the columns. Handles the two
+    hardest common shapes: a title banner above the header, and a TWO-TIER
+    merged header (block labels forward-filled over per-column names).
+    Returns a dict with 'row' and 'tiers' (1 or 2); row 0 / 1 tier means a
+    normal file."""
     n = min(scan, len(raw))
     if n == 0:
-        return 0
-    scores = [_header_score(raw.iloc[i]) for i in range(n)]
-    best = max(range(n), key=lambda i: scores[i])
-    # Only move off row 0 when row 0 clearly is not a header AND a much
-    # better candidate exists - a normal file must never be re-headered.
-    if best > 0 and scores[best] >= 0.75 and scores[0] < 0.55:
-        return best
-    return 0
+        return {"row": 0, "tiers": 1}
+    if force_row is not None:
+        h = max(0, min(force_row, len(raw) - 1))
+        s1 = _label_score(_labels_single(raw, h))
+        s2 = _label_score(_labels_pair(raw, h)) if h + 1 < len(raw) else 0.0
+        return {"row": h, "tiers": 2 if s2 > s1 + 0.1 else 1}
+    base = _label_score(_labels_single(raw, 0))
+    best = {"row": 0, "tiers": 1, "score": base}
+    for h in range(n):
+        s1 = _label_score(_labels_single(raw, h))
+        if h > 0 and s1 > best["score"] and s1 >= 0.75 and base < 0.55:
+            best = {"row": h, "tiers": 1, "score": s1}
+        if h + 1 < len(raw) and raw.iloc[h].notna().sum() > 0:
+            s2 = _label_score(_labels_pair(raw, h))
+            s1_next = _label_score(_labels_single(raw, h + 1))
+            # The pair must beat BOTH single readings clearly - a banner over
+            # a normal header, or row 0 over the first data row, must never
+            # masquerade as a merged two-tier header.
+            if (s2 > best["score"] + 0.1 and s2 >= 0.75
+                    and s2 > s1 + 0.1 and s2 > s1_next + 0.05):
+                best = {"row": h, "tiers": 2, "score": s2}
+    return {"row": best["row"], "tiers": best["tiers"]}
 
 
-def reheader(raw: pd.DataFrame, header_row: int) -> pd.DataFrame:
-    """Rebuild the frame with ``header_row`` as the column names, restoring
-    numeric dtypes that header=None parsing turned into objects."""
-    names = [str(v).strip() if pd.notna(v) else f"column_{i + 1}"
-             for i, v in enumerate(raw.iloc[header_row])]
-    df = raw.iloc[header_row + 1:].reset_index(drop=True)
+def detect_header_row(raw: pd.DataFrame, scan: int = 10) -> int:
+    """Back-compat single-row view of detect_header."""
+    return int(detect_header(raw, scan)["row"])
+
+
+def reheader(raw: pd.DataFrame, header_row: int, tiers: int = 1) -> pd.DataFrame:
+    """Rebuild the frame with the detected header row(s) as column names,
+    restoring numeric dtypes that header=None parsing turned into objects."""
+    labels = (_labels_pair(raw, header_row)
+              if tiers == 2 and header_row + 1 < len(raw)
+              else _labels_single(raw, header_row))
+    names = []
+    seen = {}
+    for i, l in enumerate(labels):
+        name = l or f"column_{i + 1}"
+        if name in seen:
+            seen[name] += 1
+            name = f"{name}_{seen[name]}"
+        else:
+            seen[name] = 1
+        names.append(name)
+    df = raw.iloc[header_row + tiers:].reset_index(drop=True)
     df.columns = names
     df = df.dropna(axis=1, how="all").dropna(how="all")
     for c in df.columns:
@@ -237,13 +326,34 @@ def junk_scan(df: pd.DataFrame) -> dict[str, Any]:
     if text_cols and len(df):
         mask = pd.Series(False, index=df.index)
         for c in text_cols:
-            mask |= df[c].astype(str).str.match(_TOTAL_RE).fillna(False)
+            vals = df[c].astype(str)
+            mask |= vals.str.match(_TOTAL_RE).fillna(False)
+            mask |= vals.str.contains(_SUMMARY_RE, na=False)
         totals = int(mask.sum())
-    return {"empty_rows": empty, "total_like_rows": totals}
+    return {"empty_rows": empty, "total_like_rows": totals,
+            "footer_rows": _footer_rows(df)}
 
 
-def drop_junk(df: pd.DataFrame, drop_empty: bool, drop_totals: bool) -> tuple[pd.DataFrame, int]:
+def _footer_rows(df: pd.DataFrame) -> int:
+    """Trailing note rows ('Note :', 'Source: ...') - a contiguous tail block
+    where almost every cell is empty."""
+    n = 0
+    thresh = max(2, int(df.shape[1] * 0.15))
+    for i in range(len(df) - 1, -1, -1):
+        if int(df.iloc[i].notna().sum()) <= thresh:
+            n += 1
+        else:
+            break
+    return n if n < len(df) else 0
+
+
+def drop_junk(df: pd.DataFrame, drop_empty: bool, drop_totals: bool,
+              drop_footer: bool = False) -> tuple[pd.DataFrame, int]:
     before = len(df)
+    if drop_footer:
+        n = _footer_rows(df)
+        if n:
+            df = df.iloc[: len(df) - n]
     if drop_empty:
         df = df.dropna(how="all")
     if drop_totals:
@@ -251,6 +361,8 @@ def drop_junk(df: pd.DataFrame, drop_empty: bool, drop_totals: bool) -> tuple[pd
         if text_cols:
             mask = pd.Series(False, index=df.index)
             for c in text_cols:
-                mask |= df[c].astype(str).str.match(_TOTAL_RE).fillna(False)
+                vals = df[c].astype(str)
+                mask |= vals.str.match(_TOTAL_RE).fillna(False)
+                mask |= vals.str.contains(_SUMMARY_RE, na=False)
             df = df[~mask]
     return df.reset_index(drop=True), before - len(df)

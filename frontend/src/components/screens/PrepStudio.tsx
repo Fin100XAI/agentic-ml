@@ -32,6 +32,7 @@ interface SheetInfo {
   year_guess: number | null;
   unnamed_columns: number;
   header_row?: number;
+  header_tiers?: number;
   note?: string;
 }
 interface Agent {
@@ -53,7 +54,7 @@ interface Proposal {
 interface Checks {
   text_numbers: { column: string; parse_pct: number; n_blank: number }[];
   place_variants: { column: string; proposals: { canonical: string; variants: string[]; counts: Record<string, number> }[] }[];
-  junk: { empty_rows: number; total_like_rows: number };
+  junk: { empty_rows: number; total_like_rows: number; footer_rows: number };
   pii_columns: { column: string; kind: string }[];
   readiness: { message?: string; note?: string; kind?: string }[];
 }
@@ -103,6 +104,7 @@ export function PrepStudio() {
   const [piiTicks, setPiiTicks] = useState<Set<string>>(new Set());
   const [dropEmpty, setDropEmpty] = useState(true);
   const [dropTotals, setDropTotals] = useState(true);
+  const [dropFooter, setDropFooter] = useState(true);
 
   const guard = async (label: string, fn: () => Promise<void>) => {
     if (busy) return;
@@ -173,6 +175,7 @@ export function PrepStudio() {
     setPiiTicks(new Set(c.pii_columns.map((p) => p.column)));
     setDropEmpty(c.junk.empty_rows > 0);
     setDropTotals(c.junk.total_like_rows > 0);
+    setDropFooter(c.junk.footer_rows > 0);
   };
 
   const combine = () =>
@@ -210,6 +213,7 @@ export function PrepStudio() {
           drop_columns: [...piiTicks],
           drop_empty_rows: dropEmpty,
           drop_total_rows: dropTotals,
+          drop_footer_rows: dropFooter,
         }),
       });
       setApplied((a) => [...a, ...r.applied]);
@@ -519,7 +523,7 @@ export function PrepStudio() {
                     </div>
                   </div>
                 )}
-                {(checks.junk.empty_rows > 0 || checks.junk.total_like_rows > 0) && (
+                {(checks.junk.empty_rows > 0 || checks.junk.total_like_rows > 0 || checks.junk.footer_rows > 0) && (
                   <div className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-3">
                     <p className="text-xs font-semibold">Junk rows</p>
                     <div className="mt-2 flex flex-wrap gap-4 text-[11px]">
@@ -533,6 +537,12 @@ export function PrepStudio() {
                         <label className="flex items-center gap-1.5">
                           <input type="checkbox" checked={dropTotals} onChange={() => setDropTotals(!dropTotals)} className="accent-accent" />
                           drop {checks.junk.total_like_rows} total/summary row(s) - they double every sum
+                        </label>
+                      )}
+                      {checks.junk.footer_rows > 0 && (
+                        <label className="flex items-center gap-1.5">
+                          <input type="checkbox" checked={dropFooter} onChange={() => setDropFooter(!dropFooter)} className="accent-accent" />
+                          drop {checks.junk.footer_rows} footer note row(s) at the bottom
                         </label>
                       )}
                     </div>
