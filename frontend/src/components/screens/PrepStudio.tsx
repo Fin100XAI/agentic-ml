@@ -31,6 +31,8 @@ interface SheetInfo {
   columns: { name: string; dtype: string }[];
   year_guess: number | null;
   unnamed_columns: number;
+  header_row?: number;
+  note?: string;
 }
 interface Agent {
   message: string;
@@ -138,6 +140,16 @@ export function PrepStudio() {
       }
       setProposal(null);
       if (fileRef.current) fileRef.current.value = "";
+    });
+
+  const setHeaderRow = (name: string, row: number) =>
+    guard("header", async () => {
+      const r = await call<{ inventory: SheetInfo[] }>(
+        `/${sid}/files/${encodeURIComponent(name)}/header`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ header_row: row }) });
+      setInventory(r.inventory);
+      setProposal(null);
     });
 
   const removeSheet = (name: string) =>
@@ -344,8 +356,25 @@ export function PrepStudio() {
                     <tbody>
                       {inventory.map((s) => (
                         <tr key={s.name} className="border-b border-edge/50">
-                          <td className="max-w-56 truncate px-3 py-2 font-medium" title={s.columns.map((c) => c.name).join(", ")}>
-                            {s.name}
+                          <td className="max-w-64 px-3 py-2" title={s.columns.map((c) => c.name).join(", ")}>
+                            <span className="block truncate font-medium">{s.name}</span>
+                            <span className="mt-0.5 flex items-center gap-1.5">
+                              {s.note && (
+                                <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[9px] text-warn ring-1 ring-inset ring-warn/25" title={s.note}>
+                                  banner skipped
+                                </span>
+                              )}
+                              <select
+                                value={s.header_row ?? 0}
+                                onChange={(e) => setHeaderRow(s.name, Number(e.target.value))}
+                                title="Which row holds the column names - change it if the detection guessed wrong"
+                                className="rounded border border-edge bg-panel-2 px-1 py-0.5 text-[9px] text-ink-dim outline-none focus:border-accent"
+                              >
+                                {[0, 1, 2, 3, 4, 5].map((r) => (
+                                  <option key={r} value={r}>header: row {r + 1}</option>
+                                ))}
+                              </select>
+                            </span>
                           </td>
                           <td className="px-3 py-2 tabular-nums">{s.rows.toLocaleString()}</td>
                           <td className="px-3 py-2 tabular-nums">{s.cols}</td>

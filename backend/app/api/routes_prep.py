@@ -129,26 +129,70 @@ async def add_file(sid: str, file: UploadFile = File(...)) -> dict:
         raise HTTPException(413, "File larger than 50MB - split it first.")
     fname = file.filename or "upload"
     try:
+        # Parse every sheet header-less first, then find the REAL header row -
+        # government exports open with title banners more often than not.
         if fname.lower().endswith((".xlsx", ".xls", ".xlsm")):
-            book = pd.read_excel(io.BytesIO(raw), sheet_name=None)
+            book = pd.read_excel(io.BytesIO(raw), sheet_name=None, header=None)
             added = []
-            for sheet, df in book.items():
-                if df.dropna(how="all").empty:
+            for sheet, rawdf in book.items():
+                if rawdf.dropna(how="all").empty:
                     continue
                 key = f"{fname} :: {sheet}" if len(book) > 1 else fname
-                s["frames"][key] = df
+                _install_sheet(s, key, rawdf)
                 added.append(key)
             if not added:
                 raise HTTPException(400, "The workbook has no non-empty sheets.")
         else:
-            s["frames"][fname] = pd.read_csv(io.BytesIO(raw))
+            rawdf = pd.read_csv(io.BytesIO(raw), header=None, skip_blank_lines=False)
+            _install_sheet(s, fname, rawdf)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(400, f"Could not parse '{fname}': {exc}") from exc
     s["combined"] = None  # new data invalidates any previous combine
     _log(s, "You", "file_upload", {"context": "prep", "filename": fname})
-    return {"inventory": prep.sheet_inventory(s["frames"])}
+    return {"inventory": _inventory(s)}
+
+
+def _install_sheet(s: dict[str, Any], key: str, rawdf: pd.DataFrame) -> None:
+    """Keep the raw header-less frame (for manual re-headering) and install
+    the parsed frame using the detected header row."""
+    header_row = prep.detect_header_row(rawdf)
+    s.setdefault("raw", {})[key] = rawdf
+    s.setdefault("header_rows", {})[key] = header_row
+    s["frames"][key] = prep.reheader(rawdf, header_row)
+
+
+def _inventory(s: dict[str, Any]) -> list[dict[str, Any]]:
+    inv = prep.sheet_inventory(s["frames"])
+    for item in inv:
+        hr = s.get("header_rows", {}).get(item["name"], 0)
+        item["header_row"] = hr
+        if hr > 0:
+            item["note"] = (f"Header found on row {hr + 1} - the {hr} row(s) "
+                            "above looked like a title banner and were skipped.")
+    return inv
+
+
+class HeaderRequest(BaseModel):
+    header_row: int
+
+
+@router.post("/prep/{sid}/files/{name}/header")
+def set_header(sid: str, name: str, req: HeaderRequest) -> dict:
+    """Manual override when the detector guessed wrong."""
+    s = _session(sid)
+    rawdf = s.get("raw", {}).get(name)
+    if rawdf is None:
+        raise HTTPException(404, "No such sheet in this session.")
+    if not 0 <= req.header_row < min(len(rawdf), 20):
+        raise HTTPException(400, "Header row must be within the first 20 rows.")
+    s["header_rows"][name] = req.header_row
+    s["frames"][name] = prep.reheader(rawdf, req.header_row)
+    s["combined"] = None
+    _log(s, "You", "approval", {"context": "prep_header", "sheet": name,
+                                "header_row": req.header_row})
+    return {"inventory": _inventory(s)}
 
 
 @router.delete("/prep/{sid}/files/{name}")
@@ -157,8 +201,10 @@ def remove_sheet(sid: str, name: str) -> dict:
     if name not in s["frames"]:
         raise HTTPException(404, "No such sheet in this session.")
     del s["frames"][name]
+    s.get("raw", {}).pop(name, None)
+    s.get("header_rows", {}).pop(name, None)
     s["combined"] = None
-    return {"inventory": prep.sheet_inventory(s["frames"])}
+    return {"inventory": _inventory(s)}
 
 
 @router.post("/prep/{sid}/advise")
@@ -259,7 +305,7 @@ def _checks(df: pd.DataFrame) -> dict:
 def state(sid: str) -> dict:
     s = _session(sid)
     out: dict[str, Any] = {"goal": s["goal"],
-                           "inventory": prep.sheet_inventory(s["frames"])}
+                           "inventory": _inventory(s)}
     if s["combined"] is not None:
         out["report"] = s["report"]
         out["preview"] = _preview(s["combined"])

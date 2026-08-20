@@ -28,6 +28,53 @@ def year_guess(label: str) -> int | None:
     return y if 1900 <= y <= 2100 else None
 
 
+def _header_score(row: pd.Series) -> float:
+    """How header-like a raw row is: filled, unique, mostly non-numeric text."""
+    vals = [v for v in row if pd.notna(v) and str(v).strip() != ""]
+    if len(vals) < 2:
+        return 0.0
+    strs = [str(v).strip() for v in vals]
+    uniq = len(set(strs)) / len(strs)
+    nonnum = sum(
+        1 for s in strs
+        if not s.replace(",", "").replace(".", "", 1).lstrip("-").isdigit()
+    ) / len(strs)
+    fill = len(vals) / max(1, len(row))
+    return 0.35 * uniq + 0.3 * nonnum + 0.35 * fill
+
+
+def detect_header_row(raw: pd.DataFrame, scan: int = 8) -> int:
+    """Government exports often open with a title banner (one merged cell,
+    the rest blank) and an empty spacer before the real header. Find the row
+    that actually names the columns; 0 means the file is normal."""
+    n = min(scan, len(raw))
+    if n == 0:
+        return 0
+    scores = [_header_score(raw.iloc[i]) for i in range(n)]
+    best = max(range(n), key=lambda i: scores[i])
+    # Only move off row 0 when row 0 clearly is not a header AND a much
+    # better candidate exists - a normal file must never be re-headered.
+    if best > 0 and scores[best] >= 0.75 and scores[0] < 0.55:
+        return best
+    return 0
+
+
+def reheader(raw: pd.DataFrame, header_row: int) -> pd.DataFrame:
+    """Rebuild the frame with ``header_row`` as the column names, restoring
+    numeric dtypes that header=None parsing turned into objects."""
+    names = [str(v).strip() if pd.notna(v) else f"column_{i + 1}"
+             for i, v in enumerate(raw.iloc[header_row])]
+    df = raw.iloc[header_row + 1:].reset_index(drop=True)
+    df.columns = names
+    df = df.dropna(axis=1, how="all").dropna(how="all")
+    for c in df.columns:
+        if df[c].dtype == object:
+            num = pd.to_numeric(df[c], errors="coerce")
+            if len(df) and num.notna().mean() > 0.9:
+                df[c] = num
+    return df
+
+
 def sheet_inventory(frames: dict[str, pd.DataFrame]) -> list[dict[str, Any]]:
     """What the user (and the guide agent) sees about each sheet - metadata
     only, no row values."""
