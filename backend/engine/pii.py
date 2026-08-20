@@ -38,6 +38,10 @@ _PIN_HINTS = ("pin", "zip", "postal")
 
 def _match_share(values: pd.Series, pattern: re.Pattern) -> float:
     s = values.astype(str).str.strip()
+    # A numeric column with even one blank becomes float64, so phone and ID
+    # numbers stringify as '9876543210.0' and dodge the patterns - strip the
+    # float tail before matching or such columns slip past the screen.
+    s = s.str.replace(r"\.0$", "", regex=True)
     if len(s) == 0:
         return 0.0
     return float(s.str.fullmatch(pattern).mean())

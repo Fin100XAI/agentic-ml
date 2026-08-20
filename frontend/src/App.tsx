@@ -24,6 +24,7 @@ import { BriefingView } from "./components/screens/BriefingView";
 import { QueryBriefView } from "./components/screens/QueryBriefView";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
+import { PrepStudio } from "./components/screens/PrepStudio";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
@@ -100,6 +101,8 @@ export default function Root() {
   // Read-only query brief route (P2.4) - no analyst chrome, prints clean.
   const qbriefMatch = hash.match(/^#\/qbrief\/([A-Za-z0-9]+)/);
   if (qbriefMatch) return <QueryBriefView briefId={qbriefMatch[1]} />;
+  // Data Prep Studio (PREP-STUDIO prototype): standalone, reached only by URL.
+  if (hash.startsWith("#/prep")) return <PrepStudio />;
   return <App />;
 }
 
