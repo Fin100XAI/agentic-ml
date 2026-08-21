@@ -1,390 +1,277 @@
-// Data Prep Studio (PREP-STUDIO prototype): a standalone, intent-first,
-// agent-guided path that turns messy multi-sheet / multi-year uploads into
-// ONE analysis-ready table. Reached only via #/prep - nothing in the main
-// app links here yet. The guide agent sees metadata only (goal, sheet and
-// column names, dtypes) - never row values. Every combine and clean step is
-// proposed, then human-approved.
-import { useRef, useState } from "react";
+// Data Prep Studio (PREP-STUDIO prototype) - the understand-first flow:
+//   Add data -> Understand (deep profile) -> Decide (grounded interview)
+//   -> Blueprint (editable schema contract) -> Certify (build + prove + bundle)
+// Reached only via #/prep; nothing in the main app links here yet.
+// The agent proposes on every decision, the human decides every one of them.
+import { useState } from "react";
 import {
-  ArrowRight,
-  Bot,
-  Check,
-  CheckCircle2,
-  Download,
-  FileUp,
-  Hash,
-  Layers,
-  MapPin,
-  ShieldAlert,
-  Sparkles,
-  Trash2,
-  Wand2,
+  AlertTriangle, ArrowRight, Bot, Check, CheckCircle2, Download, FileUp,
+  Layers, Pencil, ShieldAlert, Sparkles, Table2, Trash2, XCircle,
 } from "lucide-react";
 import { Badge, Button, Card, CardBody, CardHeader, Spinner } from "../ui";
 
-/* ---------- local types (prototype-scoped) ---------- */
+/* ---------- types (prototype-scoped) ---------- */
 
-interface SheetInfo {
-  name: string;
-  rows: number;
-  cols: number;
-  columns: { name: string; dtype: string }[];
-  year_guess: number | null;
-  unnamed_columns: number;
-  header_row?: number;
-  header_tiers?: number;
-  note?: string;
+interface Sheet {
+  name: string; rows: number; cols: number;
+  header_row: number; header_tiers: number; note: string | null; columns: string[];
 }
-interface Agent {
-  message: string;
-  questions?: string[];
-  mode: string;
+interface ColProfile {
+  source_name: string; suggested_name: string; dtype: string;
+  dtype_confidence: number; dtype_evidence: string; role: string;
+  unit: { unit: string } | null; missing_pct: number; distinct: number;
+  quality: { kind: string; detail: string }[];
 }
-interface Proposal {
-  strategy: "stack" | "join" | "single" | "review";
-  sheets: string[];
-  mappings: Record<string, Record<string, string>>;
-  join_key: string | null;
-  join_candidates?: string[];
-  add_source_column: boolean;
-  add_year_column: boolean;
-  notes: string[];
-  pick?: string;
-}
-interface Checks {
-  text_numbers: { column: string; parse_pct: number; n_blank: number }[];
-  place_variants: { column: string; proposals: { canonical: string; variants: string[]; counts: Record<string, number> }[] }[];
-  junk: { empty_rows: number; total_like_rows: number; footer_rows: number };
+interface Profile {
+  n_rows: number; n_cols: number; columns: ColProfile[];
+  grain_candidates: { columns: string[]; unique: boolean }[];
+  wide_blocks: { kind: string; periods: string[]; measures: string[] } | null;
+  duplicate_rows: number; table_unit: { unit: string } | null;
+  banner_text: string | null;
+  role_counts: Record<string, number>;
   pii_columns: { column: string; kind: string }[];
-  readiness: { message?: string; note?: string; kind?: string }[];
+}
+interface Question {
+  id: string; kind: string; question: string; why: string;
+  options: { value: string; label: string; detail: string }[];
+  suggested: string; allow_note: boolean;
+}
+interface BpColumn {
+  source_name: string | null; name: string; label: string; dtype: string;
+  role: string; unit: string | null; nullable: boolean; description: string;
+  action: string; origin: string;
+}
+interface Blueprint {
+  columns: BpColumn[]; grain: string[]; reshape: unknown;
+  row_rules: Record<string, unknown>; unit_conversion: unknown;
+  purpose: string; notes: string;
+}
+interface Certificate {
+  checks: { check: string; passed: boolean; detail: string; severity: string }[];
+  errors: number; warnings: number; verdict: string; n_rows: number; n_cols: number;
 }
 interface Preview {
-  columns: string[];
-  rows: Record<string, unknown>[];
-  n_rows: number;
-  n_cols: number;
+  columns: string[]; rows: Record<string, unknown>[]; n_rows: number; n_cols: number;
 }
 
-const STEPS = ["Goal", "Data", "Combine", "Clean", "Ready"] as const;
+const STEPS = ["Add data", "Understand", "Decide", "Blueprint", "Certify"] as const;
+const DTYPES = ["number", "integer", "text", "category", "boolean", "period"];
+const ROLES = ["identifier", "geography", "period", "dimension", "measure", "flag"];
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`/api/prep${path}`, init);
+  const r = await fetch(`/api/prep2${path}`, init);
   if (!r.ok) {
     let msg = `${r.status}`;
-    try {
-      msg = (await r.json()).detail ?? msg;
-    } catch { /* non-json error body */ }
+    try { msg = (await r.json()).detail ?? msg; } catch { /* non-json body */ }
     throw new Error(String(msg));
   }
   return r.json();
 }
+const json = (body: unknown): RequestInit => ({
+  method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
 
 /* ---------- page ---------- */
 
 export function PrepStudio() {
   const [step, setStep] = useState(0);
   const [sid, setSid] = useState<string | null>(null);
-  const [goal, setGoal] = useState("");
-  const [goalAgent, setGoalAgent] = useState<Agent | null>(null);
-  const [inventory, setInventory] = useState<SheetInfo[]>([]);
-  const [proposal, setProposal] = useState<Proposal | null>(null);
-  const [combineAgent, setCombineAgent] = useState<Agent | null>(null);
+  const [sheets, setSheets] = useState<Sheet[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [narrative, setNarrative] = useState<{ message: string; mode: string } | null>(null);
+  const [combine, setCombine] = useState<Record<string, unknown> | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [bp, setBp] = useState<Blueprint | null>(null);
+  const [cert, setCert] = useState<Certificate | null>(null);
+  const [steps, setSteps] = useState<string[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [checks, setChecks] = useState<Checks | null>(null);
-  const [applied, setApplied] = useState<string[]>([]);
-  const [finished, setFinished] = useState<{ dataset_id: string; filename: string; rows: number } | null>(null);
-  const [datasetName, setDatasetName] = useState("");
+  const [dictionary, setDictionary] = useState("");
+  const [registered, setRegistered] = useState<{ filename: string; rows: number } | null>(null);
+  const [dsName, setDsName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  // Clean-step selections
-  const [numTicks, setNumTicks] = useState<Set<string>>(new Set());
-  const [placeTicks, setPlaceTicks] = useState<Set<string>>(new Set());
-  const [piiTicks, setPiiTicks] = useState<Set<string>>(new Set());
-  const [dropEmpty, setDropEmpty] = useState(true);
-  const [dropTotals, setDropTotals] = useState(true);
-  const [dropFooter, setDropFooter] = useState(true);
 
   const guard = async (label: string, fn: () => Promise<void>) => {
     if (busy) return;
-    setBusy(label);
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
+    setBusy(label); setError(null);
+    try { await fn(); }
+    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(null); }
   };
 
-  const start = () =>
-    guard("goal", async () => {
-      const r = await call<{ id: string; agent: Agent }>(`/session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goal }),
-      });
-      setSid(r.id);
-      setGoalAgent(r.agent);
-      setStep(1);
-    });
+  const ensureSession = async (): Promise<string> => {
+    if (sid) return sid;
+    const r = await call<{ id: string }>(`/session`, { method: "POST" });
+    setSid(r.id);
+    return r.id;
+  };
 
   const upload = (files: FileList | null) =>
     guard("upload", async () => {
-      if (!files || !sid) return;
+      if (!files?.length) return;
+      const id = await ensureSession();
       for (const f of Array.from(files)) {
         const form = new FormData();
         form.append("file", f);
-        const r = await call<{ inventory: SheetInfo[] }>(`/${sid}/files`, { method: "POST", body: form });
-        setInventory(r.inventory);
+        const r = await call<{ sheets: Sheet[] }>(`/${id}/files`, { method: "POST", body: form });
+        setSheets(r.sheets);
       }
-      setProposal(null);
-      if (fileRef.current) fileRef.current.value = "";
+      setProfile(null); setBp(null); setCert(null);
     });
 
-  const setHeaderRow = (name: string, row: number) =>
+  const setHeader = (name: string, row: number) =>
     guard("header", async () => {
-      const r = await call<{ inventory: SheetInfo[] }>(
-        `/${sid}/files/${encodeURIComponent(name)}/header`,
-        { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ header_row: row }) });
-      setInventory(r.inventory);
-      setProposal(null);
+      const r = await call<{ sheets: Sheet[] }>(
+        `/${sid}/files/${encodeURIComponent(name)}/header`, json({ header_row: row }));
+      setSheets(r.sheets); setProfile(null);
     });
 
   const removeSheet = (name: string) =>
     guard("remove", async () => {
-      const r = await call<{ inventory: SheetInfo[] }>(`/${sid}/files/${encodeURIComponent(name)}`, { method: "DELETE" });
-      setInventory(r.inventory);
-      setProposal(null);
+      const r = await call<{ sheets: Sheet[] }>(
+        `/${sid}/files/${encodeURIComponent(name)}`, { method: "DELETE" });
+      setSheets(r.sheets); setProfile(null);
     });
 
-  const advise = () =>
-    guard("advise", async () => {
-      const r = await call<{ proposal: Proposal; agent: Agent }>(`/${sid}/advise`, { method: "POST" });
-      setProposal(r.proposal);
-      setCombineAgent(r.agent);
+  const doProfile = () =>
+    guard("profile", async () => {
+      const r = await call<{ profile: Profile; narrative: { message: string; mode: string };
+                             combine: Record<string, unknown>; preview: Preview }>(
+        `/${sid}/profile`, { method: "POST" });
+      setProfile(r.profile); setNarrative(r.narrative); setCombine(r.combine);
+      setPreview(r.preview); setStep(1);
+    });
+
+  const doInterview = () =>
+    guard("interview", async () => {
+      const r = await call<{ questions: Question[] }>(`/${sid}/interview`, { method: "POST" });
+      setQuestions(r.questions);
+      setAnswers(Object.fromEntries(r.questions.map((q) => [q.id, q.suggested])));
       setStep(2);
     });
 
-  const seedCleanSelections = (c: Checks) => {
-    setNumTicks(new Set(c.text_numbers.map((t) => t.column)));
-    setPlaceTicks(new Set(c.place_variants.flatMap((pv) => pv.proposals.map((p) => `${pv.column}|${p.canonical}`))));
-    setPiiTicks(new Set(c.pii_columns.map((p) => p.column)));
-    setDropEmpty(c.junk.empty_rows > 0);
-    setDropTotals(c.junk.total_like_rows > 0);
-    setDropFooter(c.junk.footer_rows > 0);
-  };
-
-  const combine = () =>
-    guard("combine", async () => {
-      if (!proposal) return;
-      const r = await call<{ report: unknown; preview: Preview; checks: Checks }>(`/${sid}/combine`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec: proposal }),
-      });
-      setPreview(r.preview);
-      setChecks(r.checks);
-      seedCleanSelections(r.checks);
-      setApplied([]);
-      setStep(3);
+  const doBlueprint = () =>
+    guard("blueprint", async () => {
+      const r = await call<{ blueprint: Blueprint }>(
+        `/${sid}/blueprint`, json({ answers: { ...answers, _notes: note } }));
+      setBp(r.blueprint); setStep(3);
     });
 
-  const applyClean = () =>
-    guard("clean", async () => {
-      if (!checks) return;
-      const place_maps: Record<string, Record<string, string>> = {};
-      for (const pv of checks.place_variants) {
-        for (const p of pv.proposals) {
-          if (!placeTicks.has(`${pv.column}|${p.canonical}`)) continue;
-          place_maps[pv.column] = place_maps[pv.column] ?? {};
-          for (const v of p.variants) place_maps[pv.column][v] = p.canonical;
-        }
-      }
-      const r = await call<{ applied: string[]; preview: Preview; checks: Checks }>(`/${sid}/clean`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fix_number_columns: [...numTicks],
-          place_maps,
-          drop_columns: [...piiTicks],
-          drop_empty_rows: dropEmpty,
-          drop_total_rows: dropTotals,
-          drop_footer_rows: dropFooter,
-        }),
-      });
-      setApplied((a) => [...a, ...r.applied]);
-      setPreview(r.preview);
-      setChecks(r.checks);
-      seedCleanSelections(r.checks);
+  const doBuild = () =>
+    guard("build", async () => {
+      if (!bp) return;
+      const r = await call<{ steps: string[]; certificate: Certificate;
+                             preview: Preview; dictionary: string }>(
+        `/${sid}/build`, json({ blueprint: bp }));
+      setSteps(r.steps); setCert(r.certificate); setPreview(r.preview);
+      setDictionary(r.dictionary); setStep(4);
     });
 
-  const finish = () =>
-    guard("finish", async () => {
-      const r = await call<{ dataset_id: string; filename: string; rows: number }>(`/${sid}/finish`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: datasetName || "prepared-data" }),
-      });
-      setFinished(r);
+  const doRegister = () =>
+    guard("register", async () => {
+      const r = await call<{ filename: string; rows: number }>(
+        `/${sid}/register`, json({ name: dsName || "prepared-data" }));
+      setRegistered(r);
     });
 
-  const nOpenChecks = checks
-    ? checks.text_numbers.length + checks.place_variants.length + checks.pii_columns.length +
-      (checks.junk.empty_rows > 0 ? 1 : 0) + (checks.junk.total_like_rows > 0 ? 1 : 0)
-    : 0;
+  const editCol = (i: number, patch: Partial<BpColumn>) =>
+    setBp((b) => b && { ...b, columns: b.columns.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
 
   return (
     <div className="font-jakarta min-h-screen bg-surface px-4 py-8 sm:px-8">
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6">
         {/* Header + stepper */}
         <div className="text-center">
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
             Data Prep Studio · prototype
           </p>
-          <h1 className="mx-auto mt-2 max-w-xl text-balance text-2xl font-extrabold tracking-tight md:text-3xl">
+          <h1 className="mx-auto mt-2 max-w-2xl text-balance text-2xl font-extrabold tracking-tight md:text-3xl">
             Any data in,{" "}
             <span className="bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] bg-clip-text text-transparent">
-              one analysis-ready table out.
+              a table with a contract out.
             </span>
           </h1>
-          <div className="mt-5 flex items-center justify-center gap-1">
+          <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-ink-dim">
+            The agents read the data first, then ask you only what they could not work out.
+            You decide every step; the studio proves the result matches what you agreed.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-1">
             {STEPS.map((s, i) => (
               <div key={s} className="flex items-center gap-1">
-                {i > 0 && <div className="h-px w-6 bg-edge" />}
-                <span
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${
-                    i === step
-                      ? "bg-accent/10 font-semibold text-accent ring-1 ring-inset ring-accent/30"
-                      : i < step
-                        ? "text-good"
-                        : "text-ink-dim"
-                  }`}
+                {i > 0 && <div className="h-px w-5 bg-edge" />}
+                <button
+                  onClick={() => i < step && setStep(i)}
+                  disabled={i >= step}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
+                    i === step ? "bg-accent/10 font-semibold text-accent ring-1 ring-inset ring-accent/30"
+                      : i < step ? "text-good hover:text-accent" : "text-ink-dim"}`}
                 >
-                  {i < step ? <Check className="h-3 w-3" /> : null}
-                  {s}
-                </span>
+                  {i < step ? <Check className="h-3 w-3" /> : null}{s}
+                </button>
               </div>
             ))}
           </div>
         </div>
 
         {error && (
-          <Card className="border-bad/40">
-            <CardBody className="py-3">
-              <p className="text-xs text-bad">{error}</p>
-            </CardBody>
-          </Card>
+          <Card className="border-bad/40"><CardBody className="py-3">
+            <p className="text-xs text-bad">{error}</p>
+          </CardBody></Card>
         )}
 
-        {/* STEP 0: the goal - intent before data */}
+        {/* ---------- STEP 0: add data ---------- */}
         {step === 0 && (
           <Card>
             <CardHeader
-              title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-accent" /> What should this data become?</span>}
-              subtitle="The guide agent reads your goal BEFORE seeing any data - the whole preparation is steered by it."
-            />
-            <CardBody className="space-y-3">
-              <textarea
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                rows={3}
-                placeholder="e.g. Compare scheme enrollment across the last three years by district - the sheets are one file per year. In the end I want to train a model that flags districts likely to fall behind."
-                className="w-full rounded-xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-accent"
-              />
-              <div className="flex justify-end">
-                <Button onClick={start} disabled={!goal.trim() || busy !== null}>
-                  {busy === "goal" ? <Spinner /> : null} Start preparing <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* Agent guidance banner (persists from step 1 on) */}
-        {goalAgent && step >= 1 && step <= 2 && (
-          <Card className="border-accent/25">
-            <CardBody className="flex items-start gap-3 py-4">
-              <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-              <div className="min-w-0 space-y-2">
-                <p className="text-xs leading-relaxed">{goalAgent.message}</p>
-                {(goalAgent.questions ?? []).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {goalAgent.questions!.map((q) => (
-                      <span key={q} className="rounded-full bg-accent/10 px-2.5 py-1 text-[10px] text-accent ring-1 ring-inset ring-accent/25">
-                        {q}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <Badge tone={goalAgent.mode === "llm" ? "accent" : "neutral"}>
-                  {goalAgent.mode === "llm" ? "AI guide" : "heuristic guide"}
-                </Badge>
-              </div>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* STEP 1: add the data */}
-        {step === 1 && (
-          <Card>
-            <CardHeader
-              title={<span className="flex items-center gap-2"><FileUp className="h-4 w-4 text-accent" /> Add the data</span>}
-              subtitle="Several files, multi-sheet workbooks, different years - everything lands in one inventory."
+              title={<span className="flex items-center gap-2"><FileUp className="h-4 w-4 text-accent" /> Add your data</span>}
+              subtitle="Any number of files, multi-sheet workbooks, different years. No questions yet - the agents look first."
             />
             <CardBody className="space-y-3">
               <input
-                ref={fileRef}
-                type="file"
-                multiple
-                accept=".csv,.xlsx,.xls,.xlsm"
+                type="file" multiple accept=".csv,.xlsx,.xls,.xlsm"
                 onChange={(e) => upload(e.target.files)}
                 className="block w-full cursor-pointer rounded-xl border-2 border-dashed border-edge bg-panel-2/50 px-4 py-6 text-xs text-ink-dim file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-accent/10 file:px-4 file:py-1.5 file:text-xs file:font-semibold file:text-accent"
               />
               {busy === "upload" && <Spinner label="Reading the sheets..." />}
-              {inventory.length > 0 && (
+              {sheets.length > 0 && (
                 <div className="overflow-x-auto rounded-xl border border-edge">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-edge bg-panel-2 text-[10px] uppercase tracking-wider text-ink-dim">
-                        <th className="px-3 py-2">Sheet</th>
-                        <th className="px-3 py-2">Rows</th>
-                        <th className="px-3 py-2">Columns</th>
-                        <th className="px-3 py-2">Year</th>
-                        <th className="px-3 py-2" />
+                        <th className="px-3 py-2">Sheet</th><th className="px-3 py-2">Rows</th>
+                        <th className="px-3 py-2">Cols</th><th className="px-3 py-2">Header</th><th />
                       </tr>
                     </thead>
                     <tbody>
-                      {inventory.map((s) => (
+                      {sheets.map((s) => (
                         <tr key={s.name} className="border-b border-edge/50">
-                          <td className="max-w-64 px-3 py-2" title={s.columns.map((c) => c.name).join(", ")}>
+                          <td className="max-w-72 px-3 py-2" title={s.columns.join(", ")}>
                             <span className="block truncate font-medium">{s.name}</span>
-                            <span className="mt-0.5 flex items-center gap-1.5">
-                              {s.note && (
-                                <span className="rounded-full bg-warn/10 px-2 py-0.5 text-[9px] text-warn ring-1 ring-inset ring-warn/25" title={s.note}>
-                                  banner skipped
-                                </span>
-                              )}
-                              <select
-                                value={s.header_row ?? 0}
-                                onChange={(e) => setHeaderRow(s.name, Number(e.target.value))}
-                                title="Which row holds the column names - change it if the detection guessed wrong"
-                                className="rounded border border-edge bg-panel-2 px-1 py-0.5 text-[9px] text-ink-dim outline-none focus:border-accent"
-                              >
-                                {[0, 1, 2, 3, 4, 5].map((r) => (
-                                  <option key={r} value={r}>header: row {r + 1}</option>
-                                ))}
-                              </select>
-                            </span>
+                            {s.note && (
+                              <span className="mt-0.5 inline-block rounded-full bg-warn/10 px-2 py-0.5 text-[9px] text-warn ring-1 ring-inset ring-warn/25">
+                                {s.note}
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-2 tabular-nums">{s.rows.toLocaleString()}</td>
                           <td className="px-3 py-2 tabular-nums">{s.cols}</td>
-                          <td className="px-3 py-2">{s.year_guess ? <Badge tone="accent">{s.year_guess}</Badge> : <span className="text-ink-dim">-</span>}</td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={s.header_row}
+                              onChange={(e) => setHeader(s.name, Number(e.target.value))}
+                              title="Which row holds the column names"
+                              className="rounded border border-edge bg-panel-2 px-1 py-0.5 text-[10px] outline-none focus:border-accent"
+                            >
+                              {[0, 1, 2, 3, 4, 5, 6].map((r) => (
+                                <option key={r} value={r}>row {r + 1}</option>
+                              ))}
+                            </select>
+                          </td>
                           <td className="px-3 py-2 text-right">
-                            <button onClick={() => removeSheet(s.name)} title="Remove" className="text-ink-dim hover:text-bad">
+                            <button onClick={() => removeSheet(s.name)} className="text-ink-dim hover:text-bad">
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </td>
@@ -395,255 +282,374 @@ export function PrepStudio() {
                 </div>
               )}
               <div className="flex justify-end">
-                <Button onClick={advise} disabled={inventory.length === 0 || busy !== null}>
-                  {busy === "advise" ? <Spinner /> : <Wand2 className="h-4 w-4" />}
-                  Ask the guide how to combine
+                <Button onClick={doProfile} disabled={!sheets.length || busy !== null}>
+                  {busy === "profile" ? <Spinner /> : <Sparkles className="h-4 w-4" />}
+                  Understand this data
                 </Button>
               </div>
             </CardBody>
           </Card>
         )}
 
-        {/* STEP 2: the combine proposal */}
-        {step === 2 && proposal && (
-          <Card>
-            <CardHeader
-              title={<span className="flex items-center gap-2"><Layers className="h-4 w-4 text-accent" /> The guide proposes</span>}
-              subtitle="You approve; deterministic code executes. Nothing is combined until you say so."
-            />
-            <CardBody className="space-y-3">
-              {combineAgent && (
-                <div className="flex items-start gap-2 rounded-xl border border-accent/25 bg-accent/5 px-4 py-3">
-                  <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                  <p className="text-xs leading-relaxed">{combineAgent.message}</p>
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-ink-dim">Strategy</span>
-                <select
-                  value={proposal.strategy}
-                  onChange={(e) => setProposal({ ...proposal, strategy: e.target.value as Proposal["strategy"] })}
-                  className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
-                >
-                  <option value="stack">Stack the sheets (rows on rows)</option>
-                  <option value="join">Join on a key (facts side by side)</option>
-                  <option value="single">Use one sheet only</option>
-                </select>
-                {proposal.strategy === "join" && (
-                  <select
-                    value={proposal.join_key ?? ""}
-                    onChange={(e) => setProposal({ ...proposal, join_key: e.target.value })}
-                    className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
-                  >
-                    {(proposal.join_candidates ?? (proposal.join_key ? [proposal.join_key] : [])).map((k) => (
-                      <option key={k} value={k}>key: {k}</option>
-                    ))}
-                  </select>
-                )}
-                {(proposal.strategy === "single" || proposal.strategy === "review") && (
-                  <select
-                    value={proposal.pick ?? proposal.sheets[0]}
-                    onChange={(e) => setProposal({ ...proposal, pick: e.target.value, strategy: "single" })}
-                    className="max-w-64 rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
-                  >
-                    {proposal.sheets.map((sh) => (
-                      <option key={sh} value={sh}>{sh}</option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {proposal.notes.map((n) => (
-                <p key={n} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-dim">
-                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-good" /> {n}
-                </p>
-              ))}
-              <div className="flex justify-between gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setStep(1)}>Back to data</Button>
-                <Button onClick={combine} disabled={busy !== null || proposal.strategy === "review"}>
-                  {busy === "combine" ? <Spinner /> : null} Approve & combine
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* STEP 3: clean */}
-        {step === 3 && checks && preview && (
+        {/* ---------- STEP 1: understand ---------- */}
+        {step === 1 && profile && (
           <>
+            {narrative && (
+              <Card className="border-accent/25"><CardBody className="flex items-start gap-3 py-4">
+                <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <div className="min-w-0 space-y-2">
+                  <p className="text-xs leading-relaxed">{narrative.message}</p>
+                  <Badge tone={narrative.mode === "llm" ? "accent" : "neutral"}>
+                    {narrative.mode === "llm" ? "AI reading" : "rule-based reading"}
+                  </Badge>
+                </div>
+              </CardBody></Card>
+            )}
             <Card>
               <CardHeader
-                title={<span className="flex items-center gap-2"><Wand2 className="h-4 w-4 text-accent" /> The checkup</span>}
-                subtitle={`One table now: ${preview.n_rows.toLocaleString()} rows × ${preview.n_cols} columns. Tick what to fix - each fix is applied only when you approve.`}
+                title={<span className="flex items-center gap-2"><Table2 className="h-4 w-4 text-accent" /> What the agents found</span>}
+                subtitle={`${profile.n_rows.toLocaleString()} rows x ${profile.n_cols} columns${
+                  combine ? ` - ${String((combine as { strategy?: string }).strategy ?? "")} across ${
+                    ((combine as { sheets?: string[] }).sheets ?? []).length} sheet(s)` : ""}`}
               />
               <CardBody className="space-y-3">
-                {checks.pii_columns.length > 0 && (
-                  <div className="rounded-xl border border-bad/40 bg-bad/5 px-4 py-3">
-                    <p className="flex items-center gap-1.5 text-xs font-semibold text-bad">
-                      <ShieldAlert className="h-3.5 w-3.5" /> Personal data found - must be dropped before this can register
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {checks.pii_columns.map((p) => (
-                        <label key={p.column} className="flex items-center gap-1.5 rounded-full border border-bad/30 px-2.5 py-1 text-[11px]">
-                          <input type="checkbox" checked={piiTicks.has(p.column)} onChange={() => setPiiTicks((s) => { const n = new Set(s); n.has(p.column) ? n.delete(p.column) : n.add(p.column); return n; })} className="accent-accent" />
-                          drop {p.column} <span className="text-ink-dim">({p.kind})</span>
-                        </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(profile.role_counts).filter(([, n]) => n > 0).map(([r, n]) => (
+                    <span key={r} className="rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-medium text-accent ring-1 ring-inset ring-accent/25">
+                      {n} {r}{n > 1 ? "s" : ""}
+                    </span>
+                  ))}
+                  {profile.table_unit && (
+                    <span className="rounded-full bg-rs-violet/10 px-2.5 py-1 text-[10px] font-medium text-rs-violet ring-1 ring-inset ring-rs-violet/25">
+                      values in {profile.table_unit.unit}
+                    </span>
+                  )}
+                  {profile.wide_blocks && (
+                    <span className="rounded-full bg-warn/10 px-2.5 py-1 text-[10px] font-medium text-warn ring-1 ring-inset ring-warn/25">
+                      {profile.wide_blocks.periods.length} periods across the columns
+                    </span>
+                  )}
+                  {profile.duplicate_rows > 0 && (
+                    <span className="rounded-full bg-warn/10 px-2.5 py-1 text-[10px] font-medium text-warn ring-1 ring-inset ring-warn/25">
+                      {profile.duplicate_rows} duplicate row(s)
+                    </span>
+                  )}
+                  {profile.pii_columns.length > 0 && (
+                    <span className="rounded-full bg-bad/10 px-2.5 py-1 text-[10px] font-medium text-bad ring-1 ring-inset ring-bad/25">
+                      <ShieldAlert className="mr-1 inline h-3 w-3" />
+                      personal data in {profile.pii_columns.length} column(s)
+                    </span>
+                  )}
+                </div>
+                <div className="max-h-96 overflow-auto rounded-xl border border-edge">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="sticky top-0">
+                      <tr className="border-b border-edge bg-panel-2 text-[10px] uppercase tracking-wider text-ink-dim">
+                        <th className="px-3 py-2">Column</th><th className="px-3 py-2">Reads as</th>
+                        <th className="px-3 py-2">Role</th><th className="px-3 py-2">Blank</th>
+                        <th className="px-3 py-2">Distinct</th><th className="px-3 py-2">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profile.columns.map((c) => (
+                        <tr key={c.source_name} className="border-b border-edge/50 align-top">
+                          <td className="max-w-56 px-3 py-1.5">
+                            <span className="block truncate font-medium" title={c.source_name}>{c.source_name}</span>
+                          </td>
+                          <td className="px-3 py-1.5" title={c.dtype_evidence}>
+                            {c.dtype}
+                            {c.dtype_confidence < 0.85 && (
+                              <span className="ml-1 text-warn" title="the studio will ask about this one">?</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-ink-dim">{c.role}</td>
+                          <td className={`px-3 py-1.5 tabular-nums ${c.missing_pct >= 50 ? "text-warn" : "text-ink-dim"}`}>
+                            {c.missing_pct}%
+                          </td>
+                          <td className="px-3 py-1.5 tabular-nums text-ink-dim">{c.distinct.toLocaleString()}</td>
+                          <td className="px-3 py-1.5">
+                            <span className="flex flex-wrap gap-1">
+                              {c.quality.map((q) => (
+                                <span key={q.kind} title={q.detail}
+                                  className="rounded bg-warn/10 px-1.5 py-0.5 text-[9px] text-warn">
+                                  {q.kind.replace(/_/g, " ")}
+                                </span>
+                              ))}
+                            </span>
+                          </td>
+                        </tr>
                       ))}
-                    </div>
-                  </div>
-                )}
-                {checks.text_numbers.length > 0 && (
-                  <div className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-3">
-                    <p className="flex items-center gap-1.5 text-xs font-semibold"><Hash className="h-3.5 w-3.5 text-warn" /> Numbers stored as text</p>
-                    <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                      {checks.text_numbers.map((t) => (
-                        <label key={t.column} className="flex items-center gap-1.5 text-[11px]">
-                          <input type="checkbox" checked={numTicks.has(t.column)} onChange={() => setNumTicks((s) => { const n = new Set(s); n.has(t.column) ? n.delete(t.column) : n.add(t.column); return n; })} className="accent-accent" />
-                          <span className="font-medium">{t.column}</span>
-                          <span className="text-ink-dim">{t.parse_pct}% numeric</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {checks.place_variants.length > 0 && (
-                  <div className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-3">
-                    <p className="flex items-center gap-1.5 text-xs font-semibold"><MapPin className="h-3.5 w-3.5 text-warn" /> Same place, different spellings</p>
-                    <div className="mt-2 space-y-1.5">
-                      {checks.place_variants.flatMap((pv) =>
-                        pv.proposals.map((p) => {
-                          const key = `${pv.column}|${p.canonical}`;
-                          return (
-                            <label key={key} className="flex items-center gap-1.5 text-[11px]">
-                              <input type="checkbox" checked={placeTicks.has(key)} onChange={() => setPlaceTicks((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; })} className="accent-accent" />
-                              <span className="text-ink-dim">{pv.column}:</span> {p.variants.join(", ")} <ArrowRight className="h-3 w-3 text-ink-dim" /> <span className="font-medium">{p.canonical}</span>
-                            </label>
-                          );
-                        }),
-                      )}
-                    </div>
-                  </div>
-                )}
-                {(checks.junk.empty_rows > 0 || checks.junk.total_like_rows > 0 || checks.junk.footer_rows > 0) && (
-                  <div className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-3">
-                    <p className="text-xs font-semibold">Junk rows</p>
-                    <div className="mt-2 flex flex-wrap gap-4 text-[11px]">
-                      {checks.junk.empty_rows > 0 && (
-                        <label className="flex items-center gap-1.5">
-                          <input type="checkbox" checked={dropEmpty} onChange={() => setDropEmpty(!dropEmpty)} className="accent-accent" />
-                          drop {checks.junk.empty_rows} fully-empty row(s)
-                        </label>
-                      )}
-                      {checks.junk.total_like_rows > 0 && (
-                        <label className="flex items-center gap-1.5">
-                          <input type="checkbox" checked={dropTotals} onChange={() => setDropTotals(!dropTotals)} className="accent-accent" />
-                          drop {checks.junk.total_like_rows} total/summary row(s) - they double every sum
-                        </label>
-                      )}
-                      {checks.junk.footer_rows > 0 && (
-                        <label className="flex items-center gap-1.5">
-                          <input type="checkbox" checked={dropFooter} onChange={() => setDropFooter(!dropFooter)} className="accent-accent" />
-                          drop {checks.junk.footer_rows} footer note row(s) at the bottom
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {nOpenChecks === 0 && (
-                  <p className="flex items-center gap-1.5 text-xs text-good">
-                    <CheckCircle2 className="h-4 w-4" /> Nothing left to fix - the table looks clean.
-                  </p>
-                )}
-                {applied.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {applied.map((a, i) => (
-                      <span key={i} className="rounded-full bg-good/10 px-2.5 py-1 text-[10px] text-good ring-1 ring-inset ring-good/25">✓ {a}</span>
-                    ))}
-                  </div>
-                )}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="flex justify-between gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setStep(2)}>Back</Button>
-                  <div className="flex gap-2">
-                    {nOpenChecks > 0 && (
-                      <Button variant="outline" onClick={applyClean} disabled={busy !== null}>
-                        {busy === "clean" ? <Spinner /> : null} Apply selected fixes
-                      </Button>
-                    )}
-                    <Button onClick={() => setStep(4)} disabled={busy !== null}>
-                      Looks good <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setStep(0)}>Back to files</Button>
+                  <Button onClick={doInterview} disabled={busy !== null}>
+                    {busy === "interview" ? <Spinner /> : null} Now ask me the questions
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardBody>
             </Card>
           </>
         )}
 
-        {/* STEP 4: ready */}
-        {step === 4 && preview && (
+        {/* ---------- STEP 2: decide ---------- */}
+        {step === 2 && (
           <Card>
             <CardHeader
-              title={<span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-good" /> Ready: {preview.n_rows.toLocaleString()} rows × {preview.n_cols} columns</span>}
-              subtitle="Preview the table, export it, or register it on the platform for analytics and model training."
+              title={<span className="flex items-center gap-2"><Bot className="h-4 w-4 text-accent" /> {questions.length} decisions</span>}
+              subtitle="Only what the profile could not settle. Each option is computed from your data; the suggested one is marked."
+            />
+            <CardBody className="space-y-4">
+              {questions.map((q) => (
+                <div key={q.id} className="rounded-xl border border-edge bg-panel-2/40 p-4">
+                  <p className="text-sm font-semibold">{q.question}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-dim">{q.why}</p>
+                  <div className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {q.options.map((o) => {
+                      const active = answers[q.id] === o.value;
+                      return (
+                        <button
+                          key={o.value || "none"}
+                          onClick={() => setAnswers((a) => ({ ...a, [q.id]: o.value }))}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                            active ? "border-accent bg-accent/10" : "border-edge bg-panel hover:border-accent/40"}`}
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-medium">
+                            {active && <Check className="h-3 w-3 text-accent" />}
+                            {o.label}
+                            {o.value === q.suggested && (
+                              <span className="rounded-full bg-rs-teal/10 px-1.5 py-0.5 text-[9px] text-rs-teal ring-1 ring-inset ring-rs-teal/25">
+                                suggested
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] leading-relaxed text-ink-dim">{o.detail}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div>
+                <label className="text-[11px] font-medium text-ink-dim">
+                  Anything else the agents should know? (optional)
+                </label>
+                <textarea
+                  value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+                  placeholder="e.g. 'CBIC is not a state - keep it but exclude from state comparisons'"
+                  className="mt-1 w-full rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent"
+                />
+              </div>
+              <div className="flex justify-between gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setStep(1)}>Back</Button>
+                <Button onClick={doBlueprint} disabled={busy !== null}>
+                  {busy === "blueprint" ? <Spinner /> : null} Draft the blueprint <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* ---------- STEP 3: blueprint ---------- */}
+        {step === 3 && bp && (
+          <Card>
+            <CardHeader
+              title={<span className="flex items-center gap-2"><Pencil className="h-4 w-4 text-accent" /> The blueprint</span>}
+              subtitle="The contract for the finished table. Every field is editable - rename columns, change a type or role, drop what you do not need."
+              right={<Badge tone="accent">{bp.columns.filter((c) => c.action !== "drop").length} columns</Badge>}
             />
             <CardBody className="space-y-3">
-              <div className="max-h-72 overflow-auto rounded-xl border border-edge">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-ink-dim">
+                <Layers className="h-3.5 w-3.5" />
+                <span>One row per:</span>
+                <span className="rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent">
+                  {bp.grain.length ? bp.grain.join(" + ") : "not declared"}
+                </span>
+                {!!bp.reshape && (
+                  <span className="rounded-full bg-rs-teal/10 px-2 py-0.5 text-rs-teal">periods become rows</span>
+                )}
+                {!!bp.unit_conversion && (
+                  <span className="rounded-full bg-rs-violet/10 px-2 py-0.5 text-rs-violet">units converted</span>
+                )}
+              </div>
+              <div className="max-h-[28rem] overflow-auto rounded-xl border border-edge">
                 <table className="w-full text-left text-[11px]">
                   <thead className="sticky top-0">
                     <tr className="border-b border-edge bg-panel-2 text-[10px] uppercase tracking-wider text-ink-dim">
-                      {preview.columns.map((c) => (
-                        <th key={c} className="whitespace-nowrap px-3 py-2">{c}</th>
-                      ))}
+                      <th className="px-2 py-2">Source</th><th className="px-2 py-2">Final name</th>
+                      <th className="px-2 py-2">Type</th><th className="px-2 py-2">Role</th>
+                      <th className="px-2 py-2">Unit</th><th className="px-2 py-2">Description</th>
+                      <th className="px-2 py-2">Keep</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.rows.slice(0, 15).map((r, i) => (
-                      <tr key={i} className="border-b border-edge/50">
-                        {preview.columns.map((c) => (
-                          <td key={c} className="whitespace-nowrap px-3 py-1.5 tabular-nums">
-                            {r[c] == null ? <span className="text-ink-dim">-</span> : String(r[c])}
-                          </td>
-                        ))}
+                    {bp.columns.map((c, i) => (
+                      <tr key={`${c.name}-${i}`} className={`border-b border-edge/50 ${c.action === "drop" ? "opacity-45" : ""}`}>
+                        <td className="max-w-40 px-2 py-1.5">
+                          <span className="block truncate text-ink-dim" title={c.label}>{c.label}</span>
+                          {c.origin !== "source column" && (
+                            <span className="text-[9px] text-rs-teal">{c.origin}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input value={c.name} onChange={(e) => editCol(i, { name: e.target.value })}
+                            className="w-32 rounded border border-edge bg-panel-2 px-1.5 py-0.5 font-mono text-[10px] outline-none focus:border-accent" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select value={c.dtype} onChange={(e) => editCol(i, { dtype: e.target.value })}
+                            className="rounded border border-edge bg-panel-2 px-1 py-0.5 text-[10px] outline-none focus:border-accent">
+                            {DTYPES.map((d) => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select value={c.role} onChange={(e) => editCol(i, { role: e.target.value })}
+                            className="rounded border border-edge bg-panel-2 px-1 py-0.5 text-[10px] outline-none focus:border-accent">
+                            {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input value={c.unit ?? ""} placeholder="-"
+                            onChange={(e) => editCol(i, { unit: e.target.value || null })}
+                            className="w-16 rounded border border-edge bg-panel-2 px-1.5 py-0.5 text-[10px] outline-none focus:border-accent" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input value={c.description}
+                            onChange={(e) => editCol(i, { description: e.target.value })}
+                            className="w-full min-w-40 rounded border border-edge bg-panel-2 px-1.5 py-0.5 text-[10px] outline-none focus:border-accent" />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <input type="checkbox" checked={c.action !== "drop"}
+                            onChange={(e) => editCol(i, { action: e.target.checked ? "keep" : "drop" })}
+                            className="accent-accent" />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {finished ? (
-                <div className="rounded-xl border border-good/40 bg-good/5 px-4 py-3">
-                  <p className="text-sm font-semibold text-good">Registered on the platform ✓</p>
-                  <p className="mt-1 text-xs text-ink-dim">
-                    '{finished.filename}' ({finished.rows.toLocaleString()} rows) is now a normal dataset -
-                    open the main app to explore it or train on it.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setStep(3)}>Back to cleaning</Button>
-                    <a href={`/api/prep/${sid}/export`} download>
-                      <Button variant="outline"><Download className="h-4 w-4" /> Export CSV</Button>
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={datasetName}
-                      onChange={(e) => setDatasetName(e.target.value)}
-                      placeholder="Dataset name"
-                      className="rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent"
-                    />
-                    <Button onClick={finish} disabled={busy !== null}>
-                      {busy === "finish" ? <Spinner /> : null} Register on the platform
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <div className="flex justify-between gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setStep(2)}>Back to decisions</Button>
+                <Button onClick={doBuild} disabled={busy !== null}>
+                  {busy === "build" ? <Spinner /> : null} Build and check it <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
             </CardBody>
           </Card>
         )}
 
+        {/* ---------- STEP 4: certify ---------- */}
+        {step === 4 && cert && preview && (
+          <>
+            <Card className={cert.verdict === "ready" ? "border-good/40" : "border-bad/40"}>
+              <CardHeader
+                title={
+                  <span className="flex items-center gap-2">
+                    {cert.verdict === "ready"
+                      ? <CheckCircle2 className="h-4 w-4 text-good" />
+                      : <XCircle className="h-4 w-4 text-bad" />}
+                    {cert.verdict === "ready" ? "Ready" : "Not ready"} - {cert.n_rows.toLocaleString()} rows x {cert.n_cols} columns
+                  </span>
+                }
+                subtitle="Every check the studio ran against the blueprint you approved."
+              />
+              <CardBody className="space-y-3">
+                <div className="space-y-1">
+                  {cert.checks.map((c) => (
+                    <p key={c.check} className="flex items-start gap-2 text-[11px]">
+                      {c.passed ? <Check className="mt-0.5 h-3 w-3 shrink-0 text-good" />
+                        : c.severity === "warning" ? <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-warn" />
+                        : <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-bad" />}
+                      <span className={c.passed ? "" : c.severity === "warning" ? "text-warn" : "text-bad"}>
+                        <span className="font-medium">{c.check}</span>
+                        <span className="text-ink-dim"> - {c.detail}</span>
+                      </span>
+                    </p>
+                  ))}
+                </div>
+                {steps.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 border-t border-edge pt-3">
+                    {steps.map((s, i) => (
+                      <span key={i} className="rounded-full bg-good/10 px-2.5 py-1 text-[10px] text-good ring-1 ring-inset ring-good/25">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader title="The prepared table" subtitle="First rows of the certified result." />
+              <CardBody className="space-y-3">
+                <div className="max-h-64 overflow-auto rounded-xl border border-edge">
+                  <table className="w-full text-left text-[11px]">
+                    <thead className="sticky top-0">
+                      <tr className="border-b border-edge bg-panel-2 text-[10px] uppercase tracking-wider text-ink-dim">
+                        {preview.columns.map((c) => <th key={c} className="whitespace-nowrap px-3 py-2">{c}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.rows.slice(0, 12).map((r, i) => (
+                        <tr key={i} className="border-b border-edge/50">
+                          {preview.columns.map((c) => (
+                            <td key={c} className="whitespace-nowrap px-3 py-1.5 tabular-nums">
+                              {r[c] == null ? <span className="text-ink-dim">-</span> : String(r[c])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {registered ? (
+                  <div className="rounded-xl border border-good/40 bg-good/5 px-4 py-3">
+                    <p className="text-sm font-semibold text-good">Registered on the platform</p>
+                    <p className="mt-1 text-xs text-ink-dim">
+                      '{registered.filename}' ({registered.rows.toLocaleString()} rows) is now a normal
+                      dataset - open the main app to explore it or train on it.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setStep(3)}>Edit blueprint</Button>
+                      {(["csv", "dictionary", "schema", "recipe"] as const).map((k) => (
+                        <a key={k} href={`/api/prep2/${sid}/export/${k}`} download>
+                          <Button variant="outline" size="sm"><Download className="h-3.5 w-3.5" /> {k}</Button>
+                        </a>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input value={dsName} onChange={(e) => setDsName(e.target.value)}
+                        placeholder="Dataset name"
+                        className="rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent" />
+                      <Button onClick={doRegister} disabled={busy !== null || cert.errors > 0}>
+                        {busy === "register" ? <Spinner /> : null} Register on the platform
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+
+            {dictionary && (
+              <Card>
+                <CardHeader title="Data dictionary" subtitle="What travels with the table when a department shares it." />
+                <CardBody>
+                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-edge bg-panel-2/50 p-3 text-[10px] leading-relaxed text-ink-dim">
+                    {dictionary}
+                  </pre>
+                </CardBody>
+              </Card>
+            )}
+          </>
+        )}
+
         <p className="text-center text-[10px] text-ink-dim">
-          Prototype - sessions live in memory and reset with the server. The guide agent sees
-          sheet and column names only, never your data values.
+          Prototype - sessions live in memory and reset with the server. The agents read column
+          names, types and counts only, never your data values.
         </p>
       </div>
     </div>
