@@ -262,7 +262,7 @@ export interface QueryPlanResponse {
 }
 
 export interface ChartSpec {
-  kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "scatter" | "sbar" | "multiples" | "table";
+  kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "scatter" | "sbar" | "mlines" | "multiples" | "table";
   x: string | null;
   y: string[];
   threshold: number | null;

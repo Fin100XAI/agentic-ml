@@ -58,6 +58,39 @@ export function QueryChartWithMap({ spec, result }: { spec: ChartSpec; result: Q
   const [view, setView] = useState<"chart" | "map">(
     spec.map && spec.kind === "table" ? "map" : "chart",
   );
+  // Grouped time series read two ways: overlaid (compare) or small
+  // multiples (read each one). The backend picks the default by series
+  // count; the reader can always switch.
+  const [seriesView, setSeriesView] = useState<"lines" | "multiples" | null>(null);
+  if (!spec.map && (spec.kind === "mlines" || spec.kind === "multiples") && spec.facet) {
+    const current = seriesView ?? (spec.kind === "mlines" ? "lines" : "multiples");
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center gap-1">
+          {([["lines", "Lines"], ["multiples", "Small multiples"]] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setSeriesView(v)}
+              className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-colors ${
+                current === v
+                  ? "border-accent/40 bg-accent-soft text-accent"
+                  : "border-edge bg-panel-2 text-ink-dim hover:text-accent"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="ml-1 text-[10px] text-ink-dim">
+            {current === "lines" ? "compare the series" : "read each series on its own"}
+          </span>
+        </div>
+        <QueryChart
+          spec={{ ...spec, kind: current === "lines" ? "mlines" : "multiples" }}
+          result={result}
+        />
+      </div>
+    );
+  }
   if (!spec.map) return <QueryChart spec={spec} result={result} />;
   const x = spec.x ?? "";
   const y = spec.y[0] ?? "";
@@ -182,7 +215,58 @@ export function QueryChart({ spec, result }: { spec: ChartSpec; result: QueryRes
     );
   }
 
-  // Grouped time series -> small multiples, never spaghetti.
+  // A handful of series over time -> one axis, one line per group. Overlay
+  // is what makes them comparable; the caller offers small multiples as the
+  // alternate view once there are too many to follow.
+  if (spec.kind === "mlines" && spec.facet) {
+    const facet = spec.facet;
+    const groups = [...new Set(data.map((r) => String(r[facet] ?? "")))];
+    const periods = [...new Set(data.map((r) => String(r[x] ?? "")))];
+    // One row per period, one column per series - Recharts needs it wide.
+    const wide = periods.map((p) => {
+      const row: Record<string, unknown> = { [x]: p };
+      for (const g of groups) {
+        const hit = data.find((r) => String(r[x] ?? "") === p && String(r[facet] ?? "") === g);
+        row[g] = hit ? hit[y] : null;
+      }
+      return row;
+    });
+    return (
+      <ResponsiveContainer width="100%" height={280}>
+        <LineChart data={wide} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey={x} tick={AXIS} stroke={GRID} minTickGap={16} />
+          <YAxis tick={AXIS} stroke={GRID} tickFormatter={(v) => compact(Number(v))} />
+          <Tooltip
+            contentStyle={TOOLTIP_STYLE}
+            formatter={(v: unknown, n: unknown) => [
+              typeof v === "number" ? v.toLocaleString() : String(v ?? "-"),
+              String(n),
+            ]}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {spec.threshold != null && (
+            <ReferenceLine y={spec.threshold} stroke="var(--color-warn)" strokeDasharray="4 3" />
+          )}
+          {groups.map((g, gi) => (
+            <Line
+              key={g}
+              type="monotone"
+              dataKey={g}
+              name={g}
+              stroke={PALETTE[gi % PALETTE.length]}
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    );
+  }
+
+  // Too many series to follow on one axis -> small multiples, never spaghetti.
   if (spec.kind === "multiples" && spec.facet) {
     const facet = spec.facet;
     const groups = [...new Set(data.map((r) => String(r[facet] ?? "")))];

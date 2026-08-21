@@ -326,7 +326,7 @@ def test_synthesis_fallback_mentions_extremes():
 # ---------- P2.1: full grammar mappings + completeness ----------
 
 VALID_KINDS = {"kpi", "bar", "hbar", "line", "dbar", "scatter", "sbar",
-               "multiples", "table"}
+               "mlines", "multiples", "table"}
 
 
 def test_chart_two_metrics_per_key_is_scatter():
@@ -352,17 +352,36 @@ def test_chart_pivot_is_stacked_bar():
     assert 2 <= len(spec["y"]) <= 6
 
 
-def test_chart_grouped_time_series_is_small_multiples():
+def test_chart_grouped_time_series_overlays_then_facets():
+    """A few series belong on ONE axis so they can be compared; past
+    MAX_OVERLAY_SERIES they become small multiples; past 9, an honest table."""
+    from engine.query.vizmap import MAX_OVERLAY_SERIES
+
     df = _df()
     df["month"] = [f"2025-{(i % 6) + 1:02d}" for i in range(len(df))]
-    result, plan = _run_plan(df, {"source": "a1", "steps": [
+    steps = [
         {"op": "group_by", "columns": ["month", "scheme"]},
         {"op": "aggregate", "column": "enrollment", "fn": "sum", "alias": "total"},
         {"op": "sort", "column": "month", "dir": "asc"},
-    ]})
+    ]
+    # 2 schemes -> overlaid lines
+    result, plan = _run_plan(df, {"source": "a1", "steps": steps})
     spec = choose_chart(result, plan)
-    assert spec["kind"] == "multiples"
+    assert spec["kind"] == "mlines", spec["kind"]
     assert spec["facet"] == "scheme"
+
+    # more series than the overlay cap -> small multiples
+    many = df.copy()
+    many["scheme"] = [f"S{i % (MAX_OVERLAY_SERIES + 2)}" for i in range(len(many))]
+    result, plan = _run_plan(many, {"source": "a1", "steps": steps})
+    assert choose_chart(result, plan)["kind"] == "multiples"
+
+    # far too many -> no chart at all, with an honest note
+    lots = df.copy()
+    lots["scheme"] = [f"S{i % 12}" for i in range(len(lots))]
+    result, plan = _run_plan(lots, {"source": "a1", "steps": steps})
+    spec = choose_chart(result, plan)
+    assert spec["kind"] == "table" and "too many" in (spec["note"] or "")
 
 
 def test_chart_completeness_every_shape_maps():

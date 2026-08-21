@@ -21,6 +21,9 @@ from .plan import DeltaVsPeriodStep, FilterStep, PivotStep, QueryPlan, SortStep,
 MAX_BAR_CATEGORIES = 30
 # Thin diverging bars stay readable much further than labeled category bars.
 MAX_DELTA_BARS = 120
+# Overlaid series stay comparable to about five lines; beyond that the eye
+# cannot follow them and small multiples read better.
+MAX_OVERLAY_SERIES = 5
 
 
 def _is_timeish(values: list[Any]) -> bool:
@@ -76,10 +79,16 @@ def choose_chart(result: dict[str, Any], plan: QueryPlan) -> dict[str, Any]:
 
     timeish = _is_timeish([r.get(x) for r in table[:50]])
 
-    # Grouped time series -> small multiples, never spaghetti lines.
+    # Grouped time series. A handful of series belong on ONE axis - that is
+    # what makes them comparable; past MAX_OVERLAY_SERIES the overlay turns
+    # to spaghetti, so small multiples take over, and past 9 nothing is
+    # honest but a table. The frontend offers the other view as a toggle.
     if timeish and len(non_numeric) >= 2:
         groups = {r.get(non_numeric[1]) for r in table}
-        if 2 <= len(groups) <= 9:
+        if 2 <= len(groups) <= MAX_OVERLAY_SERIES:
+            return {"kind": "mlines", "x": x, "y": [y],
+                    "facet": non_numeric[1], "threshold": thr, "note": None}
+        if MAX_OVERLAY_SERIES < len(groups) <= 9:
             return {"kind": "multiples", "x": x, "y": [y],
                     "facet": non_numeric[1], "threshold": thr, "note": None}
         return {"kind": "table", "x": None, "y": [], "threshold": None,
