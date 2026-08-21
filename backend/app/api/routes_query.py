@@ -353,8 +353,78 @@ def dataset_domains(dataset_id: str) -> dict:
             "generated_by": generated_by}
 
 
+class ApprovedQuestion(BaseModel):
+    question: str
+    plan: dict[str, Any]
+
+
+class ExploreRequest(BaseModel):
+    """Approved question plan (rule 4: the agents propose, the officer gates).
+    When absent the board generates its own questions as before."""
+    questions: list[ApprovedQuestion] | None = None
+
+
+@router.post("/datasets/{dataset_id}/question-plan")
+def question_plan(dataset_id: str, lang: str = "en", focus: str = "",
+                  limit: int = 15) -> dict:
+    """Propose the questions the exploring agents WOULD ask - nothing runs.
+    The officer edits, ticks and approves; only then does /explore run them."""
+    from engine.query.shape import classify_shape
+    from engine.query.starter import theme_of
+
+    ds = _gated_dataset(dataset_id)
+    focus_columns = _usable_focus(ds, focus)
+    shape = classify_shape(ds.df)
+    source = ds.artifact_id or ds.id
+    limit = max(4, min(20, int(limit)))
+    questions_by = "heuristic"
+    candidates = None
+    if not focus_columns:
+        candidates = _question_scout(ds, shape, source, limit=limit)
+        if candidates:
+            questions_by = "claude"
+    if not candidates:
+        candidates = starter_questions(ds.df, source, focus_columns=focus_columns,
+                                       shape=shape, limit=limit)
+    # The scout's diversity caps can leave the plan short of what was asked
+    # for - top it up from the deterministic playbook so the officer always
+    # gets a full menu to choose from.
+    if len(candidates) < limit:
+        seen_q = {c["question"] for c in candidates}
+        for extra in starter_questions(ds.df, source, focus_columns=focus_columns,
+                                       shape=shape, limit=limit * 2):
+            if extra["question"] not in seen_q:
+                candidates.append(extra)
+                seen_q.add(extra["question"])
+            if len(candidates) >= limit:
+                break
+    cols = [str(c) for c in ds.df.columns]
+    out: list[dict[str, Any]] = []
+    for i, cand in enumerate(candidates):
+        try:
+            resolved = resolve_plan(QueryPlan.model_validate(cand["plan"]), cols)
+            desc = describe_plan(resolved, dataset_name=f"'{ds.filename}'")
+        except Exception:
+            continue  # a plan that cannot resolve is not worth offering
+        out.append({
+            "id": f"q{i}",
+            "question": cand["question"],
+            "theme": theme_of(cand["question"]),
+            "computes": " ".join(desc["sentences"][1:])[:220] or desc["sentences"][0],
+            "plan": cand["plan"],
+        })
+    store.log_event("Question scout", "query_plan", dataset_id=ds.id,
+                    mode="llm" if questions_by == "claude" else "fallback",
+                    payload={"context": "question_plan", "n_proposed": len(out)})
+    return {"questions": out, "questions_by": questions_by,
+            "shape": {"shape": shape["shape"], "label": shape["label"],
+                      "reasoning": shape["reasoning"]},
+            "filename": ds.filename}
+
+
 @router.post("/datasets/{dataset_id}/explore")
-def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
+def auto_explore(dataset_id: str, lang: str = "en", focus: str = "",
+                 req: ExploreRequest | None = None) -> dict:
     """The exploring agents: starter questions asked AND answered before the
     user types anything. Plans are generated deterministically from the
     schema and run through the same executor as user questions; ONE batched
@@ -363,20 +433,7 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     from engine.query.shape import classify_shape
 
     ds = _gated_dataset(dataset_id)
-    focus_columns = [c for c in focus.split("|") if c] if focus else None
-    if focus_columns:
-        known = {str(c) for c in ds.df.columns}
-        usable_focus = [c for c in focus_columns if c in known]
-        if not usable_focus:
-            # A stale domain (e.g. from before a repair) - fall back to the
-            # general board, visibly in the log rather than silently.
-            store.log_event("Domain scout", "error", dataset_id=ds.id,
-                            mode="fallback",
-                            payload={"context": "focus_invalid",
-                                     "requested": focus[:200]})
-            focus_columns = None
-        else:
-            focus_columns = usable_focus
+    focus_columns = _usable_focus(ds, focus)
     # Shape Scout first: WHAT KIND of dataset is this? The classification is
     # deterministic, shown on the board, and steers which questions lead.
     shape = classify_shape(ds.df)
@@ -387,7 +444,16 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
     # deterministically; the fallback is the hand-written starter list.
     questions_by = "heuristic"
     candidates = None
-    if not focus_columns:
+    approved = (req.questions if req else None) or None
+    if approved:
+        # The officer approved (and possibly reworded) these - run exactly
+        # them, in their order, and nothing else.
+        candidates = [{"question": a.question, "plan": a.plan} for a in approved]
+        questions_by = "approved"
+        store.log_event("You", "approval", dataset_id=ds.id, mode="fallback",
+                        payload={"context": "question_plan_approved",
+                                 "n_questions": len(candidates)})
+    if candidates is None and not focus_columns:
         candidates = _question_scout(ds, shape, source)
         if candidates:
             questions_by = "claude"
@@ -454,7 +520,23 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "") -> dict:
             "filename": ds.filename, "artifact_id": ds.artifact_id}
 
 
-def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, Any]] | None:
+def _usable_focus(ds, focus: str) -> list[str] | None:
+    """Domain columns that still exist on this dataset. A stale domain (from
+    before a repair) falls back to the general board - visibly, not silently."""
+    cols = [c for c in focus.split("|") if c] if focus else None
+    if not cols:
+        return None
+    known = {str(c) for c in ds.df.columns}
+    usable = [c for c in cols if c in known]
+    if not usable:
+        store.log_event("Domain scout", "error", dataset_id=ds.id, mode="fallback",
+                        payload={"context": "focus_invalid", "requested": focus[:200]})
+        return None
+    return usable
+
+
+def _question_scout(ds, shape: dict[str, Any], source: str,
+                    limit: int | None = None) -> list[dict[str, Any]] | None:
     """ONE LLM call choosing template+column selections; validated and built
     deterministically. Returns None when unavailable or too thin (the
     deterministic starters then take over). Wide datasets benefit most."""
@@ -486,7 +568,8 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
             "filling a fixed template menu - you never write queries. "
             f"Templates: {', '.join(SCOUT_TEMPLATES)}. Each selection names a "
             "template plus real column names: metric (numeric), group "
-            "(categorical), second_metric (relationship only). Pick 8-9 "
+            "(categorical), second_metric (relationship only). Pick "
+            f"{max(8, (limit or 9) + 3)} "
             "selections that SPREAD across the dataset's different topics - "
             "at most 2 selections per metric, at least 4 distinct metrics "
             "from DIFFERENT topics when available. Spread across TEMPLATES "
@@ -521,7 +604,8 @@ def _question_scout(ds, shape: dict[str, Any], source: str) -> list[dict[str, An
              "required": ["selections"], "additionalProperties": False},
             max_tokens=2500,
         )
-        built = starters_from_selections(raw.get("selections", []), ds.df, source)
+        built = starters_from_selections(raw.get("selections", []), ds.df, source,
+                                         limit=limit)
         if len(built) < 4:
             # Too thin means most selections died in validation - log which.
             store.log_event("Question scout", "profile", dataset_id=ds.id,

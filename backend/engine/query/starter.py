@@ -87,6 +87,26 @@ def _pick_columns(df: pd.DataFrame) -> dict[str, Any]:
     return {"period": period, "cats": cats, "numerics": numerics}
 
 
+# Reading themes for the question plan - a long list is only usable when
+# it is grouped by what each question is FOR.
+_THEME_WORDS = (
+    ("trend", ("move across", "changed over", "over time", "from one", "compare with the same")),
+    ("comparison", ("highest", "lowest", "most", "least", "top ", "bottom ")),
+    ("relationship", ("move together", "relate", "against")),
+    ("composition", ("split", "share", "divided", "distributed", "each")),
+    ("coverage", ("how many", "count", "number of records", "overall total")),
+)
+
+
+def theme_of(question: str) -> str:
+    """Which reading theme a question belongs to, from its own phrasing."""
+    q = str(question).lower()
+    for theme, words in _THEME_WORDS:
+        if any(w in q for w in words):
+            return theme
+    return "other"
+
+
 # The template menu the Question Scout may fill. The LLM only CHOOSES
 # columns for these shapes - deterministic code builds every plan.
 SCOUT_TEMPLATES = ("top_groups", "bottom_groups", "avg_per_group",
@@ -168,7 +188,7 @@ def _build_from_selection(template: str, source: str, df: pd.DataFrame,
 
 
 def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
-                             source: str) -> list[dict[str, Any]]:
+                             source: str, limit: int | None = None) -> list[dict[str, Any]]:
     """Validate the Question Scout's choices and build plans. Only real
     numeric metrics and usable grouping columns survive; at most 2
     questions per metric (the diversity guarantee is enforced HERE, not
@@ -279,7 +299,7 @@ def starters_from_selections(selections: list[dict[str, Any]], df: pd.DataFrame,
                     if cand and cand["question"] not in seen:
                         out.insert(min(4, len(out)), cand)
                         seen.add(cand["question"])
-    return out[:MAX_STARTERS]
+    return out[:(limit or MAX_STARTERS)]
 
 
 def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
@@ -352,8 +372,10 @@ def _shape_leads(shape: dict[str, Any] | None, source: str, df: pd.DataFrame,
 
 def starter_questions(df: pd.DataFrame, source: str = "",
                       focus_columns: list[str] | None = None,
-                      shape: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Up to MAX_STARTERS {question, plan} candidates, most interesting first.
+                      shape: dict[str, Any] | None = None,
+                      limit: int | None = None) -> list[dict[str, Any]]:
+    """Up to ``limit`` (default MAX_STARTERS) {question, plan} candidates,
+    most interesting first.
     focus_columns (a chosen domain) restricts the measures explored; the
     grouping columns stay open so every domain can still be sliced. shape
     (from the Shape Scout) puts the right opening questions first."""
@@ -515,4 +537,4 @@ def starter_questions(df: pd.DataFrame, source: str = "",
         if cand["question"] not in seen:
             seen.add(cand["question"])
             unique.append(cand)
-    return unique[:MAX_STARTERS]
+    return unique[:(limit or MAX_STARTERS)]

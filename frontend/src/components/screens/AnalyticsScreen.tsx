@@ -18,12 +18,14 @@ import {
   Hash,
   Languages,
   Lightbulb,
+  ListChecks,
+  Plus,
   MapPin,
   MessageSquareText,
   RefreshCw,
 } from "lucide-react";
 import { api } from "../../api/client";
-import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck, QueryAnswer, QueryPlanResponse, TextNumberProposal } from "../../types";
+import type { DataOverview, DomainsResponse, ExploreFinding, ExploreResponse, OverviewColumn, PlaceCheck, PlannedQuestion, QueryAnswer, QueryPlanResponse, TextNumberProposal } from "../../types";
 import { genLabel } from "../../lib/labels";
 import { saveBlob } from "../../lib/download";
 import { QueryChartWithMap } from "../QueryChart";
@@ -38,6 +40,8 @@ const inFlight = new Map<string, Promise<ExploreResponse>>();
 const overviewCache = new Map<string, DataOverview>();
 const overviewInFlight = new Map<string, Promise<DataOverview>>();
 const domainsCache = new Map<string, DomainsResponse>();
+// Proposed question plans survive leaving the screen, like boards do.
+const planCache = new Map<string, PlannedQuestion[]>();
 // Bumped whenever a repair purges the caches: any exploration still in
 // flight from BEFORE the purge must not re-cache its pre-fix board.
 const purgeEpoch = new Map<string, number>();
@@ -293,6 +297,14 @@ export function AnalyticsScreen({
   const [checksReady, setChecksReady] = useState(false);
   // What happened in the checkup, for the summary line once exploring starts.
   const [numOutcome, setNumOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
+  // The question plan (rule 4): the agents propose, nothing runs until the
+  // officer ticks and approves. Editable text, add-your-own, per-theme.
+  const [plan, setPlan] = useState<PlannedQuestion[] | null>(planCache.get(`${datasetId}|${lang}|`) ?? null);
+  const [planTicks, setPlanTicks] = useState<Set<string>>(new Set());
+  const [planEdits, setPlanEdits] = useState<Record<string, string>>({});
+  const [planBusy, setPlanBusy] = useState(false);
+  const [ownText, setOwnText] = useState("");
+  const [ownBusy, setOwnBusy] = useState(false);
   const [placeOutcome, setPlaceOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
 
   const applyNumbers = async () => {
@@ -396,16 +408,18 @@ export function AnalyticsScreen({
   const activeKeyRef = useRef(cacheKey);
   activeKeyRef.current = cacheKey;
 
-  const explore = async () => {
+  const explore = async (approved?: { question: string; plan: Record<string, unknown> }[]) => {
     const myKey = cacheKey;
     const myEpoch = purgeEpoch.get(datasetId) ?? 0;
     setBusy(true);
     setError(null);
     try {
-      let p = inFlight.get(myKey);
+      // An approved plan is specific to this click - it must never share the
+      // in-flight promise that dedupes the generic board exploration.
+      let p = approved?.length ? undefined : inFlight.get(myKey);
       if (!p) {
-        p = api.explore(datasetId, lang, focusColumns);
-        inFlight.set(myKey, p);
+        p = api.explore(datasetId, lang, focusColumns, approved);
+        if (!approved?.length) inFlight.set(myKey, p);
       }
       const r = await p;
       if ((purgeEpoch.get(datasetId) ?? 0) !== myEpoch) {
@@ -494,20 +508,74 @@ export function AnalyticsScreen({
   const repairsPending =
     (numCheck !== null && !numDismissed) || (placeCheck !== null && !placeDismissed);
 
-  // Step 2: explore only once the repair decision is made (approved cards
-  // clear their proposals; "Keep as is" dismisses them).
+  // Step 2: once the repair decision is made, PROPOSE the questions. Rule 4
+  // - the agents propose, the officer approves, and only then does anything
+  // run. A cached board short-circuits straight back to the findings.
   useEffect(() => {
     if (!checksReady || repairsPending) return;
     const c = boardCache.get(cacheKey);
     if (c) {
       setResp(c);
       setBusy(false);
-    } else {
-      setResp(null);
-      void explore();
+      return;
     }
+    setResp(null);
+    setBusy(false);
+    const cachedPlan = planCache.get(cacheKey);
+    if (cachedPlan) {
+      setPlan(cachedPlan);
+      setPlanTicks(new Set(cachedPlan.map((q) => q.id)));
+      return;
+    }
+    setPlanBusy(true);
+    api.questionPlan(datasetId, lang, focusColumns, 15)
+      .then((r) => {
+        planCache.set(cacheKey, r.questions);
+        setPlan(r.questions);
+        setPlanTicks(new Set(r.questions.map((q) => q.id)));
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setPlanBusy(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetId, lang, focusDomain, checksReady, repairsPending]);
+
+  const runApproved = async () => {
+    if (!plan) return;
+    const approved = plan
+      .filter((q) => planTicks.has(q.id))
+      .map((q) => ({ question: (planEdits[q.id] ?? q.question).trim() || q.question,
+                     plan: q.plan }));
+    if (!approved.length) return;
+    await explore(approved);
+  };
+
+  // Add your own: the planner interprets it, and it joins the list already
+  // ticked - the plan is visible before anything runs, exactly as in Ask.
+  const addOwnQuestion = async () => {
+    const text = ownText.trim();
+    if (!text || ownBusy) return;
+    setOwnBusy(true);
+    setError(null);
+    try {
+      const r = await api.queryPlan(datasetId, text);
+      const cand = r.plans?.[0];
+      if (!cand) throw new Error("That question could not be interpreted - try rewording it.");
+      const q: PlannedQuestion = {
+        id: `own-${Date.now()}`,
+        question: text,
+        theme: "yours",
+        computes: (cand.sentences ?? []).slice(1).join(" ") || (cand.sentences ?? [""])[0],
+        plan: cand.plan,
+      };
+      setPlan((p) => [...(p ?? []), q]);
+      setPlanTicks((t) => new Set([...t, q.id]));
+      setOwnText("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOwnBusy(false);
+    }
+  };
 
   const downloadBoard = async () => {
     if (!resp) return;
@@ -825,6 +893,135 @@ export function AnalyticsScreen({
         </div>
       )}
 
+      {/* Step 2 - the question plan: the agents propose, you approve. Nothing
+          has run yet at this point. */}
+      {planBusy && !resp && checksReady && !repairsPending && (
+        <Card>
+          <CardBody className="flex items-center gap-3 py-8">
+            <Spinner />
+            <p className="text-sm text-ink-dim">
+              The agents are working out which questions are worth asking of this data...
+            </p>
+          </CardBody>
+        </Card>
+      )}
+
+      {!busy && !resp && plan && plan.length > 0 && checksReady && !repairsPending && (
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-panel-2/60 px-5 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="rounded-lg bg-accent-soft p-2">
+                <ListChecks className="h-4 w-4 text-accent" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold">The questions the agents want to ask</h3>
+                <p className="text-[11px] text-ink-dim">
+                  Nothing has run yet. Tick what is worth answering, reword anything,
+                  add your own - then approve.
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-edge bg-panel px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
+              Step 2 · you approve
+            </span>
+          </div>
+          <CardBody className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <button
+                onClick={() => setPlanTicks(new Set(plan.map((q) => q.id)))}
+                className="rounded-full border border-edge bg-panel-2 px-2.5 py-1 text-ink-dim hover:text-accent"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setPlanTicks(new Set())}
+                className="rounded-full border border-edge bg-panel-2 px-2.5 py-1 text-ink-dim hover:text-accent"
+              >
+                Clear
+              </button>
+              <span className="text-ink-dim">
+                {planTicks.size} of {plan.length} selected
+              </span>
+            </div>
+
+            {/* Grouped by what each question is FOR - a long list is only
+                readable when themed. */}
+            {[...new Set(plan.map((q) => q.theme))].map((theme) => (
+              <div key={theme}>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                  {theme}
+                </p>
+                <div className="space-y-1.5">
+                  {plan.filter((q) => q.theme === theme).map((q) => {
+                    const on = planTicks.has(q.id);
+                    return (
+                      <div
+                        key={q.id}
+                        className={`rounded-lg border px-3 py-2 transition-colors ${
+                          on ? "border-accent/30 bg-accent/5" : "border-edge bg-panel-2/40"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() =>
+                              setPlanTicks((t) => {
+                                const n = new Set(t);
+                                if (n.has(q.id)) n.delete(q.id);
+                                else n.add(q.id);
+                                return n;
+                              })
+                            }
+                            className="mt-1 accent-accent"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <input
+                              value={planEdits[q.id] ?? q.question}
+                              onChange={(e) =>
+                                setPlanEdits((m) => ({ ...m, [q.id]: e.target.value }))
+                              }
+                              className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-xs font-medium outline-none hover:border-edge focus:border-accent focus:bg-panel"
+                            />
+                            <p className="mt-0.5 px-1 text-[10px] leading-relaxed text-ink-dim">
+                              {q.computes}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Add your own - interpreted first, then it joins the list */}
+            <div className="flex gap-2 border-t border-edge pt-3">
+              <input
+                value={ownText}
+                onChange={(e) => setOwnText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addOwnQuestion()}
+                placeholder="Add your own question to the plan..."
+                className="min-w-0 flex-1 rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent"
+              />
+              <Button variant="outline" size="sm" onClick={addOwnQuestion}
+                disabled={ownBusy || !ownText.trim()}>
+                {ownBusy ? <Spinner /> : <Plus className="h-3.5 w-3.5" />} Add
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap justify-between gap-2">
+              <Button variant="ghost" size="sm" onClick={() => onAsk()}>
+                Skip - ask my own question instead
+              </Button>
+              <Button onClick={runApproved} disabled={planTicks.size === 0 || busy}>
+                Approve and run {planTicks.size} question{planTicks.size === 1 ? "" : "s"}
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
       {busy && checksReady && !repairsPending && (
         <Card>
           <CardBody className="space-y-2.5 py-6">
@@ -848,7 +1045,7 @@ export function AnalyticsScreen({
         <Card className="border-bad/40">
           <CardBody className="flex items-center justify-between gap-3">
             <p className="text-xs text-bad">{error}</p>
-            <Button variant="outline" size="sm" onClick={explore}>
+            <Button variant="outline" size="sm" onClick={() => explore()}>
               <RefreshCw className="h-3.5 w-3.5" /> Try again
             </Button>
           </CardBody>

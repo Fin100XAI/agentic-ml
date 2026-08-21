@@ -1,4 +1,4 @@
-import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, TextNumberProposal, UploadResponse } from "../types";
+import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftResult, ExploreResponse, IntakeItem, IntakeRule, ModelInfo, PiiFinding, PlaceCheck, Project, QueryAnswer, QueryBrief, QueryPlanResponse, QuestionPlanResponse, RegistryEntry, Run, RunDiffResult, RunSummary, SavedQuery, ScenarioMeta, ScenarioResult, ScoreResult, TextNumberProposal, UploadResponse } from "../types";
 
 const BASE = "/api";
 
@@ -80,9 +80,17 @@ export const api = {
   routeChoice: (runId: string, choice: "direct_query" | "model") =>
     request<{ ok: boolean }>(`/runs/${runId}/route-choice`, json({ choice })),
 
-  explore: (datasetId: string, lang = "en", focusColumns?: string[]) =>
+  explore: (datasetId: string, lang = "en", focusColumns?: string[],
+            questions?: { question: string; plan: Record<string, unknown> }[]) =>
     request<ExploreResponse>(
       `/datasets/${datasetId}/explore?lang=${encodeURIComponent(lang)}` +
+      (focusColumns?.length ? `&focus=${encodeURIComponent(focusColumns.join("|"))}` : ""),
+      questions?.length ? json({ questions }) : { method: "POST" }),
+
+  // The question plan (rule 4): what the agents WOULD ask - nothing runs.
+  questionPlan: (datasetId: string, lang = "en", focusColumns?: string[], limit = 15) =>
+    request<QuestionPlanResponse>(
+      `/datasets/${datasetId}/question-plan?lang=${encodeURIComponent(lang)}&limit=${limit}` +
       (focusColumns?.length ? `&focus=${encodeURIComponent(focusColumns.join("|"))}` : ""),
       { method: "POST" }),
 

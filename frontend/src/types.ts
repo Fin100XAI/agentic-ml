@@ -261,6 +261,21 @@ export interface QueryPlanResponse {
   route_reasoning?: string;
 }
 
+export interface PlannedQuestion {
+  id: string;
+  question: string;
+  theme: string;
+  computes: string;
+  plan: Record<string, unknown>;
+}
+
+export interface QuestionPlanResponse {
+  questions: PlannedQuestion[];
+  questions_by: string;
+  shape: { shape: string; label: string; reasoning: string };
+  filename: string;
+}
+
 export interface ChartSpec {
   kind: "kpi" | "bar" | "hbar" | "line" | "dbar" | "scatter" | "sbar" | "mlines" | "multiples" | "table";
   x: string | null;
