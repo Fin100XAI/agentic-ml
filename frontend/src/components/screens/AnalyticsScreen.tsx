@@ -41,7 +41,14 @@ const overviewCache = new Map<string, DataOverview>();
 const overviewInFlight = new Map<string, Promise<DataOverview>>();
 const domainsCache = new Map<string, DomainsResponse>();
 // Proposed question plans survive leaving the screen, like boards do.
+// Keyed WITHOUT language: the questions are the same in every language -
+// only the phrasing of the answers differs - so switching language must
+// never throw away an approved plan and ask for it again.
+const planKey = (datasetId: string, focus: string) => `${datasetId}|${focus}`;
 const planCache = new Map<string, PlannedQuestion[]>();
+// What the officer actually approved, so a language switch re-runs exactly
+// that set instead of reopening the plan.
+const approvedCache = new Map<string, { question: string; plan: Record<string, unknown> }[]>();
 // Bumped whenever a repair purges the caches: any exploration still in
 // flight from BEFORE the purge must not re-cache its pre-fix board.
 const purgeEpoch = new Map<string, number>();
@@ -299,12 +306,14 @@ export function AnalyticsScreen({
   const [numOutcome, setNumOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
   // The question plan (rule 4): the agents propose, nothing runs until the
   // officer ticks and approves. Editable text, add-your-own, per-theme.
-  const [plan, setPlan] = useState<PlannedQuestion[] | null>(planCache.get(`${datasetId}|${lang}|`) ?? null);
+  const [plan, setPlan] = useState<PlannedQuestion[] | null>(
+    planCache.get(planKey(datasetId, "")) ?? null);
   const [planTicks, setPlanTicks] = useState<Set<string>>(new Set());
   const [planEdits, setPlanEdits] = useState<Record<string, string>>({});
   const [planBusy, setPlanBusy] = useState(false);
   const [ownText, setOwnText] = useState("");
   const [ownBusy, setOwnBusy] = useState(false);
+  const [savedSet, setSavedSet] = useState<number | null>(null);
   const [placeOutcome, setPlaceOutcome] = useState<{ kind: "fixed"; n: number } | { kind: "kept" } | null>(null);
 
   const applyNumbers = async () => {
@@ -521,7 +530,14 @@ export function AnalyticsScreen({
     }
     setResp(null);
     setBusy(false);
-    const cachedPlan = planCache.get(cacheKey);
+    // Already approved a set for this dataset and focus? A language change
+    // just re-runs it in the new language - no second approval.
+    const already = approvedCache.get(planKey(datasetId, focusDomain));
+    if (already?.length) {
+      void explore(already);
+      return;
+    }
+    const cachedPlan = planCache.get(planKey(datasetId, focusDomain));
     if (cachedPlan) {
       setPlan(cachedPlan);
       setPlanTicks(new Set(cachedPlan.map((q) => q.id)));
@@ -530,7 +546,7 @@ export function AnalyticsScreen({
     setPlanBusy(true);
     api.questionPlan(datasetId, lang, focusColumns, 15)
       .then((r) => {
-        planCache.set(cacheKey, r.questions);
+        planCache.set(planKey(datasetId, focusDomain), r.questions);
         setPlan(r.questions);
         setPlanTicks(new Set(r.questions.map((q) => q.id)));
       })
@@ -546,7 +562,26 @@ export function AnalyticsScreen({
       .map((q) => ({ question: (planEdits[q.id] ?? q.question).trim() || q.question,
                      plan: q.plan }));
     if (!approved.length) return;
+    approvedCache.set(planKey(datasetId, focusDomain), approved);
     await explore(approved);
+  };
+
+  // Save every approved question as a standing indicator, so next month's
+  // file answers the same set without anyone re-approving it.
+  const saveStandingSet = async () => {
+    const approved = (plan ?? []).filter((q) => planTicks.has(q.id));
+    if (!approved.length) return;
+    let saved = 0;
+    for (const q of approved) {
+      const question = (planEdits[q.id] ?? q.question).trim() || q.question;
+      try {
+        await api.saveIndicator(datasetId, question.slice(0, 80), q.plan, question);
+        saved += 1;
+      } catch {
+        /* a duplicate name is not a failure worth stopping the batch for */
+      }
+    }
+    setSavedSet(saved);
   };
 
   // Add your own: the planner interprets it, and it joins the list already
@@ -1014,9 +1049,21 @@ export function AnalyticsScreen({
               <Button variant="ghost" size="sm" onClick={() => onAsk()}>
                 Skip - ask my own question instead
               </Button>
-              <Button onClick={runApproved} disabled={planTicks.size === 0 || busy}>
-                Approve and run {planTicks.size} question{planTicks.size === 1 ? "" : "s"}
-              </Button>
+              <span className="flex flex-wrap items-center gap-2">
+                {savedSet !== null && (
+                  <span className="text-[11px] text-good">
+                    {savedSet} saved as standing questions
+                  </span>
+                )}
+                <Button variant="outline" size="sm" onClick={saveStandingSet}
+                  disabled={planTicks.size === 0 || busy}
+                  title="Save the ticked questions so next month's file answers the same set">
+                  Save as a standing set
+                </Button>
+                <Button onClick={runApproved} disabled={planTicks.size === 0 || busy}>
+                  Approve and run {planTicks.size} question{planTicks.size === 1 ? "" : "s"}
+                </Button>
+              </span>
             </div>
           </CardBody>
         </Card>
@@ -1206,6 +1253,13 @@ export function AnalyticsScreen({
             const next = { ...resp, findings: [...resp.findings, finding] };
             setResp(next);
             boardCache.set(cacheKey, next);
+            // Join the approved set so the tile is not lost on a language
+            // switch or the next exploration of this dataset.
+            const key = planKey(datasetId, focusDomain);
+            approvedCache.set(key, [
+              ...(approvedCache.get(key) ?? []),
+              { question: finding.question, plan: finding.plan },
+            ]);
             setRefineCtx(null);
           }}
         />

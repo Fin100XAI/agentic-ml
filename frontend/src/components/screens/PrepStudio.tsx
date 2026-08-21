@@ -50,6 +50,23 @@ interface Certificate {
   checks: { check: string; passed: boolean; detail: string; severity: string }[];
   errors: number; warnings: number; verdict: string; n_rows: number; n_cols: number;
 }
+interface CombineProposal {
+  strategy: "stack" | "join" | "single" | "review";
+  sheets: string[];
+  join_key: string | null;
+  join_candidates?: string[];
+  add_source_column: boolean;
+  add_year_column: boolean;
+  notes: string[];
+  pick?: string;
+  mappings?: Record<string, Record<string, string>>;
+}
+interface JoinQuality {
+  key: string; checked: boolean; worst_match_pct?: number; verdict?: string;
+  shared_keys?: number;
+  per_sheet?: { sheet: string; keys: number; matched: number; match_pct: number; unmatched_examples: string[] }[];
+  note?: string;
+}
 interface Preview {
   columns: string[]; rows: Record<string, unknown>[]; n_rows: number; n_cols: number;
 }
@@ -78,9 +95,11 @@ export function PrepStudio() {
   const [step, setStep] = useState(0);
   const [sid, setSid] = useState<string | null>(null);
   const [sheets, setSheets] = useState<Sheet[]>([]);
+  const [combine, setCombine] = useState<CombineProposal | null>(null);
+  const [joinQ, setJoinQ] = useState<JoinQuality | null>(null);
+  const [combineNote, setCombineNote] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [narrative, setNarrative] = useState<{ message: string; mode: string } | null>(null);
-  const [combine, setCombine] = useState<Record<string, unknown> | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
@@ -119,7 +138,7 @@ export function PrepStudio() {
         const r = await call<{ sheets: Sheet[] }>(`/${id}/files`, { method: "POST", body: form });
         setSheets(r.sheets);
       }
-      setProfile(null); setBp(null); setCert(null);
+      setProfile(null); setBp(null); setCert(null); setCombine(null); setJoinQ(null);
     });
 
   const setHeader = (name: string, row: number) =>
@@ -136,13 +155,34 @@ export function PrepStudio() {
       setSheets(r.sheets); setProfile(null);
     });
 
+  // With one sheet there is nothing to decide - go straight on. With several,
+  // the officer approves how they are combined BEFORE anything is profiled;
+  // silently analysing one and dropping the rest is not an option.
   const doProfile = () =>
     guard("profile", async () => {
-      const r = await call<{ profile: Profile; narrative: { message: string; mode: string };
-                             combine: Record<string, unknown>; preview: Preview }>(
-        `/${sid}/profile`, { method: "POST" });
-      setProfile(r.profile); setNarrative(r.narrative); setCombine(r.combine);
-      setPreview(r.preview); setStep(1);
+      if (sheets.length > 1 && !combine) {
+        const r = await call<{ proposal: CombineProposal; join_quality: JoinQuality | null;
+                               note: string | null }>(`/${sid}/combine-plan`, { method: "POST" });
+        setCombine(r.proposal); setJoinQ(r.join_quality); setCombineNote(r.note);
+        return;
+      }
+      await runProfile(combine ?? undefined);
+    });
+
+  const runProfile = async (spec?: CombineProposal) => {
+    const r = await call<{ profile: Profile; narrative: { message: string; mode: string };
+                           combine: Record<string, unknown>; preview: Preview }>(
+      `/${sid}/profile`, spec ? json({ spec }) : { method: "POST" });
+    setProfile(r.profile); setNarrative(r.narrative); setPreview(r.preview); setStep(1);
+  };
+
+  const approveCombine = () =>
+    guard("profile", async () => {
+      if (!combine) return;
+      if (combine.strategy === "review") {
+        throw new Error("Choose stack, join, or a single sheet before continuing.");
+      }
+      await runProfile(combine);
     });
 
   const doInterview = () =>
@@ -281,8 +321,77 @@ export function PrepStudio() {
                   </table>
                 </div>
               )}
+              {combine && (
+                <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+                  <p className="text-sm font-semibold">
+                    {sheets.length} sheets - how should they be combined?
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-dim">
+                    {combineNote ?? "Nothing is combined until you approve this."}
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+                    <select
+                      value={combine.strategy}
+                      onChange={(e) => setCombine({ ...combine, strategy: e.target.value as CombineProposal["strategy"] })}
+                      className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
+                    >
+                      <option value="stack">Stack them - rows on rows</option>
+                      <option value="join">Join on a key - facts side by side</option>
+                      <option value="single">Use one sheet only</option>
+                    </select>
+                    {combine.strategy === "join" && (
+                      <select
+                        value={combine.join_key ?? ""}
+                        onChange={(e) => setCombine({ ...combine, join_key: e.target.value })}
+                        className="rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
+                      >
+                        {(combine.join_candidates ?? (combine.join_key ? [combine.join_key] : [])).map((k) => (
+                          <option key={k} value={k}>key: {k}</option>
+                        ))}
+                      </select>
+                    )}
+                    {combine.strategy === "single" && (
+                      <select
+                        value={combine.pick ?? combine.sheets[0]}
+                        onChange={(e) => setCombine({ ...combine, pick: e.target.value })}
+                        className="max-w-64 rounded-lg border border-edge bg-panel-2 px-2 py-1 text-xs outline-none focus:border-accent"
+                      >
+                        {combine.sheets.map((sh) => (
+                          <option key={sh} value={sh}>{sh}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {combine.notes.map((n) => (
+                    <p key={n} className="mt-1.5 flex items-start gap-1.5 text-[11px] text-ink-dim">
+                      <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-good" /> {n}
+                    </p>
+                  ))}
+                  {combine.strategy === "join" && joinQ?.checked && (
+                    <div className={`mt-2.5 rounded-lg border px-3 py-2 ${
+                      joinQ.verdict === "clean" ? "border-good/40 bg-good/5"
+                        : joinQ.verdict === "lossy" ? "border-warn/40 bg-warn/5"
+                        : "border-bad/40 bg-bad/5"}`}>
+                      <p className="text-[11px] font-semibold">
+                        Join quality: {joinQ.worst_match_pct}% of keys match across every sheet
+                      </p>
+                      {(joinQ.per_sheet ?? []).map((q) => (
+                        <p key={q.sheet} className="mt-0.5 text-[10px] text-ink-dim">
+                          {q.sheet}: {q.matched} of {q.keys} keys matched
+                          {q.unmatched_examples.length > 0 && ` - missing ${q.unmatched_examples.slice(0, 3).join(", ")}`}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 flex justify-end">
+                    <Button size="sm" onClick={approveCombine} disabled={busy !== null}>
+                      {busy === "profile" ? <Spinner /> : null} Approve and understand the data
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-end">
-                <Button onClick={doProfile} disabled={!sheets.length || busy !== null}>
+                <Button onClick={doProfile} disabled={!sheets.length || busy !== null || !!combine}>
                   {busy === "profile" ? <Spinner /> : <Sparkles className="h-4 w-4" />}
                   Understand this data
                 </Button>
@@ -309,8 +418,8 @@ export function PrepStudio() {
               <CardHeader
                 title={<span className="flex items-center gap-2"><Table2 className="h-4 w-4 text-accent" /> What the agents found</span>}
                 subtitle={`${profile.n_rows.toLocaleString()} rows x ${profile.n_cols} columns${
-                  combine ? ` - ${String((combine as { strategy?: string }).strategy ?? "")} across ${
-                    ((combine as { sheets?: string[] }).sheets ?? []).length} sheet(s)` : ""}`}
+                  combine && sheets.length > 1
+                    ? ` - ${combine.strategy} across ${combine.sheets.length} sheet(s)` : ""}`}
               />
               <CardBody className="space-y-3">
                 <div className="flex flex-wrap gap-1.5">

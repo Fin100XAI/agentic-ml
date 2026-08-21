@@ -120,7 +120,10 @@ def detect_header(raw: pd.DataFrame, scan: int = 10,
         s1 = _label_score(_labels_single(raw, h))
         if h > 0 and s1 > best["score"] and s1 >= 0.75 and base < 0.55:
             best = {"row": h, "tiers": 1, "score": s1}
-        if h + 1 < len(raw) and raw.iloc[h].notna().sum() > 0:
+        # A merged header band spans SEVERAL columns. One filled cell is a
+        # note ('(Rs. In Crore)'), not a tier - treating it as one steals
+        # the header row and mangles every column name below it.
+        if h + 1 < len(raw) and int(raw.iloc[h].notna().sum()) >= 2:
             s2 = _label_score(_labels_pair(raw, h))
             s1_next = _label_score(_labels_single(raw, h + 1))
             # The pair must beat BOTH single readings clearly - a banner over
@@ -272,6 +275,40 @@ def propose_combine(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
             "add_source_column": False, "add_year_column": False, "notes": notes}
 
 
+def join_quality(frames: dict[str, pd.DataFrame], key_label: str,
+                 sheets: list[str] | None = None) -> dict[str, Any]:
+    """How well a join key actually lines up across sheets. Silent data loss
+    hides here: a key that matches 60% of rows drops 40% of the data without
+    saying so, and the officer should see that BEFORE approving."""
+    names = [n for n in (sheets or list(frames)) if n in frames]
+    if len(names) < 2 or not key_label:
+        return {"key": key_label, "checked": False}
+    key_norm = normalize_col(key_label)
+    sets: dict[str, set[str]] = {}
+    for n in names:
+        col = next((c for c in frames[n].columns
+                    if normalize_col(c) == key_norm), None)
+        if col is None:
+            return {"key": key_label, "checked": False,
+                    "note": f"'{key_label}' is missing from sheet '{n}'."}
+        sets[n] = {str(v).strip() for v in frames[n][col].dropna()}
+    shared = set.intersection(*sets.values())
+    per_sheet = []
+    for n in names:
+        total = len(sets[n])
+        matched = len(sets[n] & shared)
+        missing = sorted(sets[n] - shared)[:5]
+        per_sheet.append({
+            "sheet": n, "keys": total, "matched": matched,
+            "match_pct": round(100 * matched / total, 1) if total else 0.0,
+            "unmatched_examples": missing,
+        })
+    worst = min((p["match_pct"] for p in per_sheet), default=0.0)
+    return {"key": key_label, "checked": True, "shared_keys": len(shared),
+            "per_sheet": per_sheet, "worst_match_pct": worst,
+            "verdict": "clean" if worst >= 99 else "lossy" if worst >= 60 else "poor"}
+
+
 def apply_combine(frames: dict[str, pd.DataFrame], spec: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Execute the approved combine spec. Deterministic; returns the frame
     plus an honest report of what happened."""
@@ -335,17 +372,21 @@ def junk_scan(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def _footer_rows(df: pd.DataFrame) -> int:
-    """Trailing note rows ('Note :', 'Source: ...') - a contiguous tail block
-    where almost every cell is empty."""
+    """Trailing note rows ('Note :', 'Source: ...'). Sparsity is judged
+    RELATIVE to the body: a fixed fraction of the column count marks every row
+    on a narrow table and nothing on a wide one."""
+    if df.empty:
+        return 0
+    filled = df.notna().sum(axis=1)
+    body = float(filled.median() or 0)
+    thresh = max(1, int(0.25 * body))
     n = 0
-    thresh = max(2, int(df.shape[1] * 0.15))
     for i in range(len(df) - 1, -1, -1):
-        if int(df.iloc[i].notna().sum()) <= thresh:
+        if int(filled.iloc[i]) <= thresh:
             n += 1
         else:
             break
     return n if n < len(df) else 0
-
 
 def drop_junk(df: pd.DataFrame, drop_empty: bool, drop_totals: bool,
               drop_footer: bool = False) -> tuple[pd.DataFrame, int]:

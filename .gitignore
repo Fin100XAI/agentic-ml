@@ -39,3 +39,4 @@ Thumbs.db
 # Local persistence
 backend/data.db
 backend/artifact_store/
+prep_sessions/

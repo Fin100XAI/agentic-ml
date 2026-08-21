@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import io
 import json
+import pickle
 import uuid
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -34,12 +36,35 @@ router = APIRouter()
 
 _S: dict[str, dict[str, Any]] = {}
 _MAX_UPLOAD = 50 * 1024 * 1024
+# Prep work survives a restart: an officer interrupted mid-session comes back
+# to the same sheets, answers and blueprint.
+_SESSION_DIR = Path(__file__).resolve().parents[2] / "prep_sessions"
+
+
+def _path(sid: str) -> Path:
+    return _SESSION_DIR / f"{sid}.pkl"
+
+
+def _save(s: dict[str, Any]) -> None:
+    try:
+        _SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        with open(_path(s["id"]), "wb") as fh:
+            pickle.dump(s, fh)
+    except Exception:
+        pass  # persistence is a convenience; never break the request
 
 
 def _sess(sid: str) -> dict[str, Any]:
     s = _S.get(sid)
+    if s is None and _path(sid).exists():
+        try:
+            with open(_path(sid), "rb") as fh:
+                s = pickle.load(fh)
+            _S[sid] = s
+        except Exception:
+            s = None
     if s is None:
-        raise HTTPException(404, "Prep session not found (sessions reset when the server restarts).")
+        raise HTTPException(404, "Prep session not found.")
     return s
 
 
@@ -99,6 +124,7 @@ async def add_file(sid: str, file: UploadFile = File(...)) -> dict:
     except Exception as exc:
         raise HTTPException(400, f"Could not read '{fname}': {exc}") from exc
     _reset_downstream(s)
+    _save(s)
     _log(s, "You", "file_upload", {"context": "prep2", "filename": fname})
     return {"sheets": _sheets(s)}
 
@@ -141,6 +167,7 @@ def drop_sheet(sid: str, name: str) -> dict:
     for k in ("sheets", "raw", "headers", "banners"):
         s[k].pop(name, None)
     _reset_downstream(s)
+    _save(s)
     return {"sheets": _sheets(s)}
 
 
@@ -162,6 +189,7 @@ def set_header(sid: str, name: str, req: HeaderRequest) -> dict:
         str(v) for v in rawdf.iloc[:hdr["row"]].values.flatten() if pd.notna(v))[:400]
     s["sheets"][name] = prep.reheader(rawdf, hdr["row"], hdr["tiers"])
     _reset_downstream(s)
+    _save(s)
     _log(s, "You", "approval", {"context": "prep2_header", "sheet": name,
                                 "header_row": req.header_row})
     return {"sheets": _sheets(s)}
@@ -169,24 +197,65 @@ def set_header(sid: str, name: str, req: HeaderRequest) -> dict:
 
 # --------------------------------------------------------------- 2. profile
 
-@router.post("/prep2/{sid}/profile")
-def do_profile(sid: str) -> dict:
-    """Combine (deterministic proposal) then deeply understand the table."""
+class CombineRequest(BaseModel):
+    spec: dict[str, Any]
+
+
+@router.post("/prep2/{sid}/combine-plan")
+def combine_plan(sid: str) -> dict:
+    """What the agents propose doing with several sheets - and what it would
+    cost. Nothing is combined here: with more than one sheet the officer
+    decides, because silently picking one would discard the rest."""
     s = _sess(sid)
     if not s["sheets"]:
         raise HTTPException(400, "Add at least one file first.")
+    names = list(s["sheets"])
     proposal = prep.propose_combine(s["sheets"])
-    if proposal["strategy"] == "review":
-        proposal = {**proposal, "strategy": "single", "pick": list(s["sheets"])[0]}
+    quality = None
+    if proposal.get("join_key"):
+        quality = prep.join_quality(s["sheets"], proposal["join_key"], names)
+    return {"proposal": proposal, "join_quality": quality, "sheets": _sheets(s),
+            "needs_decision": len(names) > 1,
+            "note": ("These sheets share too few columns to stack and no common key "
+                     "to join - choose one to continue with, or add files that belong "
+                     "together." if proposal["strategy"] == "review" else None)}
+
+
+@router.post("/prep2/{sid}/profile")
+def do_profile(sid: str, req: CombineRequest | None = None) -> dict:
+    """Combine as approved, then deeply understand the resulting table.
+    With several sheets a spec is REQUIRED - there is no silent fallback that
+    quietly analyses one sheet and drops the others."""
+    s = _sess(sid)
+    if not s["sheets"]:
+        raise HTTPException(400, "Add at least one file first.")
+    names = list(s["sheets"])
+    spec = (req.spec if req else None) or s.get("combine_spec")
+    if spec is None:
+        if len(names) > 1:
+            raise HTTPException(409, "Several sheets are loaded - approve how they "
+                                     "should be combined first.")
+        spec = prep.propose_combine(s["sheets"])
+    if spec.get("strategy") == "review":
+        raise HTTPException(400, "Choose a combine strategy - 'review' means the "
+                                 "sheets do not obviously belong together.")
     try:
-        combined, report = prep.apply_combine(s["sheets"], proposal)
+        combined, report = prep.apply_combine(s["sheets"], spec)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    banner = " ".join(s["banners"].get(n, "") for n in proposal.get("sheets", []))[:400]
+    s["combine_spec"] = spec
+    if spec.get("strategy") == "join" and spec.get("join_key"):
+        report["join_quality"] = prep.join_quality(s["sheets"], spec["join_key"],
+                                                   spec.get("sheets"))
+    used = spec.get("sheets") or names
+    if spec.get("strategy") == "single" and spec.get("pick"):
+        used = [spec["pick"]]
+    banner = " ".join(s["banners"].get(n, "") for n in used)[:400]
     prof = profile_table(combined, banner)
     prof["pii_columns"] = [{"column": f["column"], "kind": f["kind"]}
                            for f in detect_pii(combined)]
     s["combined"], s["profile"], s["combine_report"] = combined, prof, report
+    _save(s)
     narrative = _narrate(prof, report)
     _log(s, "Prep profiler", "profile",
          {"context": "prep2_profile", "rows": int(len(combined)),
@@ -274,6 +343,7 @@ def make_blueprint(sid: str, req: AnswersRequest) -> dict:
     s["answers"] = req.answers or {}
     bp = propose_blueprint(s["profile"], s["answers"], s["combined"])
     s["blueprint"] = bp
+    _save(s)
     _log(s, "Prep architect", "query_plan",
          {"context": "prep2_blueprint", "columns": len(bp["columns"]),
           "reshape": bool(bp.get("reshape")), "grain": bp.get("grain")})
@@ -301,6 +371,7 @@ def build(sid: str, req: BlueprintRequest) -> dict:
         raise HTTPException(400, f"The blueprint could not be applied: {exc}") from exc
     cert = certify(built, bp)
     s["blueprint"], s["built"], s["cert"], s["steps"] = bp, built, cert, steps
+    _save(s)
     _log(s, "You", "approval",
          {"context": "prep2_build", "rows": int(len(built)),
           "cols": int(built.shape[1]), "verdict": cert["verdict"]})
@@ -337,7 +408,8 @@ def export(sid: str, kind: str) -> StreamingResponse:
         return _stream(json.dumps(schema, indent=2, default=str),
                        "application/json", "schema.json")
     if kind == "recipe":
-        recipe = {"version": 1, "headers": {k: v for k, v in s["headers"].items()},
+        recipe = {"version": 2, "headers": {k: v for k, v in s["headers"].items()},
+                  "combine_spec": s.get("combine_spec"),
                   "answers": s.get("answers"), "blueprint": bp,
                   "steps": s.get("steps")}
         return _stream(json.dumps(recipe, indent=2, default=str),
@@ -348,6 +420,80 @@ def export(sid: str, kind: str) -> StreamingResponse:
 def _stream(text: str, media: str, filename: str) -> StreamingResponse:
     return StreamingResponse(iter([text]), media_type=media,
                              headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+
+class ReplayRequest(BaseModel):
+    recipe: dict[str, Any]
+
+
+@router.post("/prep2/{sid}/replay")
+def replay(sid: str, req: ReplayRequest) -> dict:
+    """Apply a saved recipe to the sheets in this session - next month's file,
+    prepared exactly as last month's was. Anything the new file cannot honor
+    is reported rather than silently skipped."""
+    s = _sess(sid)
+    if not s["sheets"]:
+        raise HTTPException(400, "Add the new file first.")
+    rec = req.recipe or {}
+    bp = rec.get("blueprint")
+    if not bp or not bp.get("columns"):
+        raise HTTPException(400, "That recipe has no blueprint in it.")
+    warnings: list[str] = []
+
+    # 1. header rows, matched by sheet name where the names still line up
+    for name, hdr in (rec.get("headers") or {}).items():
+        if name in s["raw"] and isinstance(hdr, dict):
+            s["headers"][name] = hdr
+            s["sheets"][name] = prep.reheader(s["raw"][name], hdr.get("row", 0),
+                                              hdr.get("tiers", 1))
+        elif name not in s["raw"]:
+            warnings.append(f"the recipe expected a sheet named '{name}'")
+
+    # 2. combine exactly as before when the sheets still support it
+    spec = rec.get("combine_spec") or prep.propose_combine(s["sheets"])
+    spec = {**spec, "sheets": [n for n in spec.get("sheets", list(s["sheets"]))
+                               if n in s["sheets"]] or list(s["sheets"])}
+    if spec.get("strategy") == "review":
+        spec = {**spec, "strategy": "single", "pick": list(s["sheets"])[0]}
+        warnings.append("the sheets did not match the recipe's combine plan - "
+                        "the first sheet was used")
+    try:
+        combined, report = prep.apply_combine(s["sheets"], spec)
+    except ValueError as exc:
+        raise HTTPException(400, f"The recipe's combine step failed: {exc}") from exc
+
+    # 3. the blueprint, minus any column this file does not have
+    have = set(combined.columns)
+    kept, missing = [], []
+    for c in bp["columns"]:
+        src = c.get("source_name")
+        if src and src not in have and c.get("origin") == "source column":
+            missing.append(src)
+            continue
+        kept.append(c)
+    if missing:
+        warnings.append(f"{len(missing)} column(s) in the recipe are absent from this "
+                        f"file: {', '.join(missing[:5])}")
+    bp2 = {**bp, "columns": kept,
+           "grain": [g for g in bp.get("grain", [])
+                     if any(k["name"] == g for k in kept)]}
+    try:
+        built, steps = apply_blueprint(combined, bp2)
+    except Exception as exc:
+        raise HTTPException(400, f"The recipe could not be applied: {exc}") from exc
+    cert = certify(built, bp2)
+    s["combine_spec"], s["combined"] = spec, combined
+    s["profile"] = profile_table(combined, "")
+    s["profile"]["pii_columns"] = [{"column": f["column"], "kind": f["kind"]}
+                                   for f in detect_pii(combined)]
+    s["blueprint"], s["built"], s["cert"], s["steps"] = bp2, built, cert, steps
+    s["answers"] = rec.get("answers") or {}
+    _save(s)
+    _log(s, "You", "approval", {"context": "prep2_replay", "rows": int(len(built)),
+                                "warnings": len(warnings)})
+    return {"steps": steps, "certificate": cert, "preview": _preview(built),
+            "dictionary": data_dictionary(built, bp2), "blueprint": bp2,
+            "warnings": warnings}
 
 
 @router.post("/prep2/{sid}/register")
@@ -368,6 +514,7 @@ def register(sid: str, req: FinishRequest) -> dict:
     ds = store.add_dataset(built, filename=name,
                            pii={"status": "clean", "findings": []},
                            project_id=req.project_id)
+    _save(s)
     _log(s, "You", "approval", {"context": "prep2_register", "dataset_id": ds.id,
                                 "rows": int(len(built)), "name": name})
     return {"dataset_id": ds.id, "filename": name, "project_id": ds.project_id,

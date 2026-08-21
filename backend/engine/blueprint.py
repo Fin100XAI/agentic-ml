@@ -28,7 +28,12 @@ _SUMMARY_RE = re.compile(
 # meaningless - they are skipped when choosing the check column.
 _NON_ADDITIVE = re.compile(
     r"pct|percent|%|\brate\b|ratio|share|avg|average|\bmean\b|per\s*1000|"
-    r"per\s*capita|index", re.I)
+    r"per\s*capita|index|"
+    # Identifiers and periods are numbers that must never be summed: totalling
+    # a serial-number column and comparing it to a total row is nonsense, and
+    # it used to flip the recommendation on a perfectly ordinary file.
+    r"\bsr\.?\s*no\b|\bs\.?\s*no\b|\bid\b|\bcode\b|serial|\bno\.?$|"
+    r"\byear\b|\bmonth\b|\bperiod\b|\bdate\b", re.I)
 
 
 # ------------------------------------------------------------------ interview
@@ -196,15 +201,35 @@ def build_interview(profile: dict[str, Any], df: pd.DataFrame,
 
 
 def _footer_rows(df: pd.DataFrame) -> int:
-    """Trailing note block: a contiguous tail where almost every cell is empty."""
+    """Trailing note rows ('Note :', 'Source: ...'). Sparsity is judged
+    RELATIVE to the body: a fixed fraction of the column count marks every row
+    on a narrow table and nothing on a wide one."""
+    if df.empty:
+        return 0
+    filled = df.notna().sum(axis=1)
+    body = float(filled.median() or 0)
+    thresh = max(1, int(0.25 * body))
     n = 0
-    thresh = max(2, int(df.shape[1] * 0.15))
     for i in range(len(df) - 1, -1, -1):
-        if int(df.iloc[i].notna().sum()) <= thresh:
+        if int(filled.iloc[i]) <= thresh:
             n += 1
         else:
             break
     return n if n < len(df) else 0
+
+def _is_row_counter(series: pd.Series) -> bool:
+    """A column that just numbers the rows (1, 2, 3 ...) or holds plausible
+    years. Neither adds up to anything, whatever it is called."""
+    vals = pd.to_numeric(series, errors="coerce").dropna()
+    if len(vals) < 3:
+        return False
+    if (vals % 1 != 0).any():
+        return False
+    ints = vals.astype("int64")
+    if ints.between(1900, 2100).all():
+        return True          # a year column
+    diffs = ints.sort_values().diff().dropna()
+    return bool(len(diffs)) and bool((diffs == 1).all())
 
 
 def _summary_rows(df: pd.DataFrame) -> dict[str, Any]:
@@ -228,7 +253,8 @@ def _summary_rows(df: pd.DataFrame) -> dict[str, Any]:
     if not idx:
         return out
     num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])
-                and not _NON_ADDITIVE.search(str(c))]
+                and not _NON_ADDITIVE.search(str(c))
+                and not _is_row_counter(df[c])]
     if num_cols:
         col = max(num_cols, key=lambda c: pd.to_numeric(df[c], errors="coerce").abs().sum())
         parts = pd.to_numeric(df.loc[~mask, col], errors="coerce").sum()
@@ -261,7 +287,7 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
 
     def add(source: str | None, name: str, dtype: str, role: str,
             unit: dict | None, nullable: bool, desc: str, action: str = "keep",
-            origin: str = "") -> None:
+            origin: str = "", rules: dict | None = None) -> None:
         base = norm_name(name)
         final = base
         i = 2
@@ -273,7 +299,8 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
                         # Units belong to quantities only.
                         "unit": (unit or {}).get("unit") if role == "measure" else None,
                         "nullable": nullable, "description": desc,
-                        "action": action, "origin": origin})
+                        "action": action, "origin": origin,
+                        "rules": rules or {}})
 
     by_name = {c["source_name"]: c for c in profile["columns"]}
     if wb:
@@ -283,13 +310,15 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
             if not p:
                 continue
             add(c, p["suggested_name"], _target_dtype(p, answers), p["role"], p["unit"],
-                p["missing_pct"] > 0, _describe(p), "keep", "source column")
+                p["missing_pct"] > 0, _describe(p), "keep", "source column",
+                _value_rules(p, df))
         add(None, "period", "period", "period", None, False,
             "The period each row covers, taken from the column headings.",
             "derive", "reshaped from column headings")
         for m in wb["measures"]:
             add(None, m, "number", "measure", tu, True,
-                f"{m}, one value per period.", "derive", "reshaped from wide block")
+                f"{m}, one value per period.", "derive", "reshaped from wide block",
+                {"min": 0} if _all_non_negative(df, wb, m) else None)
     else:
         for p in profile["columns"]:
             src = p["source_name"]
@@ -303,7 +332,8 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
             elif answers.get(f"type::{src}") == "drop":
                 action = "drop"
             add(src, p["suggested_name"], _target_dtype(p, answers), p["role"], p["unit"],
-                p["missing_pct"] > 0, _describe(p), action, "source column")
+                p["missing_pct"] > 0, _describe(p), action, "source column",
+                _value_rules(p, df))
 
     if answers.get("summary_rows") == "flag":
         add(None, "is_summary", "boolean", "flag", None, False,
@@ -333,6 +363,47 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
         "purpose": answers.get("purpose", "both"),
         "notes": answers.get("_notes", ""),
     }
+
+
+def _all_non_negative(df: pd.DataFrame, wb: dict[str, Any], measure: str) -> bool:
+    cols = [c for c, m in (wb.get("measure_of") or {}).items()
+            if m == measure and c in df.columns]
+    if not cols:
+        return False
+    try:
+        vals = pd.to_numeric(df[cols].stack(), errors="coerce").dropna()
+    except Exception:
+        return False
+    return bool(len(vals)) and bool((vals >= 0).all())
+
+
+def _value_rules(p: dict[str, Any], df: pd.DataFrame) -> dict[str, Any]:
+    """The rules worth CHECKING - not a description of the sample. A domain
+    read off the data would make certify pass by construction; these are the
+    ones that catch a real mistake: percentages over 100, negative counts,
+    a category that appeared from nowhere, a district that is not a district."""
+    rules: dict[str, Any] = {}
+    col = p["source_name"]
+    unit = (p.get("unit") or {}).get("unit")
+    if p["dtype"] == "number":
+        if unit == "percent":
+            rules["min"], rules["max"] = 0, 100
+        elif col in df.columns:
+            try:
+                vals = pd.to_numeric(df[col], errors="coerce").dropna()
+                if len(vals) and (vals >= 0).all():
+                    rules["min"] = 0
+            except Exception:
+                pass
+    if p["dtype"] in ("category", "boolean") and 0 < p["distinct"] <= 30 \
+            and col in df.columns:
+        seen = sorted({str(v).strip() for v in df[col].dropna()
+                       if str(v).strip().lower() not in MISSING_TOKENS})
+        if seen:
+            rules["allowed"] = seen
+    if p["role"] == "geography":
+        rules["reference"] = "india_boundaries"
+    return rules
 
 
 def _target_dtype(p: dict[str, Any], answers: dict[str, Any]) -> str:
@@ -530,6 +601,37 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
             if n:
                 add(f"'{spec['name']}' has no blanks", False, f"{n} blank value(s)", "warning")
 
+    # Value rules: the checks that catch a real mistake rather than restating
+    # the sample. A geography column is matched against the bundled boundary
+    # master, so an unrecognised district is caught before it reaches a chart.
+    for spec in bp["columns"]:
+        if spec.get("action") == "drop" or spec["name"] not in df.columns:
+            continue
+        rules = spec.get("rules") or {}
+        col = df[spec["name"]]
+        name = spec["name"]
+        if "min" in rules:
+            n = int((pd.to_numeric(col, errors="coerce") < rules["min"]).sum())
+            add(f"'{name}' is never below {rules['min']}", n == 0,
+                "all values in range" if n == 0 else f"{n} value(s) below {rules['min']}")
+        if "max" in rules:
+            n = int((pd.to_numeric(col, errors="coerce") > rules["max"]).sum())
+            add(f"'{name}' is never above {rules['max']}", n == 0,
+                "all values in range" if n == 0 else f"{n} value(s) above {rules['max']}")
+        if rules.get("allowed"):
+            allowed = {str(v) for v in rules["allowed"]}
+            seen = {str(v) for v in col.dropna().unique()}
+            extra = sorted(seen - allowed)[:5]
+            add(f"'{name}' holds only known values", not extra,
+                f"{len(allowed)} agreed value(s)" if not extra
+                else f"unexpected: {', '.join(extra)}", "warning")
+        if rules.get("reference") == "india_boundaries":
+            unmatched = _unmatched_places(col)
+            add(f"'{name}' matches known places", not unmatched,
+                "every value matches a state or district"
+                if not unmatched else
+                f"{len(unmatched)} unrecognised: {', '.join(unmatched[:4])}", "warning")
+
     empty_cols = [c for c in df.columns if df[c].isna().all()]
     add("No empty columns", not empty_cols,
         "every column holds data" if not empty_cols else f"all blank: {empty_cols}", "warning")
@@ -544,6 +646,29 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
 
 
 # ----------------------------------------------------------- data dictionary
+
+def _unmatched_places(series: pd.Series) -> list[str]:
+    """Values that match no bundled state or district. Empty when the
+    boundary files are unavailable - the check simply reports clean rather
+    than failing the build."""
+    try:
+        from engine.query.geo import _norm, boundary_names
+    except Exception:
+        return []
+    known: set[str] = set()
+    for level in ("states", "districts"):
+        try:
+            known |= {_norm(n) for n in boundary_names(level)}
+        except Exception:
+            continue
+    if not known:
+        return []
+    out = []
+    for v in sorted({str(x).strip() for x in series.dropna()}):
+        if v and _norm(v) not in known:
+            out.append(v)
+    return out
+
 
 def data_dictionary(df: pd.DataFrame, bp: dict[str, Any],
                     provenance: dict[str, Any] | None = None) -> str:
@@ -560,15 +685,28 @@ def data_dictionary(df: pd.DataFrame, bp: dict[str, Any],
         for k, v in provenance.items():
             lines.append(f"- {k}: {v}")
     lines += ["", "## Columns", "",
-              "| Column | Type | Role | Unit | Blank | Description |",
-              "| --- | --- | --- | --- | --- | --- |"]
+              "| Column | Type | Role | Unit | Blank | Rules | Description |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
     for spec in bp["columns"]:
         if spec.get("action") == "drop" or spec["name"] not in df.columns:
             continue
         col = df[spec["name"]]
         blank = f"{100 * float(col.isna().mean()):.0f}%" if len(df) else "-"
+        r = spec.get("rules") or {}
+        bits = []
+        if "min" in r and "max" in r:
+            bits.append(f"{r['min']} to {r['max']}")
+        elif "min" in r:
+            bits.append(f"at least {r['min']}")
+        elif "max" in r:
+            bits.append(f"at most {r['max']}")
+        if r.get("allowed"):
+            bits.append(f"{len(r['allowed'])} agreed value(s)")
+        if r.get("reference"):
+            bits.append("known places")
         lines.append(f"| `{spec['name']}` | {spec['dtype']} | {spec['role']} | "
-                     f"{spec.get('unit') or '-'} | {blank} | {spec.get('description') or '-'} |")
+                     f"{spec.get('unit') or '-'} | {blank} | {'; '.join(bits) or '-'} | "
+                     f"{spec.get('description') or '-'} |")
     dropped = [s for s in bp["columns"] if s.get("action") == "drop"]
     if dropped:
         lines += ["", "## Columns removed", ""]
