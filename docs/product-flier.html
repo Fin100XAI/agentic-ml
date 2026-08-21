@@ -238,8 +238,39 @@ h1.title .grad {
 .path.violet li::before { color: var(--violet); }
 
 /* ============================================================ flow
-   The only numbered device on the page: this is a real sequence. */
-.flow { display: flex; flex-direction: column; gap: 0; margin-top: 2rem; }
+   The only numbered device on the page: this is a real sequence.
+   Two representations of the same nine steps - a swimlane figure where
+   there is room for it, the stepped list where there is not. Exactly one
+   is in the DOM's accessibility tree at any width. */
+.claim {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  margin-top: 1.5rem; padding: 0.85rem 1.1rem;
+  border: 1px solid var(--line); border-left: 3px solid var(--teal);
+  border-radius: 0 12px 12px 0; background: var(--surface);
+  max-width: var(--measure);
+}
+.claim b { font-size: 1.5rem; font-family: var(--display); font-weight: 500; color: var(--teal); line-height: 1; }
+.claim span { font-size: 0.9375rem; color: var(--muted); }
+
+.flow-fig { margin: 1.75rem 0 0; }
+.flow-fig svg { display: block; width: 100%; height: auto; color: var(--ink); }
+.flow-fig figcaption { margin-top: 0.9rem; font-size: 0.8125rem; color: var(--faint); max-width: var(--measure); }
+
+.lane-bg { fill: var(--surface); }
+.lane-hd { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.09em; }
+.rule { stroke: var(--line); stroke-width: 1; }
+.box-you { fill: color-mix(in srgb, var(--teal) 13%, var(--surface)); stroke: color-mix(in srgb, var(--teal) 55%, transparent); stroke-width: 1.2; }
+.box-ai { fill: color-mix(in srgb, var(--blue) 12%, var(--surface)); stroke: color-mix(in srgb, var(--blue) 45%, transparent); stroke-width: 1.2; }
+.box-sys { fill: var(--raised); stroke: var(--line-strong); stroke-width: 1.2; }
+.n { fill: var(--faint); font-family: var(--mono); font-size: 10px; }
+.lbl { fill: var(--ink); font-family: var(--sans); font-size: 11.5px; font-weight: 500; }
+.conn { fill: none; stroke: var(--faint); stroke-width: 1.2; opacity: 0.7; }
+.ah { fill: var(--faint); opacity: 0.85; }
+
+.flow-list { display: flex; flex-direction: column; gap: 0; margin-top: 1.75rem; }
+/* These must follow the base rule above - equal specificity, later wins. */
+@media (min-width: 760px) { .flow-list { display: none; } }
+@media (max-width: 759px) { .flow-fig { display: none; } }
 .step {
   display: grid;
   grid-template-columns: 2.5rem 1fr;
@@ -541,7 +572,81 @@ h1.title .grad {
       AI proposes, the machine computes, and every consequential step waits for a person.
     </p>
 
-    <div class="flow">
+    <p class="claim"><b>5&nbsp;of&nbsp;9</b><span>steps stop and wait for you - and each one follows something an agent or the machine has just proposed.</span></p>
+
+    <figure class="flow-fig">
+      <svg viewBox="0 0 760 620" role="img"
+           aria-label="Swimlane chart of nine steps across three lanes. You decide: upload the file, approve column names, decide the data checkup, approve and run, and decide with cover. AI proposes: questions proposed, and brief drafted with critic check. Machine computes: privacy screen, and findings computed. Control returns to the You lane after every agent or machine step.">
+        <defs>
+          <marker id="fa" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+            <path d="M0,1 L8,5 L0,9 Z" class="ah"></path>
+          </marker>
+        </defs>
+
+        <!-- lanes -->
+        <rect class="lane-bg" x="20" y="44" width="220" height="556" rx="14"></rect>
+        <rect class="lane-bg" x="270" y="44" width="220" height="556" rx="14"></rect>
+        <rect class="lane-bg" x="520" y="44" width="220" height="556" rx="14"></rect>
+
+        <text class="lane-hd" x="130" y="26" text-anchor="middle">YOU DECIDE</text>
+        <text class="lane-hd" x="380" y="26" text-anchor="middle">AI PROPOSES</text>
+        <text class="lane-hd" x="630" y="26" text-anchor="middle">MACHINE COMPUTES</text>
+        <line class="rule" x1="20" y1="36" x2="740" y2="36"></line>
+
+        <!-- connectors, drawn under the boxes -->
+        <path class="conn" d="M130,92 V103" marker-end="url(#fa)"></path>
+        <path class="conn" d="M130,154 V165 H630 V186" marker-end="url(#fa)"></path>
+        <path class="conn" d="M630,216 V227 H130 V248" marker-end="url(#fa)"></path>
+        <path class="conn" d="M130,278 V289 H380 V310" marker-end="url(#fa)"></path>
+        <path class="conn" d="M380,340 V351 H130 V372" marker-end="url(#fa)"></path>
+        <path class="conn" d="M130,402 V413 H630 V434" marker-end="url(#fa)"></path>
+        <path class="conn" d="M630,464 V475 H380 V496" marker-end="url(#fa)"></path>
+        <path class="conn" d="M380,526 V537 H130 V558" marker-end="url(#fa)"></path>
+
+        <!-- 1 -->
+        <rect class="box-you" x="30" y="72" width="200" height="40" rx="10"></rect>
+        <text class="n" x="44" y="97">01</text>
+        <text class="lbl" x="66" y="97">Upload the file</text>
+        <!-- 2 -->
+        <rect class="box-you" x="30" y="134" width="200" height="40" rx="10"></rect>
+        <text class="n" x="44" y="159">02</text>
+        <text class="lbl" x="66" y="159">Approve column names</text>
+        <!-- 3 -->
+        <rect class="box-sys" x="530" y="196" width="200" height="40" rx="10"></rect>
+        <text class="n" x="544" y="221">03</text>
+        <text class="lbl" x="566" y="221">Privacy screen runs</text>
+        <!-- 4 -->
+        <rect class="box-you" x="30" y="258" width="200" height="40" rx="10"></rect>
+        <text class="n" x="44" y="283">04</text>
+        <text class="lbl" x="66" y="283">Decide the data checkup</text>
+        <!-- 5 -->
+        <rect class="box-ai" x="280" y="320" width="200" height="40" rx="10"></rect>
+        <text class="n" x="294" y="345">05</text>
+        <text class="lbl" x="316" y="345">Questions proposed</text>
+        <!-- 6 -->
+        <rect class="box-you" x="30" y="382" width="200" height="40" rx="10"></rect>
+        <text class="n" x="44" y="407">06</text>
+        <text class="lbl" x="66" y="407">Approve and run</text>
+        <!-- 7 -->
+        <rect class="box-sys" x="530" y="444" width="200" height="40" rx="10"></rect>
+        <text class="n" x="544" y="469">07</text>
+        <text class="lbl" x="566" y="469">Findings computed</text>
+        <!-- 8 -->
+        <rect class="box-ai" x="280" y="506" width="200" height="40" rx="10"></rect>
+        <text class="n" x="294" y="531">08</text>
+        <text class="lbl" x="316" y="531">Brief drafted, critic checks</text>
+        <!-- 9 -->
+        <rect class="box-you" x="30" y="568" width="200" height="40" rx="10"></rect>
+        <text class="n" x="44" y="593">09</text>
+        <text class="lbl" x="66" y="593">Decide, with cover</text>
+      </svg>
+      <figcaption>
+        Control crosses to an agent or the machine and comes straight back: no step
+        that changes the data, the method or the conclusion runs without a person.
+      </figcaption>
+    </figure>
+
+    <div class="flow-list">
       <div class="step"><span class="n">01</span><span class="body"><strong>Upload the file</strong> <span class="what">CSV or Excel; multi-sheet workbooks combine in one click</span> <span class="who who-you">you</span></span></div>
       <div class="step"><span class="n">02</span><span class="body"><strong>Approve column names</strong> <span class="what">cryptic headers fixed; the original file never changes</span> <span class="who who-you">you</span></span></div>
       <div class="step"><span class="n">03</span><span class="body"><strong>Privacy screen runs</strong> <span class="what">personal data flagged; you choose mask, drop or keep</span> <span class="who who-sys">machine</span></span></div>
