@@ -540,6 +540,44 @@ def test_api_unknown_session_is_404():
     assert client.post("/api/prep2/nosuchsession/interview").status_code == 404
 
 
+# --------------------------------------------------------------- agent schemas
+def test_response_schemas_are_hardened_before_they_are_sent():
+    """A schema that omits additionalProperties is rejected with a 400.
+
+    The API refuses an object schema that does not forbid extra properties,
+    and every agent wraps its call in try/except - so a forgotten line does
+    not raise, it silently degrades to the heuristic fallback and the agent
+    only looks like it chose the rule-based answer. Hardening centrally is
+    what stops that; this pins it.
+    """
+    from engine.llm.claude import _strict
+
+    out = _strict({"type": "object", "properties": {
+        "labels": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"column": {"type": "string"},
+                           "nested": {"type": "object",
+                                      "properties": {"a": {"type": "string"}}}},
+            "required": ["column"]}}},
+        "required": ["labels"]})
+
+    assert out["additionalProperties"] is False
+    item = out["properties"]["labels"]["items"]
+    assert item["additionalProperties"] is False, "objects inside arrays too"
+    assert item["properties"]["nested"]["additionalProperties"] is False
+    # non-objects are left alone
+    assert "additionalProperties" not in item["properties"]["column"]
+    assert out["required"] == ["labels"]
+
+
+def test_hardening_leaves_an_already_correct_schema_alone():
+    from engine.llm.claude import _strict
+
+    schema = {"type": "object", "properties": {"a": {"type": "string"}},
+              "required": ["a"], "additionalProperties": False}
+    assert _strict(schema) == schema
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]
@@ -553,3 +591,5 @@ if __name__ == "__main__":
             print(f"FAIL  {name}: {type(exc).__name__}: {exc}")
     print(f"\n{len(fns) - failed}/{len(fns)} prep tests passed")
     sys.exit(1 if failed else 0)
+
+

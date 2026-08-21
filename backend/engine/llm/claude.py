@@ -14,6 +14,25 @@ import anthropic
 from .base import LLMProvider
 
 
+def _strict(node: Any) -> Any:
+    """Every object in a response schema must forbid extra properties.
+
+    The API rejects an object schema that does not say so, with a 400 that
+    an agent's ``except`` clause then swallows into a silent fallback - the
+    agent looks like it ran and chose the rule-based answer. Enforcing it
+    here means a new agent cannot reintroduce that failure by forgetting a
+    line, which is exactly how the column interpreter shipped dead.
+    """
+    if isinstance(node, dict):
+        out = {k: _strict(v) for k, v in node.items()}
+        if out.get("type") == "object":
+            out["additionalProperties"] = False
+        return out
+    if isinstance(node, list):
+        return [_strict(v) for v in node]
+    return node
+
+
 class ClaudeProvider(LLMProvider):
     def __init__(self, api_key: str, model: str) -> None:
         # Explicit timeout: the SDK default (10 minutes) would let one hung
@@ -60,7 +79,8 @@ class ClaudeProvider(LLMProvider):
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": prompt}],
-            output_config={"format": {"type": "json_schema", "schema": schema}},
+            output_config={"format": {"type": "json_schema",
+                                      "schema": _strict(schema)}},
         )
         text = next(b.text for b in resp.content if b.type == "text")
         return json.loads(text)
