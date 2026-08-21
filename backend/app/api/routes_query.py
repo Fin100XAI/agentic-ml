@@ -413,6 +413,7 @@ def question_plan(dataset_id: str, lang: str = "en", focus: str = "",
             "computes": " ".join(desc["sentences"][1:])[:220] or desc["sentences"][0],
             "plan": cand["plan"],
         })
+    _naturalise_questions(out, ds)
     store.log_event("Question scout", "query_plan", dataset_id=ds.id,
                     mode="llm" if questions_by == "claude" else "fallback",
                     payload={"context": "question_plan", "n_proposed": len(out)})
@@ -518,6 +519,66 @@ def auto_explore(dataset_id: str, lang: str = "en", focus: str = "",
             "shape": {"shape": shape["shape"], "label": shape["label"],
                       "reasoning": shape["reasoning"]},
             "filename": ds.filename, "artifact_id": ds.artifact_id}
+
+
+def _naturalise_questions(items: list[dict[str, Any]], ds) -> None:
+    """Say each question the way an officer would ask it.
+
+    Column headers do not belong in the question text: 'Which Product ID has
+    the highest total Units ordered?' is the machine talking. The PLAN is
+    never touched - only the sentence the officer reads - so a reworded
+    question still computes exactly what the template built.
+    """
+    from engine.profile_deep import humanize_header
+
+    for it in items:
+        it["question"] = _rule_naturalise(it["question"], ds)
+    provider = instrumented_provider()
+    if provider is None or not items:
+        return
+    current_agent.set("Question scout")
+    try:
+        import json as _json
+
+        raw = provider.complete_json(
+            "Reword each question the way a government officer would say it "
+            "out loud. Keep the MEANING exactly - same measure, same grouping, "
+            "same direction - but use plain words instead of column headers "
+            "and codes ('product category' not 'Product ID', 'households' not "
+            "'HH_cnt'). One short question each, no jargon, plain hyphens, and "
+            "a colon before any number. If a question is already natural, "
+            "return it unchanged.",
+            _json.dumps({"columns": {str(c): humanize_header(str(c))
+                                     for c in list(ds.df.columns)[:60]},
+                         "questions": [{"id": i["id"], "text": i["question"]}
+                                       for i in items]}),
+            schema={"type": "object", "properties": {"questions": {
+                "type": "array", "items": {"type": "object", "properties": {
+                    "id": {"type": "string"}, "text": {"type": "string"}},
+                    "required": ["id", "text"]}}},
+                "required": ["questions"]},
+            max_tokens=1600,
+        )
+        by_id = {i["id"]: i for i in items}
+        for q in raw.get("questions", []):
+            item = by_id.get(str(q.get("id", "")))
+            text = str(q.get("text", "")).strip()
+            if item and 10 <= len(text) <= 160:
+                item["question"] = text
+    except Exception:
+        pass  # the rule-based phrasing already stands
+
+
+def _rule_naturalise(question: str, ds) -> str:
+    """Replace any literal column header in the text with its readable label.
+    Longest first, so 'Units Sold' is replaced before 'Units'."""
+    from engine.profile_deep import humanize_header
+
+    out = question
+    for col in sorted((str(c) for c in ds.df.columns), key=len, reverse=True):
+        if col and col in out:
+            out = out.replace(col, humanize_header(col).lower())
+    return out[0].upper() + out[1:] if out else question
 
 
 def _usable_focus(ds, focus: str) -> list[str] | None:

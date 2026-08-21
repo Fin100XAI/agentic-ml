@@ -16,8 +16,8 @@ from typing import Any
 
 import pandas as pd
 
-from engine.profile_deep import (MISSING_TOKENS, norm_name, parse_number,
-                                 parse_period)
+from engine.profile_deep import (MISSING_TOKENS, humanize_header, norm_name,
+                                 parse_number, parse_period)
 
 DTYPES = ("number", "integer", "text", "category", "boolean", "period")
 ROLES = ("identifier", "geography", "period", "dimension", "measure", "flag")
@@ -287,14 +287,16 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
 
     def add(source: str | None, name: str, dtype: str, role: str,
             unit: dict | None, nullable: bool, desc: str, action: str = "keep",
-            origin: str = "", rules: dict | None = None) -> None:
+            origin: str = "", rules: dict | None = None,
+            label: str | None = None) -> None:
         base = norm_name(name)
         final = base
         i = 2
         while final in seen:
             final, i = f"{base}_{i}", i + 1
         seen.add(final)
-        columns.append({"source_name": source, "name": final, "label": str(name),
+        columns.append({"source_name": source, "name": final,
+                        "label": label or humanize_header(source or name),
                         "dtype": dtype, "role": role,
                         # Units belong to quantities only.
                         "unit": (unit or {}).get("unit") if role == "measure" else None,
@@ -311,7 +313,7 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
                 continue
             add(c, p["suggested_name"], _target_dtype(p, answers), p["role"], p["unit"],
                 p["missing_pct"] > 0, _describe(p), "keep", "source column",
-                _value_rules(p, df))
+                _value_rules(p, df), p.get("label"))
         add(None, "period", "period", "period", None, False,
             "The period each row covers, taken from the column headings.",
             "derive", "reshaped from column headings")
@@ -333,7 +335,7 @@ def propose_blueprint(profile: dict[str, Any], answers: dict[str, Any],
                 action = "drop"
             add(src, p["suggested_name"], _target_dtype(p, answers), p["role"], p["unit"],
                 p["missing_pct"] > 0, _describe(p), action, "source column",
-                _value_rules(p, df))
+                _value_rules(p, df), p.get("label"))
 
     if answers.get("summary_rows") == "flag":
         add(None, "is_summary", "boolean", "flag", None, False,

@@ -31,8 +31,8 @@ from app.main import app
 from engine import prep
 from engine.blueprint import (apply_blueprint, build_interview, certify,
                               data_dictionary, propose_blueprint, _summary_rows)
-from engine.profile_deep import (norm_name, parse_number, parse_period,
-                                 profile_table)
+from engine.profile_deep import (humanize_header, norm_name, parse_number,
+                                 parse_period, profile_table)
 
 client = TestClient(app)
 
@@ -98,6 +98,55 @@ def test_parse_period_notations():
     assert parse_period("Maharashtra") is None
     # Two spellings of one month land on one label
     assert parse_period("Apr-18")["label"] == parse_period("April 2018")["label"]
+
+
+def test_parse_period_every_common_writing():
+    """Dates matter, and departments write them every way there is."""
+    cases = {
+        "Jun-2025": "month", "July 2026": "month", "2026 July": "month",
+        "july/2026": "month", "Jun'25": "month", "06/2025": "month",
+        "2025-06": "month", "Jun2025": "month", "2025_06": "month",
+        "जून 2025": "month", "जुलै-2026": "month",
+        "2018-19": "fiscal_year", "FY 2025-26": "fiscal_year", "FY2025": "fiscal_year",
+        "Q1 2025": "quarter", "1st Quarter 2025": "quarter", "2025Q1": "quarter",
+        "Q1 FY25": "quarter", "H1 2025": "half", "Week 23 2025": "week",
+        "2019": "year", "15.06.2025": "date", "31-03-2019": "date",
+    }
+    for raw, kind in cases.items():
+        got = parse_period(raw)
+        assert got and got["kind"] == kind, f"{raw} -> {got}"
+    # 'Jun-2025' and '2025-06' are the same month however they are written
+    assert parse_period("Jun-2025")["key"] == parse_period("2025-06")["key"]
+    # a monthly column must never be mistaken for a fiscal year: the second
+    # part of a fiscal year has to be the year that follows
+    assert parse_period("2025-06")["kind"] == "month"
+    assert parse_period("2025-26")["kind"] == "fiscal_year"
+    for not_a_period in ("Maharashtra", "CBIC", "1,234", "-", "Anand", "Q5 2025"):
+        assert parse_period(not_a_period) is None, not_a_period
+
+
+def test_humanize_header_reads_cryptic_columns():
+    """A header is not a label. Any period inside it moves to the end, where
+    a person says it."""
+    cases = {
+        "financial_year_2018_19_total": "Total, FY2018-19",
+        "fy_2024_25_expenditure": "Expenditure, FY2024-25",
+        "apr_18_cgst": "CGST, Apr-2018",
+        "2025_06_sales": "Sales, Jun-2025",
+        "HH_pop_2011": "Households population, 2011",
+        "unnamed_3": "Column 3",
+    }
+    for raw, want in cases.items():
+        assert humanize_header(raw) == want, f"{raw} -> {humanize_header(raw)}"
+    # an already-readable header is left alone
+    assert humanize_header("District Name") == "District Name"
+
+
+def test_profiled_columns_carry_a_readable_label():
+    df = pd.DataFrame({"fy_2024_25_expenditure": [1, 2, 3], "dist_name": ["a", "b", "c"]})
+    labels = {c["source_name"]: c["label"] for c in profile_table(df)["columns"]}
+    assert labels["fy_2024_25_expenditure"] == "Expenditure, FY2024-25", labels
+    assert "district" in labels["dist_name"].lower(), labels
 
 
 def test_norm_name():

@@ -33,11 +33,47 @@ _PAREN_NEG = re.compile(r"^\((.*)\)$")
 _INDIAN_GROUP = re.compile(r"^\d{1,2}(,\d{2})+,\d{3}$")
 _WESTERN_GROUP = re.compile(r"^\d{1,3}(,\d{3})+$")
 
-_FY = re.compile(r"^(f\.?y\.?\s*)?((19|20)\d{2})\s*[-/]\s*((19|20)?\d{2})$", re.I)
-_MONTH_YEAR = re.compile(
-    r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
-    r"[\s\-/,]*((19|20)?\d{2})$", re.I)
-_QUARTER = re.compile(r"^(q[1-4])[\s\-/]*((19|20)?\d{2})$|^((19|20)\d{2})[\s\-]?(q[1-4])$", re.I)
+# Month names as they actually appear: English long and short, and the
+# Marathi and Hindi names a Maharashtra department may well use.
+_MONTHS: dict[str, int] = {}
+for _i, _names in enumerate([
+    ("jan", "january", "जानेवारी", "जनवरी"),
+    ("feb", "february", "फेब्रुवारी", "फरवरी", "फ़रवरी"),
+    ("mar", "march", "मार्च"),
+    ("apr", "april", "एप्रिल", "अप्रैल"),
+    ("may", "मे", "मई"),
+    ("jun", "june", "जून"),
+    ("jul", "july", "जुलै", "जुलाई"),
+    ("aug", "august", "ऑगस्ट", "अगस्त"),
+    ("sep", "sept", "september", "सप्टेंबर", "सितंबर"),
+    ("oct", "october", "ऑक्टोबर", "अक्टूबर"),
+    ("nov", "november", "नोव्हेंबर", "नवंबर"),
+    ("dec", "december", "डिसेंबर", "दिसंबर"),
+], start=1):
+    for _n in _names:
+        _MONTHS[_n] = _i
+
+_MONTH_ALT = "|".join(sorted(_MONTHS, key=len, reverse=True))
+_SEP = r"[\s\-/.,'’_]+"
+# Optional separator: _SEP already ends in +, so a bare '?' would make
+# it lazy rather than optional.
+_SEPQ = rf"(?:{_SEP})?"
+# Fiscal year: FY2025-26, 2025-26, F.Y. 2025/2026. The second part must be
+# the year AFTER the first - without that check '2025-06' (June) is read as
+# a fiscal year, which is how a monthly column became a year column.
+_FY = re.compile(rf"^(?:f\.?\s*y\.?{_SEPQ})?((?:19|20)\d{{2}}){_SEP}((?:19|20)?\d{{1,2}})$", re.I)
+_FY_SHORT = re.compile(rf"^f\.?\s*y\.?{_SEPQ}((?:19|20)?\d{{2}})$", re.I)
+_MONTH_YEAR = re.compile(rf"^({_MONTH_ALT})[a-z]*{_SEPQ}((?:19|20)?\d{{2}})$", re.I)
+_YEAR_MONTH = re.compile(rf"^((?:19|20)\d{{2}}){_SEP}({_MONTH_ALT})[a-z]*$", re.I)
+_NUM_MONTH_YEAR = re.compile(rf"^(0?[1-9]|1[0-2]){_SEP}((?:19|20)\d{{2}})$")
+_YEAR_NUM_MONTH = re.compile(rf"^((?:19|20)\d{{2}}){_SEP}(0?[1-9]|1[0-2])$")
+_QUARTER = re.compile(
+    rf"^(?:q|quarter{_SEPQ})([1-4])(?:{_SEPQ}(?:f\.?y\.?)?{_SEPQ}((?:19|20)?\d{{2}}))?$", re.I)
+_QUARTER_ORD = re.compile(
+    rf"^([1-4])(?:st|nd|rd|th){_SEP}quarter{_SEP}(?:f\.?y\.?)?{_SEPQ}((?:19|20)?\d{{2}})$", re.I)
+_QUARTER_TAIL = re.compile(rf"^((?:19|20)\d{{2}}){_SEPQ}q([1-4])$", re.I)
+_HALF = re.compile(rf"^h([12]){_SEPQ}(?:f\.?y\.?)?{_SEPQ}((?:19|20)?\d{{2}})$", re.I)
+_WEEK = re.compile(rf"^(?:w|wk|week){_SEPQ}(\d{{1,2}}){_SEP}((?:19|20)\d{{2}})$", re.I)
 _BARE_YEAR = re.compile(r"^(19|20)\d{2}$")
 
 _TRUE = {"y", "yes", "true", "t", "1", "haan", "हाँ"}
@@ -62,6 +98,84 @@ _UNIT_PATTERNS = [
 ]
 _CURRENCY_HINT = re.compile(r"₹|\brs\.?\b|\binr\b|rupees?|\bamount\b|\bvalue\b"
                             r"|collection|revenue|expenditure|cost|budget", re.I)
+
+
+# Abbreviations a government column header actually uses. Kept deliberately
+# short and unambiguous - a wrong expansion is worse than none.
+_HEADER_ABBREV = {
+    "hh": "households", "hhs": "households", "pop": "population",
+    "popn": "population", "lit": "literacy", "amt": "amount",
+    "qty": "quantity", "avg": "average", "tot": "total", "no": "number",
+    "nos": "number", "cnt": "count", "yr": "year", "mth": "month",
+    "dept": "department", "dist": "district", "distt": "district",
+    "blk": "block", "vill": "village", "sc": "scheduled caste",
+    "st": "scheduled tribe", "obc": "other backward classes",
+    "bpl": "below poverty line", "cgst": "CGST", "sgst": "SGST",
+    "igst": "IGST", "cess": "cess", "gst": "GST", "fy": "financial year",
+    "ry": "revenue year", "m": "male", "f": "female", "t": "total",
+    "pct": "percent", "perc": "percent", "rs": "rupees", "cr": "crore",
+    "lac": "lakh", "lakhs": "lakh", "reg": "registered", "benef": "beneficiary",
+    "benfy": "beneficiary", "wrk": "worker", "emp": "employment",
+}
+_NOISE_WORDS = {"col", "column", "field", "value", "data", "unnamed"}
+
+
+def humanize_header(name: str) -> str:
+    """A cryptic header read as a person would say it.
+
+    'financial_year_2018_19_total' -> 'Total, FY2018-19'
+    'HH_pop_2011'                  -> 'Households population, 2011'
+    'apr_18_cgst'                  -> 'CGST, Apr-2018'
+    Any period buried in the name is lifted out and put at the end, because
+    that is where a person naturally says it.
+    """
+    raw = str(name).strip()
+    if not raw:
+        return "Column"
+    tokens = [t for t in re.split(r"[\s_\-/.]+", raw) if t]
+    # Pull out a period spanning up to three adjacent tokens, LONGEST first:
+    # 'fy 2024 25' is FY2024-25, not 'fy 2024' (FY2023-24) with a stray 25.
+    period, rest, i = None, [], 0
+    while i < len(tokens):
+        if period is None:
+            hit = None
+            for span in (3, 2, 1):
+                if i + span > len(tokens):
+                    continue
+                cand = parse_period(" ".join(tokens[i:i + span]))
+                if cand:
+                    hit = (cand, span)
+                    break
+            if hit:
+                period, i = hit[0], i + hit[1]
+                continue
+        rest.append(tokens[i])
+        i += 1
+    # Once the period is lifted out, the words that merely NAME a period
+    # ('financial', 'year') are redundant - the period itself says it.
+    redundant = {"financial", "fiscal", "year", "yr", "fy", "month", "mth",
+                 "quarter", "qtr", "week", "period", "as", "on", "of", "for"}
+    words: list[str] = []
+    for t in rest:
+        low = t.lower()
+        if low in _NOISE_WORDS:
+            continue
+        if period and low in redundant:
+            continue
+        words.append(_HEADER_ABBREV.get(low, t))
+    if not words or all(w.isdigit() for w in words):
+        # nothing but noise or a bare position ('unnamed_3') - say so honestly
+        digits = [w for w in words if w.isdigit()]
+        if digits:
+            return f"Column {digits[0]}"
+        return period["label"] if period else "Column"
+    label = " ".join(words).strip()
+    # keep deliberate casing (CGST), sentence-case anything else
+    if label and label[0].islower():
+        label = label[0].upper() + label[1:]
+    if period:
+        label = f"{label}, {period['label']}"
+    return re.sub(r"\s+", " ", label).strip(" ,")
 
 
 # ------------------------------------------------------------------ helpers
@@ -149,47 +263,100 @@ def detect_number_format(series: pd.Series) -> dict[str, Any]:
     }
 
 
+def _yr(v: str | int) -> int:
+    """Two-digit years belong to this century unless that is absurd."""
+    y = int(v)
+    if y < 100:
+        y = 2000 + y if y < 70 else 1900 + y
+    return y
+
+
+def _month_label(year: int, month: int) -> dict[str, Any]:
+    ts = pd.Timestamp(year=year, month=month, day=1)
+    return {"kind": "month", "key": ts.strftime("%Y-%m"), "label": ts.strftime("%b-%Y")}
+
+
 def parse_period(raw: Any) -> dict[str, Any] | None:
-    """Recognize the period notations real reports use: full dates, month-year,
-    fiscal years, quarters, bare years. Returns kind + a sortable key."""
+    """Recognize a period however it is written.
+
+    Handles month-year in either order and in any separator ('Jun-2025',
+    'July 2026', '2026 July', 'july/2026', "Jun'25", '06/2025', '2025-06'),
+    Indian fiscal years ('2025-26', 'FY2025-26', 'FY25'), quarters ('Q1
+    2025', '1st Quarter 2025', 'Q1 FY25', '2025Q1'), halves, weeks, bare
+    years, and full dates - plus Marathi and Hindi month names.
+    """
     if raw is None or (isinstance(raw, float) and pd.isna(raw)):
         return None
     if isinstance(raw, (pd.Timestamp, _dt.datetime, _dt.date)):
-        return {"kind": "date", "key": pd.Timestamp(raw).strftime("%Y-%m-%d"),
-                "label": pd.Timestamp(raw).strftime("%b-%Y")}
+        ts = pd.Timestamp(raw)
+        return {"kind": "date", "key": ts.strftime("%Y-%m-%d"),
+                "label": ts.strftime("%b-%Y")}
     s = str(raw).strip()
     if not s or s.lower() in MISSING_TOKENS:
         return None
+
+    # Fiscal year - only when the second part really is the following year.
     m = _FY.match(s)
     if m:
-        start = int(m.group(2))
-        return {"kind": "fiscal_year", "key": f"{start}", "label": f"FY{start}-{str(start + 1)[-2:]}"}
-    m = _MONTH_YEAR.match(s)
+        start = int(m.group(1))
+        nxt = _yr(m.group(2)) if len(m.group(2)) == 4 else None
+        two = int(m.group(2)) % 100
+        if (nxt == start + 1) or (nxt is None and two == (start + 1) % 100):
+            return {"kind": "fiscal_year", "key": str(start),
+                    "label": f"FY{start}-{str(start + 1)[-2:]}"}
+    m = _FY_SHORT.match(s)
     if m:
-        # Build from the parts so 'Apr-18' and 'April 2018' land on one label.
-        mon = m.group(1)[:3].title()
-        yr = int(m.group(2))
-        yr = yr + 2000 if yr < 100 else yr
-        try:
-            ts = pd.Timestamp(f"{yr}-{mon}-01")
-            return {"kind": "month", "key": ts.strftime("%Y-%m"), "label": ts.strftime("%b-%Y")}
-        except Exception:
-            return {"kind": "month", "key": f"{yr}-{mon}", "label": f"{mon}-{yr}"}
-    m = _QUARTER.match(s)
+        y = _yr(m.group(1))
+        return {"kind": "fiscal_year", "key": str(y - 1),
+                "label": f"FY{y - 1}-{str(y)[-2:]}"}
+
+    # Month and year, in either order, named or numeric.
+    for pat, mi, yi in ((_MONTH_YEAR, 1, 2), (_YEAR_MONTH, 2, 1)):
+        m = pat.match(s)
+        if m:
+            month = _MONTHS.get(m.group(mi).lower()[:12]) or \
+                _MONTHS.get(m.group(mi).lower()[:3])
+            if month:
+                return _month_label(_yr(m.group(yi)), month)
+    for pat, mi, yi in ((_NUM_MONTH_YEAR, 1, 2), (_YEAR_NUM_MONTH, 2, 1)):
+        m = pat.match(s)
+        if m:
+            return _month_label(int(m.group(yi)), int(m.group(mi)))
+
+    # Quarters, halves, weeks.
+    for pat, qi, yi in ((_QUARTER, 1, 2), (_QUARTER_ORD, 1, 2), (_QUARTER_TAIL, 2, 1)):
+        m = pat.match(s)
+        if m:
+            q = int(m.group(qi))
+            yr = m.group(yi)
+            if not yr:
+                return {"kind": "quarter", "key": f"Q{q}", "label": f"Q{q}"}
+            y = _yr(yr)
+            return {"kind": "quarter", "key": f"{y}-Q{q}", "label": f"Q{q} {y}"}
+    m = _HALF.match(s)
     if m:
-        return {"kind": "quarter", "key": s.upper(), "label": s.upper()}
+        y = _yr(m.group(2))
+        return {"kind": "half", "key": f"{y}-H{m.group(1)}", "label": f"H{m.group(1)} {y}"}
+    m = _WEEK.match(s)
+    if m:
+        y, w = int(m.group(2)), int(m.group(1))
+        if 1 <= w <= 53:
+            return {"kind": "week", "key": f"{y}-W{w:02d}", "label": f"Week {w} {y}"}
+
     if _BARE_YEAR.match(s):
         y = int(s)
         if 1900 <= y <= 2100:
             return {"kind": "year", "key": s, "label": s}
+
+    # Anything else that is genuinely a date.
     try:
         ts = pd.to_datetime(s, errors="raise", format="mixed", dayfirst=True)
         if pd.notna(ts) and 1900 <= ts.year <= 2100:
-            return {"kind": "date", "key": ts.strftime("%Y-%m-%d"), "label": ts.strftime("%d-%b-%Y")}
+            return {"kind": "date", "key": ts.strftime("%Y-%m-%d"),
+                    "label": ts.strftime("%d-%b-%Y")}
     except Exception:
         pass
     return None
-
 
 def detect_period_column(series: pd.Series, name: str) -> dict[str, Any] | None:
     cells = _cells(series, 200)
@@ -317,6 +484,7 @@ def profile_column(df: pd.DataFrame, col: Any, banner_hints: str = "") -> dict[s
 
     prof: dict[str, Any] = {
         "source_name": name,
+        "label": humanize_header(name),
         "suggested_name": nname,
         "dtype": dtype,
         "dtype_confidence": conf,

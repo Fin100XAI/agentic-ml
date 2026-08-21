@@ -30,7 +30,7 @@ from engine import prep
 from engine.blueprint import (apply_blueprint, build_interview, certify,
                               data_dictionary, propose_blueprint)
 from engine.pii import detect_pii
-from engine.profile_deep import profile_table
+from engine.profile_deep import humanize_header, profile_table
 
 router = APIRouter()
 
@@ -254,6 +254,7 @@ def do_profile(sid: str, req: CombineRequest | None = None) -> dict:
     prof = profile_table(combined, banner)
     prof["pii_columns"] = [{"column": f["column"], "kind": f["kind"]}
                            for f in detect_pii(combined)]
+    _interpret_columns(prof)
     s["combined"], s["profile"], s["combine_report"] = combined, prof, report
     _save(s)
     narrative = _narrate(prof, report)
@@ -262,6 +263,54 @@ def do_profile(sid: str, req: CombineRequest | None = None) -> dict:
           "cols": int(combined.shape[1]), "mode": narrative["mode"]})
     return {"combine": report, "profile": prof, "narrative": narrative,
             "preview": _preview(combined)}
+
+
+def _interpret_columns(prof: dict[str, Any]) -> None:
+    """Give every column a label a person would use.
+
+    Deterministic decoding already handles the common shapes
+    ('financial_year_2018_19_total' -> 'Total, FY2018-19'). The agent is
+    asked only to improve on that where a header is domain jargon it can
+    recognise - it sees NAMES, TYPES and ROLES, never a value, and it may
+    not rename a column, change its type or change its role. Phrasing only.
+    """
+    cols = prof.get("columns") or []
+    for c in cols:
+        c.setdefault("label", humanize_header(c["source_name"]))
+        c["label_by"] = "rule"
+    provider = instrumented_provider()
+    if provider is None or not cols:
+        return
+    current_agent.set("Column interpreter")
+    try:
+        ask = [{"column": c["source_name"], "type": c["dtype"], "role": c["role"],
+                "auto_label": c["label"]} for c in cols][:60]
+        raw = provider.complete_json(
+            "You label spreadsheet columns for a government analyst. For each "
+            "column give 'label': the shortest phrase an officer would say out "
+            "loud for it - expand domain abbreviations you recognise (CGST, "
+            "MGNREGA, BPL, SC/ST, HH), keep any period exactly as given, and "
+            "drop coding noise. Never invent meaning you cannot read from the "
+            "name: if the auto_label is already right, return it unchanged. "
+            "You never see the data, and you must not rename, retype or "
+            "re-role anything. Plain hyphens; a colon before any number.",
+            json.dumps({"columns": ask}),
+            schema={"type": "object", "properties": {"labels": {
+                "type": "array", "items": {"type": "object", "properties": {
+                    "column": {"type": "string"}, "label": {"type": "string"}},
+                    "required": ["column", "label"]}}},
+                "required": ["labels"]},
+            max_tokens=1500,
+        )
+        by_name = {c["source_name"]: c for c in cols}
+        for item in raw.get("labels", []):
+            col = by_name.get(str(item.get("column", "")))
+            lbl = str(item.get("label", "")).strip()
+            # The agent phrases; it cannot smuggle in a rename.
+            if col and 1 <= len(lbl) <= 60:
+                col["label"], col["label_by"] = lbl, "llm"
+    except Exception:
+        pass  # the rule-based labels already stand
 
 
 def _narrate(prof: dict, report: dict) -> dict:
