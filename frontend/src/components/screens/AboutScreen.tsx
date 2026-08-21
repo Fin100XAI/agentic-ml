@@ -210,10 +210,10 @@ type Accent = keyof typeof ACCENTS;
 // Section head: small tracked uppercase eyebrow in an accent, big tight title.
 function GuideSection({ eyebrow, accent = "blue", title, sub }: { eyebrow: string; accent?: Accent; title: string; sub?: string }) {
   return (
-    <div className="mb-5">
-      <p className={`text-[11px] font-bold uppercase tracking-[0.2em] ${ACCENTS[accent].text}`}>{eyebrow}</p>
-      <h3 className="mt-1.5 text-2xl font-bold tracking-tight text-rs-fg md:text-3xl">{title}</h3>
-      {sub && <p className="mt-2 max-w-2xl text-xs leading-relaxed text-rs-muted">{sub}</p>}
+    <div className="mb-6">
+      <p className={`maha-eyebrow ${ACCENTS[accent].text}`}>{eyebrow}</p>
+      <h3 className="maha-rule mt-2 text-2xl text-rs-fg md:text-[32px]">{title}</h3>
+      {sub && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-rs-muted">{sub}</p>}
     </div>
   );
 }
@@ -255,7 +255,10 @@ const ACTOR_STYLE = {
   machine: { dot: "bg-rs-faint text-rs-ink", chip: "bg-rs-fg/5 text-rs-muted ring-rs-fg/10", label: "Machine computes" },
 } as const;
 
-const GRADIENT = "bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)]";
+// The single gradient the Maha AI language allows itself: saffron into gold.
+// Read from the token so it flips with the scope rather than being a colour
+// this file owns.
+const GRADIENT = "bg-[image:var(--maha-grad)]";
 
 /* ---------- page ---------- */
 
@@ -265,39 +268,47 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
   return (
     // The whole guide is one full-bleed dark page, edge to edge - the app
     // shell renders it without the centered container.
-    <div className="font-jakarta min-h-screen bg-rs-ink px-4 py-12 sm:px-8 md:px-12">
-      <div className="mx-auto max-w-5xl space-y-16">
-        {/* Hero */}
-        <div className="pt-2 text-center">
-          <p className="animate-rise text-[11px] font-bold uppercase tracking-[0.22em] text-rs-blue">
-            Platform guide
-          </p>
-          <h2 className="animate-rise mx-auto mt-4 max-w-3xl text-balance text-4xl font-extrabold leading-[1.05] tracking-tight text-rs-fg [animation-delay:60ms] md:text-5xl">
+    <div className="min-h-screen bg-rs-ink">
+      {/* Hero: a full-bleed navy band, the way the site opens. Tokens flip
+          inside .maha-band, so the stats and copy below need no colours. */}
+      <div className="maha-band relative overflow-hidden border-b border-rs-line px-4 py-20 text-center sm:px-8 md:px-12">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-32 left-1/2 h-72 w-[46rem] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+          style={{ backgroundImage: "var(--maha-grad)" }}
+        />
+        <div className="relative mx-auto max-w-5xl">
+          <p className="maha-eyebrow animate-rise">Platform guide</p>
+          <h2 className="maha-display animate-rise mx-auto mt-5 max-w-3xl text-balance text-4xl text-rs-fg [animation-delay:60ms] md:text-[56px]">
             Decision support for government,{" "}
             <span className={`${GRADIENT} bg-clip-text text-transparent`}>
               with accountability built in.
             </span>
           </h2>
-          <p className="animate-rise mx-auto mt-5 max-w-2xl text-pretty text-sm leading-relaxed text-rs-muted [animation-delay:120ms]">
+          <p className="animate-rise mx-auto mt-6 max-w-2xl text-pretty text-[15px] leading-relaxed text-rs-muted [animation-delay:120ms]">
             Departmental data in, defensible answers out. Ask in plain language and get
             charted, mapped answers in seconds - or train a model for predictions with a
             brief an officer can defend. Agents do the legwork. Code computes every number.
             You approve every step.
           </p>
           {/* Big stat grid */}
-          <div className="animate-rise mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-x-4 gap-y-8 [animation-delay:200ms] sm:grid-cols-4">
+          <div className="animate-rise mx-auto mt-14 grid max-w-4xl grid-cols-2 gap-x-4 gap-y-9 [animation-delay:200ms] sm:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label}>
-                <div className={`${GRADIENT} bg-clip-text text-4xl font-extrabold tabular-nums tracking-tight text-transparent md:text-5xl`}>
+                <div className={`maha-figure ${GRADIENT} bg-clip-text text-4xl font-semibold text-transparent md:text-[44px]`}>
                   {s.value}
                 </div>
-                <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-rs-muted">
+                <div className="mt-2 text-[10px] uppercase tracking-[0.16em] text-rs-muted">
                   {s.label}
                 </div>
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="px-4 py-16 sm:px-8 md:px-12">
+        <div className="mx-auto max-w-5xl space-y-20">
 
         {/* Trust pillars */}
         <Reveal>
@@ -446,7 +457,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
                 {LINEAGE.map((l, i) => (
                   <div key={l.label} className="flex items-center">
                     <div className="flex w-28 flex-col items-center text-center">
-                      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${i === 0 ? `${GRADIENT} text-rs-ink` : "bg-rs-elevated text-rs-teal ring-1 ring-inset ring-rs-line"}`}>
+                      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${i === 0 ? `${GRADIENT} text-[color:var(--maha-navy-ink)]` : "bg-rs-elevated text-rs-teal ring-1 ring-inset ring-rs-line"}`}>
                         <l.icon className="h-4.5 w-4.5" />
                       </span>
                       <span className="mt-1.5 text-[11px] font-semibold leading-tight text-rs-fg">{l.label}</span>
@@ -696,19 +707,20 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
           </section>
         </Reveal>
 
-        {/* Closing CTA */}
-        {onStart && (
-          <Reveal>
-            <div className="pb-4 text-center">
-              <button
-                onClick={onStart}
-                className={`inline-flex items-center gap-2 rounded-full ${GRADIENT} px-7 py-3.5 text-sm font-bold text-[#07080c] transition-[transform,box-shadow] duration-150 ease-out hover:shadow-[0_12px_44px_-12px_#6e8bffb3] active:scale-[0.98]`}
-              >
-                Start a new analysis
-              </button>
-            </div>
-          </Reveal>
-        )}
+          {/* Closing CTA */}
+          {onStart && (
+            <Reveal>
+              <div className="pb-4 text-center">
+                <button
+                  onClick={onStart}
+                  className="maha-cta inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  Start a new analysis
+                </button>
+              </div>
+            </Reveal>
+          )}
+        </div>
       </div>
     </div>
   );

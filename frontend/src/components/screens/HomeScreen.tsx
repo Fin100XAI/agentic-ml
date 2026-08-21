@@ -27,7 +27,7 @@ import { IntakePanel } from "../IntakePanel";
 import { ModelsPanel } from "../ModelsPanel";
 import { Reveal } from "../Reveal";
 import { RunDiffModal } from "../RunDiffModal";
-import { Badge, Button, Card, CardBody, SectionLabel } from "../ui";
+import { Badge, Button, Card, CardBody } from "../ui";
 
 const AGENTS = [
   {
@@ -96,6 +96,18 @@ const QUESTIONS = [
   },
 ];
 
+// Section opener in the Maha AI idiom: saffron eyebrow, serif head, gold
+// rule. SectionLabel stays as it is for the rest of the app.
+function MahaHeading({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+  return (
+    <div className="mb-6">
+      <p className="maha-eyebrow">{eyebrow}</p>
+      <h3 className="maha-rule mt-2 text-2xl text-ink md:text-[28px]">{title}</h3>
+      {sub && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-dim">{sub}</p>}
+    </div>
+  );
+}
+
 export function HomeScreen({
   recentRuns,
   projectName,
@@ -124,49 +136,52 @@ export function HomeScreen({
 
   return (
     <div className="space-y-10">
-      {/* Hero: glass sheet with a gradient glow, staggered entrance */}
-      <div className="glass relative overflow-hidden rounded-3xl border border-edge px-8 py-14 text-center">
+      {/* Hero: a navy band on paper, the way the Maha AI sections alternate.
+          Tokens flip inside .maha-band, so everything below paints itself. */}
+      <div className="maha-band relative overflow-hidden rounded-2xl border border-edge px-8 py-16 text-center">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-28 left-1/2 h-64 w-[42rem] -translate-x-1/2 rounded-full bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] opacity-20 blur-3xl"
+          className="pointer-events-none absolute -top-24 left-1/2 h-56 w-[38rem] -translate-x-1/2 rounded-full opacity-25 blur-3xl"
+          style={{ backgroundImage: "var(--maha-grad)" }}
         />
-        <p className="animate-rise text-xs font-bold uppercase tracking-[0.2em] text-accent">
+        <p className="maha-eyebrow animate-rise">
           Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
         </p>
-        <h2 className="animate-rise mx-auto mt-3 max-w-2xl text-balance text-3xl font-extrabold leading-tight tracking-tight [animation-delay:60ms] md:text-4xl">
+        <h2 className="maha-display animate-rise mx-auto mt-5 max-w-3xl text-balance text-4xl [animation-delay:60ms] md:text-5xl">
           Evidence for every decision.{" "}
-          <span className="bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] bg-clip-text text-transparent">
-            Accountability at every step.
-          </span>
+          <span className="maha-gold-text">Accountability at every step.</span>
         </h2>
-        <p className="animate-rise mx-auto mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-ink-dim [animation-delay:120ms]">
+        <p className="animate-rise mx-auto mt-6 max-w-2xl text-pretty text-[15px] leading-relaxed text-ink-dim [animation-delay:120ms]">
           Decision support built for government. Upload departmental data - scheme
           enrollments, revenue collections, service requests, demand histories - and
           choose your direction: ask questions in plain language and get charted,
           mapped answers in seconds, or train a model for predictions with a decision
           brief an officer can act on and defend.
         </p>
-        <div className="animate-rise mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 [animation-delay:180ms]">
+        <div className="animate-rise mx-auto mt-7 flex max-w-3xl flex-wrap items-center justify-center gap-x-6 gap-y-2 [animation-delay:180ms]">
           {ASSURANCES.map((a) => (
-            <span key={a.label} className="flex items-center gap-1.5 text-[11px] font-medium text-ink-dim">
+            <span key={a.label} className="flex items-center gap-1.5 text-xs text-ink-dim">
               <a.icon className="h-3.5 w-3.5 text-accent" />
               {a.label}
             </span>
           ))}
         </div>
         <div className="animate-rise [animation-delay:240ms]">
-          <Button className="mt-6 px-6" onClick={onStart}>
+          <button
+            onClick={onStart}
+            className="maha-cta mt-8 inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
+          >
             Start a new analysis <ArrowRight className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
 
         {/* Mini pipeline */}
-        <div className="animate-rise mt-8 flex flex-wrap items-center justify-center gap-2 [animation-delay:300ms]">
+        <div className="animate-rise mt-10 flex flex-wrap items-center justify-center gap-2 [animation-delay:300ms]">
           {PIPELINE.map((p, i) => (
             <div key={p.label} className="flex items-center gap-2">
               {i > 0 && <div className="h-px w-5 bg-edge" />}
-              <div className="glass flex items-center gap-1.5 rounded-full border border-edge px-3 py-1.5 text-[11px] text-ink-dim">
-                <span className="text-[10px] font-bold tabular-nums text-accent/70">{i + 1}</span>
+              <div className="flex items-center gap-1.5 rounded-full border border-edge bg-panel px-3.5 py-1.5 text-[11px] text-ink-dim">
+                <span className="maha-figure text-[10px] font-semibold text-accent">{i + 1}</span>
                 <p.icon className="h-3.5 w-3.5 text-accent" />
                 {p.label}
               </div>
@@ -179,7 +194,10 @@ export function HomeScreen({
           the recommendation agent picks the method behind the scenes. */}
       <Reveal>
         <section>
-          <SectionLabel>The questions you can answer</SectionLabel>
+          <MahaHeading
+            eyebrow="Applications"
+            title="The questions you can answer"
+          />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {QUESTIONS.map((q) => (
               <Card key={q.title} className="tile">
@@ -209,7 +227,7 @@ export function HomeScreen({
       {/* Agents */}
       <Reveal>
         <section>
-          <SectionLabel>Meet your agents</SectionLabel>
+          <MahaHeading eyebrow="The agents" title="Meet your agents" />
           <div data-cascade className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {AGENTS.map((a) => (
               <Card key={a.name} className="tile">
@@ -256,9 +274,10 @@ export function HomeScreen({
       {recentRuns.length > 0 && (
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-accent">
-              This session's analyses
-            </h3>
+            <div>
+              <p className="maha-eyebrow">This session</p>
+              <h3 className="mt-1.5 text-xl text-ink">Analyses you have run</h3>
+            </div>
             {completedRuns.length >= 2 && (
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-dim">
                 <GitCompareArrows className="h-3.5 w-3.5" />

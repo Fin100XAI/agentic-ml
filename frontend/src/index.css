@@ -260,6 +260,221 @@ select, input, textarea {
   background: transparent;
 }
 
+/* ==========================================================================
+   Maha AI language (mahaai.fin100x.ai), scoped to the Home and Guide pages.
+
+   Copied from the live site: navy #1a2e5e, gold #c9a028 and saffron #e07b2a
+   on white paper, serif throughout, uppercase letterspaced eyebrows, and
+   sections that alternate between paper and a navy gradient band. The rest
+   of the workbench keeps the RoleSprint dark language, so this is a SCOPE
+   rather than a theme - `.maha` on the shell retints everything inside it,
+   and the same components keep painting from tokens with no colour of their
+   own. Nesting `.maha-band` inside flips the tokens again for a navy band,
+   which is how one card component reads correctly on both grounds.
+   ========================================================================== */
+.maha {
+  /* the site's raw palette, kept under its own names so the mapping below
+     stays readable */
+  --maha-navy: #1a2e5e;
+  --maha-navy-deep: #13234c;
+  --maha-navy-900: #0f1c3d;
+  --maha-navy-ink: #0d1834;
+  --maha-gold: #c9a028;
+  --maha-gold-soft: #e3c873;
+  --maha-gold-deep: #a8841e;
+  --maha-saffron: #e07b2a;
+  --maha-saffron-deep: #cf6f23;
+  /* Same hues, dark enough for small text on paper. The site sets 12px
+     eyebrows in gold-deep and saffron-deep, which measure 3.5:1 on white -
+     under AA at that size. These clear 4.5:1 against the tinted chip they
+     usually sit on (a 10% wash of the same hue), which is the harder case
+     and works out at 5.1:1 on plain paper. The band keeps the bright
+     originals; they clear AA comfortably on navy. */
+  --maha-gold-ink: #806316;
+  --maha-saffron-ink: #9e541a;
+  --maha-grad: linear-gradient(100deg, var(--maha-saffron), var(--maha-gold));
+  --maha-sh: 0 1px 2px rgb(20 28 46 / 0.04), 0 8px 24px rgb(20 28 46 / 0.06);
+  --maha-sh-lg: 0 8px 24px rgb(20 28 46 / 0.07), 0 30px 64px rgb(15 28 61 / 0.12);
+
+  /* paper ground */
+  --color-surface: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-2: #f7f8fb;
+  --color-edge: #e7ebf3;
+  --color-edge-strong: rgb(201 160 40 / 0.38);
+  --color-ink: #1a2233;
+  --color-ink-dim: #54607a;
+  --color-accent: var(--maha-navy);
+  --color-accent-soft: #eef1f8;
+
+  /* the guide paints from the rs-* aliases */
+  --color-rs-ink: #ffffff;
+  --color-rs-surface: #fbfaf7;
+  --color-rs-raised: #ffffff;
+  --color-rs-elevated: #f7f8fb;
+  --color-rs-line: #e7ebf3;
+  --color-rs-line-strong: rgb(201 160 40 / 0.38);
+  --color-rs-fg: #1a2233;
+  --color-rs-muted: #54607a;
+  /* the tertiary tone carries 9-11px captions; the dark theme's faint grey
+     lands at 3:1 on paper, so it is darkened to clear AA */
+  --color-rs-faint: #68728a;
+  /* the accent trio becomes the state's three colours */
+  --color-rs-blue: var(--maha-navy);
+  --color-rs-teal: var(--maha-gold-ink);
+  --color-rs-violet: var(--maha-saffron-ink);
+
+  /* judgment colours stay judgment colours - darkened for paper */
+  --color-good: #0c6a4a;
+  --color-warn: #9c630d;
+  --color-bad: #b02222;
+  --color-rs-good: #0c6a4a;
+  --color-rs-warn: #9c630d;
+  --color-rs-bad: #b02222;
+
+  --font-sans: "Times New Roman", Times, Georgia, serif;
+  --font-display: "Times New Roman", Times, Georgia, serif;
+  --font-jakarta: "Times New Roman", Times, Georgia, serif;
+
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Devanagari needs a face that actually has the glyphs; the serif stack
+   above does not. */
+.maha :lang(mr),
+.maha :lang(hi),
+.maha .deva {
+  font-family: "Noto Sans Devanagari", var(--font-sans);
+}
+
+/* The navy band. Tokens flip again inside it, so a card written once reads
+   correctly on paper AND on navy - the site's own trick. */
+.maha-band {
+  --color-surface: var(--maha-navy-deep);
+  --color-panel: rgb(255 253 248 / 0.04);
+  --color-panel-2: rgb(255 253 248 / 0.07);
+  --color-edge: rgb(201 160 40 / 0.2);
+  --color-edge-strong: rgb(201 160 40 / 0.42);
+  --color-ink: #ffffff;
+  --color-ink-dim: rgb(236 240 249 / 0.74);
+  --color-accent: var(--maha-gold-soft);
+  --color-accent-soft: rgb(201 160 40 / 0.14);
+  --color-rs-ink: var(--maha-navy-deep);
+  --color-rs-surface: rgb(255 253 248 / 0.04);
+  --color-rs-raised: rgb(255 253 248 / 0.04);
+  --color-rs-elevated: rgb(255 253 248 / 0.07);
+  --color-rs-line: rgb(201 160 40 / 0.2);
+  --color-rs-line-strong: rgb(201 160 40 / 0.42);
+  --color-rs-fg: #ffffff;
+  --color-rs-muted: rgb(236 240 249 / 0.74);
+  --color-rs-faint: rgb(236 240 249 / 0.5);
+  --color-rs-blue: var(--maha-gold-soft);
+  --color-rs-teal: var(--maha-gold);
+  --color-rs-violet: var(--maha-saffron);
+  --color-good: #5fd6a6;
+  --color-warn: #f0c56a;
+  --color-rs-good: #5fd6a6;
+  --color-rs-warn: #f0c56a;
+
+  /* colour AND gradient: the gradient carries the look, the flat colour
+     guarantees the ground under it, so light-on-navy text is never left
+     sitting on paper if the image layer is dropped (forced-colors, print). */
+  background-color: var(--maha-navy-deep);
+  background-image: linear-gradient(var(--maha-navy-deep), var(--maha-navy-900));
+  color: var(--color-ink);
+}
+
+/* Serif display sizing: the site runs a tight negative track at large
+   sizes, which is what keeps a Times headline from looking like a document
+   rather than a masthead. */
+.maha h1,
+.maha h2,
+.maha h3,
+.maha h4 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.maha .maha-display {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+
+/* Eyebrow: 12px, uppercase, wide track. Typography ONLY - colour comes from
+   a text-* utility at the call site, so the section accent still rotates
+   through navy/gold/saffron the way the site does. A colour here would beat
+   those utilities on specificity and flatten the whole page to one hue. */
+.maha .maha-eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: var(--maha-saffron-ink);
+}
+.maha-band .maha-eyebrow {
+  color: var(--maha-gold);
+}
+/* an accent utility on the element wins back the rotation */
+.maha .maha-eyebrow.text-rs-blue { color: var(--color-rs-blue); }
+.maha .maha-eyebrow.text-rs-teal { color: var(--color-rs-teal); }
+.maha .maha-eyebrow.text-rs-violet { color: var(--color-rs-violet); }
+
+/* The one gradient the site allows itself */
+.maha .maha-cta {
+  background-image: var(--maha-grad);
+  color: var(--maha-navy-ink);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 0;
+  box-shadow: var(--maha-sh);
+}
+.maha .maha-gold-text {
+  background-image: var(--maha-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* A gold rule under a heading - the site's quiet section divider */
+.maha .maha-rule::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: 14px;
+  background-image: var(--maha-grad);
+}
+
+/* Figures read as data, not prose, even in a serif setting */
+.maha .maha-figure {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Card depth: the dark-tuned shadows above are far too heavy on paper */
+.maha .tile {
+  box-shadow: var(--maha-sh);
+  border-radius: 14px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .maha .tile:hover {
+    box-shadow: var(--maha-sh-lg);
+    border-color: var(--color-edge-strong);
+  }
+  .maha .lift:hover {
+    box-shadow: var(--maha-sh-lg);
+  }
+}
+.maha-band .tile {
+  box-shadow: none;
+}
+.maha .glass {
+  background: color-mix(in srgb, var(--color-panel) 90%, transparent);
+}
+
 @media print {
   /* Paper is white: printing forces the LIGHT token set regardless of the
      on-screen theme, so briefs and reports never print pale-on-white. */

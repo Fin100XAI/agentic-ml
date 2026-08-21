@@ -645,8 +645,13 @@ function App() {
     (s) => s.key === (screen === "compare" || screen === "report" ? "results" : screen),
   );
 
+  // The Maha AI language is scoped to Home and the Guide. Putting it on the
+  // shell rather than the screen means the toolbar comes with it, so those
+  // pages read as one surface instead of light content under a dark bar.
+  const mahaScope = screen === "home" || screen === "about";
+
   return (
-    <div className="min-h-full">
+    <div className={`min-h-full${mahaScope ? " maha" : ""}`}>
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-edge bg-panel shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
