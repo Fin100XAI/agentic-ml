@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agentic ML Workbench</title>
-<meta name="description" content="Decision support for government: departmental data in, defensible decisions out.">
+<title>Maha AI Workbench</title>
+<meta name="description" content="Decision support for the Government of Maharashtra: departmental data in, defensible decisions out. Standalone, and it reads what your existing systems already export.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* ============================================================ tokens
    Dark-first, matching the product's own design system. The light twin
@@ -25,13 +25,13 @@
   --teal: #45e0c8;
   --violet: #b98cff;
   --good: #34d399;
-  --warn: #fbbf24;
   --grad: linear-gradient(100deg, #45e0c8, #6e8bff 55%, #b98cff);
   --aurora: 0.30;
   --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 20px 50px -30px rgb(0 0 0 / .8);
 
   --display: "Newsreader", Georgia, "Times New Roman", serif;
   --sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --deva: "Noto Sans Devanagari", "Plus Jakarta Sans", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --frame: 1060px;
@@ -39,38 +39,20 @@
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --ground: #f4f6fb;
-    --surface: #ffffff;
-    --raised: #eef1f8;
-    --line: rgba(15, 23, 42, 0.10);
-    --line-strong: rgba(15, 23, 42, 0.20);
-    --ink: #0f172a;
-    --muted: #55607a;
-    --faint: #8a92a6;
-    --blue: #4a5cf5;
-    --teal: #0d9488;
-    --violet: #7c3aed;
-    --good: #059669;
-    --warn: #b45309;
+    --ground: #f4f6fb; --surface: #ffffff; --raised: #eef1f8;
+    --line: rgba(15, 23, 42, 0.10); --line-strong: rgba(15, 23, 42, 0.20);
+    --ink: #0f172a; --muted: #55607a; --faint: #8a92a6;
+    --blue: #4a5cf5; --teal: #0d9488; --violet: #7c3aed; --good: #059669;
     --grad: linear-gradient(100deg, #0d9488, #4a5cf5 55%, #7c3aed);
     --aurora: 0.16;
     --shadow: 0 1px 2px rgb(15 23 42 / .05), 0 18px 40px -28px rgb(15 23 42 / .35);
   }
 }
 :root[data-theme="light"] {
-  --ground: #f4f6fb;
-  --surface: #ffffff;
-  --raised: #eef1f8;
-  --line: rgba(15, 23, 42, 0.10);
-  --line-strong: rgba(15, 23, 42, 0.20);
-  --ink: #0f172a;
-  --muted: #55607a;
-  --faint: #8a92a6;
-  --blue: #4a5cf5;
-  --teal: #0d9488;
-  --violet: #7c3aed;
-  --good: #059669;
-  --warn: #b45309;
+  --ground: #f4f6fb; --surface: #ffffff; --raised: #eef1f8;
+  --line: rgba(15, 23, 42, 0.10); --line-strong: rgba(15, 23, 42, 0.20);
+  --ink: #0f172a; --muted: #55607a; --faint: #8a92a6;
+  --blue: #4a5cf5; --teal: #0d9488; --violet: #7c3aed; --good: #059669;
   --grad: linear-gradient(100deg, #0d9488, #4a5cf5 55%, #7c3aed);
   --aurora: 0.16;
   --shadow: 0 1px 2px rgb(15 23 42 / .05), 0 18px 40px -28px rgb(15 23 42 / .35);
@@ -80,109 +62,78 @@
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0;
-  background: var(--ground);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.6;
+  margin: 0; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 p { margin: 0; }
 h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
 ul { margin: 0; padding: 0; list-style: none; }
-a { color: inherit; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+.deva { font-family: var(--deva); }
 
 .frame { width: min(100% - 2.5rem, var(--frame)); margin-inline: auto; }
 .band { padding-block: clamp(3rem, 7vw, 5.5rem); }
 .band + .band { border-top: 1px solid var(--line); }
 .stack { display: flex; flex-direction: column; }
 
-/* eyebrow: mono, tracked, small - the only place mono meets prose */
 .eyebrow {
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--blue);
+  font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--blue);
 }
 .lede { max-width: var(--measure); color: var(--muted); font-size: 1.0625rem; }
 .note { color: var(--faint); font-size: 0.8125rem; }
 
 h2.section {
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: clamp(1.75rem, 3.4vw, 2.5rem);
-  line-height: 1.12;
-  letter-spacing: -0.015em;
-  margin-block: 0.6rem 0.85rem;
+  font-family: var(--display); font-weight: 500;
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.12;
+  letter-spacing: -0.015em; margin-block: 0.6rem 0.85rem;
 }
 .section-sub { max-width: var(--measure); color: var(--muted); font-size: 0.9375rem; }
 
 /* ============================================================ hero */
-.hero { position: relative; overflow: hidden; padding-block: clamp(3.5rem, 9vw, 7rem) clamp(2.5rem, 5vw, 4rem); }
+.hero { position: relative; overflow: hidden; padding-block: clamp(3.5rem, 9vw, 6.5rem) clamp(2.5rem, 5vw, 4rem); }
 .hero-aurora {
-  position: absolute;
-  inset: -30% 0 auto 0;
-  height: 60vh;
-  background: var(--grad);
-  opacity: var(--aurora);
-  filter: blur(90px);
-  pointer-events: none;
-  border-radius: 50%;
-  transform: translateY(-25%);
+  position: absolute; inset: -30% 0 auto 0; height: 60vh;
+  background: var(--grad); opacity: var(--aurora); filter: blur(90px);
+  pointer-events: none; border-radius: 50%; transform: translateY(-25%);
 }
 .hero-inner { position: relative; }
+.crest {
+  display: inline-flex; align-items: center; gap: 0.7rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.5rem; margin-bottom: 1.4rem;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+}
+.crest .mark {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--grad); color: #07080c; font-family: var(--deva);
+  font-weight: 600; font-size: 15px; line-height: 1;
+}
+.crest .txt { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.02em; }
 h1.title {
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: clamp(2.5rem, 6.4vw, 4.5rem);
-  line-height: 1.04;
-  letter-spacing: -0.025em;
-  max-width: 16ch;
-  margin-block: 1rem 1.25rem;
+  font-family: var(--display); font-weight: 400;
+  font-size: clamp(2.4rem, 6.2vw, 4.35rem); line-height: 1.04;
+  letter-spacing: -0.025em; max-width: 17ch; margin-block: 0 1.25rem;
 }
 h1.title em { font-style: italic; }
-h1.title .grad {
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+h1.title .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hero .lede { font-size: 1.125rem; max-width: 60ch; }
 .hero-marks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
 .hero-marks span { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; color: var(--muted); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); flex: none; }
 
-/* stat band */
 .stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1.75rem 1rem;
-  margin-top: clamp(2.5rem, 5vw, 3.5rem);
-  padding-top: 2rem;
-  border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1.75rem 1rem; margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  padding-top: 2rem; border-top: 1px solid var(--line);
 }
 .stat .fig {
-  font-family: var(--display);
-  font-weight: 500;
-  font-size: clamp(2.25rem, 4.6vw, 3.25rem);
-  line-height: 1;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  background: var(--grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-family: var(--display); font-weight: 500;
+  font-size: clamp(2.25rem, 4.6vw, 3.25rem); line-height: 1;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.stat .cap {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--muted);
-  line-height: 1.35;
-}
+.stat .cap { display: block; margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted); line-height: 1.35; }
 
 /* ============================================================ cards */
 .grid { display: grid; gap: 1rem; margin-top: 2rem; }
@@ -190,71 +141,42 @@ h1.title .grad {
 .g3 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 1.4rem;
-  box-shadow: var(--shadow);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  padding: 1.4rem; box-shadow: var(--shadow);
   transition: border-color .2s ease, transform .2s ease;
 }
 @media (hover: hover) and (pointer: fine) {
   .card:hover { border-color: var(--line-strong); transform: translateY(-2px); }
 }
-.card h3 {
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  margin-bottom: 0.4rem;
-}
+.card h3 { font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.4rem; }
 .card p { color: var(--muted); font-size: 0.875rem; }
 
 .tag {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  padding: 0.28rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  margin-bottom: 0.85rem;
+  display: inline-block; font-family: var(--mono); font-size: 0.625rem;
+  letter-spacing: 0.09em; text-transform: uppercase; padding: 0.28rem 0.6rem;
+  border-radius: 999px; border: 1px solid currentColor; margin-bottom: 0.85rem;
 }
-.t-blue { color: var(--blue); }
-.t-teal { color: var(--teal); }
-.t-violet { color: var(--violet); }
+.t-blue { color: var(--blue); } .t-teal { color: var(--teal); } .t-violet { color: var(--violet); }
 
-/* path cards - the product's central choice */
 .path { padding: 1.6rem; }
 .path ul { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
-.path li {
-  display: grid;
-  grid-template-columns: 1.1rem 1fr;
-  gap: 0.6rem;
-  font-size: 0.875rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
+.path li { display: grid; grid-template-columns: 1.1rem 1fr; gap: 0.6rem; font-size: 0.875rem; color: var(--muted); line-height: 1.5; }
 .path li::before { content: "→"; color: var(--teal); font-size: 0.8125rem; line-height: 1.6; }
 .path.violet li::before { color: var(--violet); }
 
-/* ============================================================ flow
-   The only numbered device on the page: this is a real sequence.
-   Two representations of the same nine steps - a swimlane figure where
-   there is room for it, the stepped list where there is not. Exactly one
-   is in the DOM's accessibility tree at any width. */
+/* ============================================================ figures */
 .claim {
   display: flex; align-items: baseline; gap: 0.6rem;
   margin-top: 1.5rem; padding: 0.85rem 1.1rem;
   border: 1px solid var(--line); border-left: 3px solid var(--teal);
-  border-radius: 0 12px 12px 0; background: var(--surface);
-  max-width: var(--measure);
+  border-radius: 0 12px 12px 0; background: var(--surface); max-width: var(--measure);
 }
 .claim b { font-size: 1.5rem; font-family: var(--display); font-weight: 500; color: var(--teal); line-height: 1; }
 .claim span { font-size: 0.9375rem; color: var(--muted); }
 
-.flow-fig { margin: 1.75rem 0 0; }
-.flow-fig svg { display: block; width: 100%; height: auto; color: var(--ink); }
-.flow-fig figcaption { margin-top: 0.9rem; font-size: 0.8125rem; color: var(--faint); max-width: var(--measure); }
+figure.fig { margin: 1.75rem 0 0; }
+figure.fig svg { display: block; width: 100%; height: auto; color: var(--ink); }
+figure.fig figcaption { margin-top: 0.9rem; font-size: 0.8125rem; color: var(--faint); max-width: var(--measure); }
 
 .lane-bg { fill: var(--surface); }
 .lane-hd { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.09em; }
@@ -262,104 +184,57 @@ h1.title .grad {
 .box-you { fill: color-mix(in srgb, var(--teal) 13%, var(--surface)); stroke: color-mix(in srgb, var(--teal) 55%, transparent); stroke-width: 1.2; }
 .box-ai { fill: color-mix(in srgb, var(--blue) 12%, var(--surface)); stroke: color-mix(in srgb, var(--blue) 45%, transparent); stroke-width: 1.2; }
 .box-sys { fill: var(--raised); stroke: var(--line-strong); stroke-width: 1.2; }
+.box-src { fill: var(--raised); stroke: var(--line-strong); stroke-width: 1.2; }
+.box-core { fill: color-mix(in srgb, var(--teal) 15%, var(--surface)); stroke: color-mix(in srgb, var(--teal) 60%, transparent); stroke-width: 1.4; }
 .n { fill: var(--faint); font-family: var(--mono); font-size: 10px; }
 .lbl { fill: var(--ink); font-family: var(--sans); font-size: 11.5px; font-weight: 500; }
+.lbl-s { fill: var(--muted); font-family: var(--sans); font-size: 10.5px; }
+.lbl-core { fill: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 700; }
 .conn { fill: none; stroke: var(--faint); stroke-width: 1.2; opacity: 0.7; }
 .ah { fill: var(--faint); opacity: 0.85; }
 
+/* ============================================================ flow
+   Two representations of the same nine steps - a swimlane where there is
+   room, the stepped list where there is not. Exactly one is in the DOM's
+   accessibility tree at any width. */
 .flow-list { display: flex; flex-direction: column; gap: 0; margin-top: 1.75rem; }
 /* These must follow the base rule above - equal specificity, later wins. */
 @media (min-width: 760px) { .flow-list { display: none; } }
 @media (max-width: 759px) { .flow-fig { display: none; } }
-.step {
-  display: grid;
-  grid-template-columns: 2.5rem 1fr;
-  gap: 1rem;
-  padding: 0.9rem 0;
-  border-top: 1px solid var(--line);
-  align-items: start;
-}
+
+.step { display: grid; grid-template-columns: 2.5rem 1fr; gap: 1rem; padding: 0.9rem 0; border-top: 1px solid var(--line); align-items: start; }
 .step:last-child { border-bottom: 1px solid var(--line); }
-.step .n {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--faint);
-  padding-top: 0.15rem;
-  font-variant-numeric: tabular-nums;
-}
+.step .n2 { font-family: var(--mono); font-size: 0.75rem; color: var(--faint); padding-top: 0.15rem; font-variant-numeric: tabular-nums; }
 .step .body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; }
 .step strong { font-size: 0.9375rem; font-weight: 600; }
 .step span.what { color: var(--muted); font-size: 0.875rem; }
-.who {
-  font-family: var(--mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-  white-space: nowrap;
-}
+.who { font-family: var(--mono); font-size: 0.625rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: 4px; white-space: nowrap; }
 .who-ai { color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); }
 .who-you { color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
 .who-sys { color: var(--faint); background: color-mix(in srgb, var(--faint) 14%, transparent); }
 
-/* ============================================================ agents + chips */
+/* ============================================================ chips */
 .chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.75rem; }
-.chip {
-  font-size: 0.8125rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-}
+.chip { font-size: 0.8125rem; padding: 0.4rem 0.8rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .chip.mono { font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); background: transparent; }
 
 /* ============================================================ brief mock */
 .brief-wrap { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); margin-top: 2rem; }
-.brief {
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 1.4rem;
-}
+.brief { background: var(--raised); border: 1px solid var(--line); border-radius: 18px; padding: 1.4rem; }
 .brief-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
 .brief-head h4 { font-family: var(--display); font-weight: 500; font-size: 1.05rem; line-height: 1.25; }
-.pill-good {
-  font-family: var(--mono);
-  font-size: 0.625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--good);
-  border: 1px solid color-mix(in srgb, var(--good) 40%, transparent);
-  background: color-mix(in srgb, var(--good) 12%, transparent);
-  padding: 0.22rem 0.5rem;
-  border-radius: 999px;
-  white-space: nowrap;
-}
+.pill-good { font-family: var(--mono); font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--good); border: 1px solid color-mix(in srgb, var(--good) 40%, transparent); background: color-mix(in srgb, var(--good) 12%, transparent); padding: 0.22rem 0.5rem; border-radius: 999px; white-space: nowrap; }
 .brief-sec { margin-top: 0.9rem; }
-.brief-sec p.lbl { font-family: var(--mono); font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blue); margin-bottom: 0.4rem; }
+.brief-sec p.lbl2 { font-family: var(--mono); font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blue); margin-bottom: 0.4rem; }
 .bar { height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 12%, transparent); margin-bottom: 5px; }
 .brief-foot { display: flex; gap: 0.55rem; align-items: flex-start; margin-top: 1rem; padding: 0.7rem 0.85rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .brief-foot p { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
 
 /* ============================================================ closing */
-.close {
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  padding: clamp(1.75rem, 4vw, 2.75rem);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  text-align: center;
-}
+.close { border: 1px solid var(--line); border-radius: 22px; padding: clamp(1.75rem, 4vw, 2.75rem); background: var(--surface); box-shadow: var(--shadow); text-align: center; }
 .close h2 { font-family: var(--display); font-weight: 500; font-size: clamp(1.6rem, 3.4vw, 2.25rem); line-height: 1.15; letter-spacing: -0.015em; }
 .close p { max-width: 56ch; margin: 0.85rem auto 0; color: var(--muted); font-size: 0.9375rem; }
-.brandline {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem;
-  margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
-  font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--faint);
-}
+.brandline { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem; margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
 
 /* ============================================================ motion */
 .rise { opacity: 0; transform: translateY(10px); animation: rise .7s cubic-bezier(.22,1,.32,1) forwards; }
@@ -371,8 +246,7 @@ h1.title .grad {
   .card { transition: none; }
 }
 
-/* ============================================================ print
-   Stakeholders print fliers - force the light palette onto paper. */
+/* ============================================================ print */
 @media print {
   :root {
     --ground: #ffffff; --surface: #ffffff; --raised: #ffffff;
@@ -384,7 +258,7 @@ h1.title .grad {
   }
   .hero-aurora { display: none; }
   .band { padding-block: 1.5rem; break-inside: avoid; }
-  .card, .brief, .close { break-inside: avoid; }
+  .card, .brief, .close, figure.fig { break-inside: avoid; }
   .stat .fig, h1.title .grad { -webkit-text-fill-color: #2c3ecc; color: #2c3ecc; }
 }
 </style>
@@ -395,26 +269,29 @@ h1.title .grad {
 <header class="hero">
   <div class="hero-aurora" aria-hidden="true"></div>
   <div class="frame hero-inner">
-    <p class="eyebrow rise d1">Agentic ML Workbench · Decision support for government</p>
+    <div class="crest rise d1">
+      <span class="mark" aria-hidden="true">म</span>
+      <span class="txt">Maha AI Workbench &middot; for the Government of Maharashtra</span>
+    </div>
     <h1 class="title rise d2">Departmental data in.<br><span class="grad"><em>Defensible decisions</em> out.</span></h1>
     <p class="lede rise d3">
-      Scheme enrolments, revenue collections, service requests, demand histories - the
-      files an officer already has. Upload one, and AI agents prepare it, explain it,
-      answer questions about it and, when the question needs it, train a model. Every
-      number is computed in code. Every step waits for your approval. Everything lands
-      on an audit trail.
+      Scheme enrolments, revenue collections, service requests, demand histories -
+      the files a department in Mantralaya or a Collectorate already holds. Upload one
+      and AI agents prepare it, explain it, answer questions about it and, when the
+      question calls for it, train a model. Every number is computed in code. Every
+      step waits for an officer's approval. Everything lands on an audit trail.
     </p>
     <div class="hero-marks rise d4">
       <span><i class="dot"></i>Personal data screened before any analysis</span>
       <span><i class="dot"></i>No number is ever written by the AI</span>
-      <span><i class="dot"></i>Works offline, on your own hardware</span>
+      <span><i class="dot"></i>Runs offline, on the department's own hardware</span>
     </div>
 
     <div class="stats rise d4">
+      <div class="stat"><span class="fig">36</span><span class="cap">Maharashtra districts mapped offline - 640 nationwide</span></div>
       <div class="stat"><span class="fig">17</span><span class="cap">AI agents, each with a rule-based fallback</span></div>
       <div class="stat"><span class="fig">12</span><span class="cap">Modelling methods on tap</span></div>
-      <div class="stat"><span class="fig">676</span><span class="cap">Indian states and districts mapped offline</span></div>
-      <div class="stat"><span class="fig">3</span><span class="cap">Languages: English, हिंदी, मराठी</span></div>
+      <div class="stat"><span class="fig">3</span><span class="cap"><span class="deva">मराठी</span>, <span class="deva">हिंदी</span> and English</span></div>
       <div class="stat"><span class="fig">0</span><span class="cap">Numbers invented by AI</span></div>
     </div>
   </div>
@@ -427,12 +304,80 @@ h1.title .grad {
     <h2 class="section">Good data, indefensible decisions.</h2>
     <p class="lede">
       The numbers a department needs already exist - but they arrive as workbooks with
-      title banners, merged headers, totals mixed into the rows, the same district
-      spelled four ways, and figures stored as text. By the time a decision is taken,
-      nobody can show how the number was reached. The Workbench closes that gap: it
-      makes the preparation visible, the reasoning traceable, and the officer the one
-      who decides.
+      title banners, merged headers, totals mixed into the rows, the same taluka spelled
+      four ways, and figures stored as text. By the time a file reaches a decision, no
+      one can show how the number was reached. The Workbench closes that gap: the
+      preparation becomes visible, the reasoning traceable, and the officer stays the
+      one who decides.
     </p>
+  </div>
+</section>
+
+<!-- ===================================================== INTEROP -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">How it fits</p>
+    <h2 class="section">Standalone - and it reads what you already run.</h2>
+    <p class="section-sub">
+      There is nothing to migrate and no schema to change. Wherever the data lives
+      today, if that system can produce a file or post to an endpoint, the Workbench
+      can work with it - and hands results back the same way.
+    </p>
+
+    <figure class="fig">
+      <svg viewBox="0 0 760 214" role="img"
+           aria-label="Diagram: several source systems on the left - benefit transfer and MIS exports, citizen service and e-office registers, and field spreadsheets - all feed one Workbench in the centre, which produces a charted board with maps, a decision brief, and a scored file returned to the source system. The source systems themselves are unchanged.">
+        <defs>
+          <marker id="ia" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+            <path d="M0,1 L8,5 L0,9 Z" class="ah"></path>
+          </marker>
+        </defs>
+
+        <text class="lane-hd" x="20" y="14">WHAT YOU ALREADY RUN</text>
+        <text class="lane-hd" x="380" y="14" text-anchor="middle">THE WORKBENCH</text>
+        <text class="lane-hd" x="740" y="14" text-anchor="end">WHAT COMES BACK</text>
+
+        <!-- converging bus in -->
+        <path class="conn" d="M200,47 H245 V107"></path>
+        <path class="conn" d="M200,107 H245"></path>
+        <path class="conn" d="M200,167 H245 V107"></path>
+        <path class="conn" d="M245,107 H290" marker-end="url(#ia)"></path>
+        <!-- diverging bus out -->
+        <path class="conn" d="M470,107 H515"></path>
+        <path class="conn" d="M515,107 V47 H560" marker-end="url(#ia)"></path>
+        <path class="conn" d="M515,107 H560" marker-end="url(#ia)"></path>
+        <path class="conn" d="M515,107 V167 H560" marker-end="url(#ia)"></path>
+
+        <!-- sources -->
+        <rect class="box-src" x="20" y="28" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="34" y="52">Benefit transfer &amp; MIS exports</text>
+        <rect class="box-src" x="20" y="88" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="34" y="112">Citizen service, e-office</text>
+        <rect class="box-src" x="20" y="148" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="34" y="172">Field registers, spreadsheets</text>
+
+        <!-- core -->
+        <rect class="box-core" x="290" y="52" width="180" height="110" rx="14"></rect>
+        <text class="lbl-core" x="380" y="98" text-anchor="middle">Maha AI Workbench</text>
+        <text class="lbl-s" x="380" y="118" text-anchor="middle">prepare &middot; explain &middot; answer</text>
+        <text class="lbl-s" x="380" y="134" text-anchor="middle">predict &middot; record</text>
+
+        <!-- outputs -->
+        <rect class="box-you" x="560" y="28" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="574" y="52">Charted board, maps</text>
+        <rect class="box-you" x="560" y="88" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="574" y="112">Decision brief, PDF</text>
+        <rect class="box-you" x="560" y="148" width="180" height="38" rx="9"></rect>
+        <text class="lbl-s" x="574" y="172">Scored file back to source</text>
+
+        <text class="n" x="380" y="206" text-anchor="middle">nothing on the left is modified</text>
+      </svg>
+      <figcaption>
+        The Workbench sits beside the systems a department already runs, never inside
+        them. A CSV or Excel export is enough to start; a REST endpoint accepts the same
+        files automatically when they recur each month.
+      </figcaption>
+    </figure>
   </div>
 </section>
 
@@ -442,8 +387,8 @@ h1.title .grad {
     <p class="eyebrow">What it does</p>
     <h2 class="section">Three capabilities, one workbench.</h2>
     <p class="section-sub">
-      Preparation is the front door. After that the officer picks the direction, and
-      can switch at any point without re-uploading anything.
+      Preparation is the front door. After that the officer picks the direction, and can
+      switch at any point without re-uploading anything.
     </p>
 
     <div class="grid g3">
@@ -464,9 +409,9 @@ h1.title .grad {
         <h3>Answers in seconds</h3>
         <p>
           The agents propose the questions worth asking, you tick and reword them, and
-          only then do they run. Results come back charted, mapped and explained in
-          plain language - then you ask your own questions, each shown as a
-          step-by-step plan before it executes.
+          only then do they run. Results come back charted, mapped across Maharashtra's
+          districts and explained in plain language - then you ask your own questions,
+          each shown as a step-by-step plan before it executes.
         </p>
       </article>
 
@@ -476,8 +421,8 @@ h1.title .grad {
         <p>
           For questions about what will happen, the right method is recommended and
           explained, risks in the data are flagged, and the model is checked on data it
-          never saw. You receive a decision brief with a trust rating that a critic
-          agent has already reviewed line by line.
+          never saw. You receive a decision brief with a trust rating that a critic agent
+          has already reviewed line by line.
         </p>
       </article>
     </div>
@@ -490,8 +435,8 @@ h1.title .grad {
     <p class="eyebrow">The choice</p>
     <h2 class="section">Two ways to work with the same file.</h2>
     <p class="section-sub">
-      Same protections either way: approved column names, the privacy screen, the
-      data checkup.
+      Same protections either way: approved column names, the privacy screen, the data
+      checkup.
     </p>
 
     <div class="grid g2">
@@ -502,7 +447,7 @@ h1.title .grad {
           <li>A findings board before you type a word</li>
           <li>Agents propose the questions; you tick and reword</li>
           <li>Every question shown as a plan before it runs</li>
-          <li>Results on offline India maps</li>
+          <li>Results on offline maps of Maharashtra's districts</li>
           <li>Answers compile into a critic-checked brief</li>
           <li>Saved questions refresh with next month's file</li>
         </ul>
@@ -533,31 +478,19 @@ h1.title .grad {
     <div class="grid g2">
       <article class="card">
         <h3>Privacy before analysis</h3>
-        <p>
-          Mobile numbers, Aadhaar-like IDs, PAN, names and addresses are detected and
-          masked or dropped <strong>before</strong> any analysis or AI call sees a single row.
-        </p>
+        <p>Mobile numbers, Aadhaar-like IDs, PAN, names and addresses are detected and masked or dropped <strong>before</strong> any analysis or AI call sees a single row.</p>
       </article>
       <article class="card">
         <h3>Numbers computed, never guessed</h3>
-        <p>
-          Every figure is calculated deterministically in code. The AI only explains and
-          phrases - it cannot invent a number, and each output is badged AI or rule-based.
-        </p>
+        <p>Every figure is calculated deterministically in code. The AI only explains and phrases - it cannot invent a number, and each output is badged AI or rule-based.</p>
       </article>
       <article class="card">
         <h3>An officer approves every step</h3>
-        <p>
-          Agents propose; nothing runs without approval - data fixes, the questions, the
-          method, the settings, the thresholds. Authority stays with the human.
-        </p>
+        <p>Agents propose; nothing runs without approval - data fixes, the questions, the method, the settings, the thresholds. Authority stays with the human.</p>
       </article>
       <article class="card">
         <h3>An audit trail fit for review</h3>
-        <p>
-          Every upload, AI call, approval, decline, training job and export is logged, with
-          the original file kept read-only under a content fingerprint.
-        </p>
+        <p>Every upload, AI call, approval, decline, training job and export is logged, with the original file kept read-only under a content fingerprint.</p>
       </article>
     </div>
   </div>
@@ -574,7 +507,7 @@ h1.title .grad {
 
     <p class="claim"><b>5&nbsp;of&nbsp;9</b><span>steps stop and wait for you - and each one follows something an agent or the machine has just proposed.</span></p>
 
-    <figure class="flow-fig">
+    <figure class="fig flow-fig">
       <svg viewBox="0 0 760 620" role="img"
            aria-label="Swimlane chart of nine steps across three lanes. You decide: upload the file, approve column names, decide the data checkup, approve and run, and decide with cover. AI proposes: questions proposed, and brief drafted with critic check. Machine computes: privacy screen, and findings computed. Control returns to the You lane after every agent or machine step.">
         <defs>
@@ -583,7 +516,6 @@ h1.title .grad {
           </marker>
         </defs>
 
-        <!-- lanes -->
         <rect class="lane-bg" x="20" y="44" width="220" height="556" rx="14"></rect>
         <rect class="lane-bg" x="270" y="44" width="220" height="556" rx="14"></rect>
         <rect class="lane-bg" x="520" y="44" width="220" height="556" rx="14"></rect>
@@ -593,7 +525,6 @@ h1.title .grad {
         <text class="lane-hd" x="630" y="26" text-anchor="middle">MACHINE COMPUTES</text>
         <line class="rule" x1="20" y1="36" x2="740" y2="36"></line>
 
-        <!-- connectors, drawn under the boxes -->
         <path class="conn" d="M130,92 V103" marker-end="url(#fa)"></path>
         <path class="conn" d="M130,154 V165 H630 V186" marker-end="url(#fa)"></path>
         <path class="conn" d="M630,216 V227 H130 V248" marker-end="url(#fa)"></path>
@@ -603,59 +534,58 @@ h1.title .grad {
         <path class="conn" d="M630,464 V475 H380 V496" marker-end="url(#fa)"></path>
         <path class="conn" d="M380,526 V537 H130 V558" marker-end="url(#fa)"></path>
 
-        <!-- 1 -->
         <rect class="box-you" x="30" y="72" width="200" height="40" rx="10"></rect>
         <text class="n" x="44" y="97">01</text>
         <text class="lbl" x="66" y="97">Upload the file</text>
-        <!-- 2 -->
+
         <rect class="box-you" x="30" y="134" width="200" height="40" rx="10"></rect>
         <text class="n" x="44" y="159">02</text>
         <text class="lbl" x="66" y="159">Approve column names</text>
-        <!-- 3 -->
+
         <rect class="box-sys" x="530" y="196" width="200" height="40" rx="10"></rect>
         <text class="n" x="544" y="221">03</text>
         <text class="lbl" x="566" y="221">Privacy screen runs</text>
-        <!-- 4 -->
+
         <rect class="box-you" x="30" y="258" width="200" height="40" rx="10"></rect>
         <text class="n" x="44" y="283">04</text>
         <text class="lbl" x="66" y="283">Decide the data checkup</text>
-        <!-- 5 -->
+
         <rect class="box-ai" x="280" y="320" width="200" height="40" rx="10"></rect>
         <text class="n" x="294" y="345">05</text>
         <text class="lbl" x="316" y="345">Questions proposed</text>
-        <!-- 6 -->
+
         <rect class="box-you" x="30" y="382" width="200" height="40" rx="10"></rect>
         <text class="n" x="44" y="407">06</text>
         <text class="lbl" x="66" y="407">Approve and run</text>
-        <!-- 7 -->
+
         <rect class="box-sys" x="530" y="444" width="200" height="40" rx="10"></rect>
         <text class="n" x="544" y="469">07</text>
         <text class="lbl" x="566" y="469">Findings computed</text>
-        <!-- 8 -->
+
         <rect class="box-ai" x="280" y="506" width="200" height="40" rx="10"></rect>
         <text class="n" x="294" y="531">08</text>
         <text class="lbl" x="316" y="531">Brief drafted, critic checks</text>
-        <!-- 9 -->
+
         <rect class="box-you" x="30" y="568" width="200" height="40" rx="10"></rect>
         <text class="n" x="44" y="593">09</text>
         <text class="lbl" x="66" y="593">Decide, with cover</text>
       </svg>
       <figcaption>
-        Control crosses to an agent or the machine and comes straight back: no step
-        that changes the data, the method or the conclusion runs without a person.
+        Control crosses to an agent or the machine and comes straight back: no step that
+        changes the data, the method or the conclusion runs without a person.
       </figcaption>
     </figure>
 
     <div class="flow-list">
-      <div class="step"><span class="n">01</span><span class="body"><strong>Upload the file</strong> <span class="what">CSV or Excel; multi-sheet workbooks combine in one click</span> <span class="who who-you">you</span></span></div>
-      <div class="step"><span class="n">02</span><span class="body"><strong>Approve column names</strong> <span class="what">cryptic headers fixed; the original file never changes</span> <span class="who who-you">you</span></span></div>
-      <div class="step"><span class="n">03</span><span class="body"><strong>Privacy screen runs</strong> <span class="what">personal data flagged; you choose mask, drop or keep</span> <span class="who who-sys">machine</span></span></div>
-      <div class="step"><span class="n">04</span><span class="body"><strong>Decide the data checkup</strong> <span class="what">text-numbers converted, spellings merged, totals removed</span> <span class="who who-you">you</span></span></div>
-      <div class="step"><span class="n">05</span><span class="body"><strong>Agents propose the questions</strong> <span class="what">10-15, grouped by theme, each editable - nothing has run yet</span> <span class="who who-ai">AI</span></span></div>
-      <div class="step"><span class="n">06</span><span class="body"><strong>Approve and run</strong> <span class="what">only the questions you ticked, in your wording</span> <span class="who who-you">you</span></span></div>
-      <div class="step"><span class="n">07</span><span class="body"><strong>Findings charted and explained</strong> <span class="what">every number computed; every answer carries its caveats</span> <span class="who who-sys">machine</span></span></div>
-      <div class="step"><span class="n">08</span><span class="body"><strong>Brief drafted, critic reviews</strong> <span class="what">every claim checked back against the computed numbers</span> <span class="who who-ai">AI</span></span></div>
-      <div class="step"><span class="n">09</span><span class="body"><strong>Decide, with cover</strong> <span class="what">trust rating, caveats and the full trail behind them</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n2">01</span><span class="body"><strong>Upload the file</strong> <span class="what">CSV or Excel; multi-sheet workbooks combine in one click</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n2">02</span><span class="body"><strong>Approve column names</strong> <span class="what">cryptic headers fixed; the original file never changes</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n2">03</span><span class="body"><strong>Privacy screen runs</strong> <span class="what">personal data flagged; you choose mask, drop or keep</span> <span class="who who-sys">machine</span></span></div>
+      <div class="step"><span class="n2">04</span><span class="body"><strong>Decide the data checkup</strong> <span class="what">text-numbers converted, spellings merged, totals removed</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n2">05</span><span class="body"><strong>Agents propose the questions</strong> <span class="what">grouped by theme, each editable - nothing has run yet</span> <span class="who who-ai">AI</span></span></div>
+      <div class="step"><span class="n2">06</span><span class="body"><strong>Approve and run</strong> <span class="what">only the questions you ticked, in your wording</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n2">07</span><span class="body"><strong>Findings charted and explained</strong> <span class="what">every number computed; every answer carries its caveats</span> <span class="who who-sys">machine</span></span></div>
+      <div class="step"><span class="n2">08</span><span class="body"><strong>Brief drafted, critic reviews</strong> <span class="what">every claim checked back against the computed numbers</span> <span class="who who-ai">AI</span></span></div>
+      <div class="step"><span class="n2">09</span><span class="body"><strong>Decide, with cover</strong> <span class="what">trust rating, caveats and the full trail behind them</span> <span class="who who-you">you</span></span></div>
     </div>
   </div>
 </section>
@@ -676,18 +606,18 @@ h1.title .grad {
           <span class="pill-good">evidence: strong</span>
         </div>
         <div class="brief-sec">
-          <p class="lbl">Executive summary</p>
+          <p class="lbl2">Executive summary</p>
           <div class="bar" style="width:100%"></div>
           <div class="bar" style="width:92%"></div>
           <div class="bar" style="width:74%"></div>
         </div>
         <div class="brief-sec">
-          <p class="lbl">Recommended actions</p>
+          <p class="lbl2">Recommended actions</p>
           <div class="bar" style="width:88%"></div>
           <div class="bar" style="width:64%"></div>
         </div>
         <div class="brief-foot">
-          <span class="dot" style="margin-top:.45rem;background:var(--teal)"></span>
+          <span class="dot" style="margin-top:.45rem"></span>
           <p>Reviewed by the critic agent: claims checked against the computed numbers, causal caveats added, and the language hedged to the strength of the evidence.</p>
         </div>
       </div>
@@ -695,7 +625,7 @@ h1.title .grad {
       <div class="stack" style="gap:1rem">
         <article class="card">
           <h3>Plain language first</h3>
-          <p>Jargon lives behind info buttons. Every metric carries a one-line explanation an officer can read aloud in a meeting.</p>
+          <p>Jargon lives behind info buttons. Every metric carries a one-line explanation an officer can read aloud in a review meeting.</p>
         </article>
         <article class="card">
           <h3>Shareable and printable</h3>
@@ -758,8 +688,8 @@ h1.title .grad {
     <h2 class="section">Three clean tiers. The AI is replaceable.</h2>
     <p class="section-sub">
       A React interface over a FastAPI service over a pure Python engine, where every
-      number is computed. The language model is a swappable provider - move it
-      on-premise and nothing else changes.
+      number is computed. The language model is a swappable provider - move it to an
+      on-premise model inside the state data centre and nothing else changes.
     </p>
     <div class="chips">
       <span class="chip mono">typed query plans - the AI never writes code</span>
@@ -769,10 +699,11 @@ h1.title .grad {
       <span class="chip mono">model plugins</span>
       <span class="chip mono">fold-safe validation</span>
       <span class="chip mono">out-of-fold thresholds</span>
-      <span class="chip mono">36 states + 640 districts offline</span>
+      <span class="chip mono">36 districts + 640 nationwide, offline</span>
       <span class="chip mono">fixed seed 42</span>
       <span class="chip mono">SQLite, Postgres-portable</span>
       <span class="chip mono">runs on a single machine</span>
+      <span class="chip mono">REST API for recurring feeds</span>
     </div>
   </div>
 </section>
@@ -781,20 +712,21 @@ h1.title .grad {
 <section class="band">
   <div class="frame">
     <div class="close">
-      <h2>See it run on your own file.</h2>
+      <h2>See it run on a Maharashtra file.</h2>
       <p>
         The fastest way to judge this is to bring one real departmental workbook - the
         messier the better - and watch it become a prepared table, a charted board and a
         decision brief in a single sitting.
       </p>
       <p class="note" style="margin-top:1rem">
-        Working system, running today on a single machine with sample departmental data.
-        Sign-in and roles, air-gapped deployment and managed backups are the next phase.
+        Working system, running today on a single machine with departmental sample data.
+        Sign-in and roles, deployment inside the state data centre and managed backups
+        are the next phase.
       </p>
       <div class="brandline">
-        <span>Agentic ML Workbench</span>
+        <span class="deva">महा AI</span>
+        <span>Maha AI Workbench</span>
         <span>Fin100X.AI</span>
-        <span>Built for Indian government departments</span>
       </div>
     </div>
   </div>
