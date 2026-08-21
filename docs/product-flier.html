@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic ML Workbench</title>
+<meta name="description" content="Decision support for government: departmental data in, defensible decisions out.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* ============================================================ tokens
+   Dark-first, matching the product's own design system. The light twin
+   is redefined at token level only, so every component follows. */
+:root {
+  --ground: #07080c;
+  --surface: #11141d;
+  --raised: #161a25;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --ink: #eef0f6;
+  --muted: #9aa1b2;
+  --faint: #6b7180;
+  --blue: #6e8bff;
+  --teal: #45e0c8;
+  --violet: #b98cff;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --grad: linear-gradient(100deg, #45e0c8, #6e8bff 55%, #b98cff);
+  --aurora: 0.30;
+  --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 20px 50px -30px rgb(0 0 0 / .8);
+
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --frame: 1060px;
+  --measure: 68ch;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #f4f6fb;
+    --surface: #ffffff;
+    --raised: #eef1f8;
+    --line: rgba(15, 23, 42, 0.10);
+    --line-strong: rgba(15, 23, 42, 0.20);
+    --ink: #0f172a;
+    --muted: #55607a;
+    --faint: #8a92a6;
+    --blue: #4a5cf5;
+    --teal: #0d9488;
+    --violet: #7c3aed;
+    --good: #059669;
+    --warn: #b45309;
+    --grad: linear-gradient(100deg, #0d9488, #4a5cf5 55%, #7c3aed);
+    --aurora: 0.16;
+    --shadow: 0 1px 2px rgb(15 23 42 / .05), 0 18px 40px -28px rgb(15 23 42 / .35);
+  }
+}
+:root[data-theme="light"] {
+  --ground: #f4f6fb;
+  --surface: #ffffff;
+  --raised: #eef1f8;
+  --line: rgba(15, 23, 42, 0.10);
+  --line-strong: rgba(15, 23, 42, 0.20);
+  --ink: #0f172a;
+  --muted: #55607a;
+  --faint: #8a92a6;
+  --blue: #4a5cf5;
+  --teal: #0d9488;
+  --violet: #7c3aed;
+  --good: #059669;
+  --warn: #b45309;
+  --grad: linear-gradient(100deg, #0d9488, #4a5cf5 55%, #7c3aed);
+  --aurora: 0.16;
+  --shadow: 0 1px 2px rgb(15 23 42 / .05), 0 18px 40px -28px rgb(15 23 42 / .35);
+}
+
+/* ============================================================ base */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+p { margin: 0; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+ul { margin: 0; padding: 0; list-style: none; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+
+.frame { width: min(100% - 2.5rem, var(--frame)); margin-inline: auto; }
+.band { padding-block: clamp(3rem, 7vw, 5.5rem); }
+.band + .band { border-top: 1px solid var(--line); }
+.stack { display: flex; flex-direction: column; }
+
+/* eyebrow: mono, tracked, small - the only place mono meets prose */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.lede { max-width: var(--measure); color: var(--muted); font-size: 1.0625rem; }
+.note { color: var(--faint); font-size: 0.8125rem; }
+
+h2.section {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(1.75rem, 3.4vw, 2.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin-block: 0.6rem 0.85rem;
+}
+.section-sub { max-width: var(--measure); color: var(--muted); font-size: 0.9375rem; }
+
+/* ============================================================ hero */
+.hero { position: relative; overflow: hidden; padding-block: clamp(3.5rem, 9vw, 7rem) clamp(2.5rem, 5vw, 4rem); }
+.hero-aurora {
+  position: absolute;
+  inset: -30% 0 auto 0;
+  height: 60vh;
+  background: var(--grad);
+  opacity: var(--aurora);
+  filter: blur(90px);
+  pointer-events: none;
+  border-radius: 50%;
+  transform: translateY(-25%);
+}
+.hero-inner { position: relative; }
+h1.title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(2.5rem, 6.4vw, 4.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  max-width: 16ch;
+  margin-block: 1rem 1.25rem;
+}
+h1.title em { font-style: italic; }
+h1.title .grad {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero .lede { font-size: 1.125rem; max-width: 60ch; }
+.hero-marks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
+.hero-marks span { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; color: var(--muted); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); flex: none; }
+
+/* stat band */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1.75rem 1rem;
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  padding-top: 2rem;
+  border-top: 1px solid var(--line);
+}
+.stat .fig {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(2.25rem, 4.6vw, 3.25rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.stat .cap {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* ============================================================ cards */
+.grid { display: grid; gap: 1rem; margin-top: 2rem; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.4rem;
+  box-shadow: var(--shadow);
+  transition: border-color .2s ease, transform .2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .card:hover { border-color: var(--line-strong); transform: translateY(-2px); }
+}
+.card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.4rem;
+}
+.card p { color: var(--muted); font-size: 0.875rem; }
+
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  margin-bottom: 0.85rem;
+}
+.t-blue { color: var(--blue); }
+.t-teal { color: var(--teal); }
+.t-violet { color: var(--violet); }
+
+/* path cards - the product's central choice */
+.path { padding: 1.6rem; }
+.path ul { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+.path li {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: 0.6rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.path li::before { content: "→"; color: var(--teal); font-size: 0.8125rem; line-height: 1.6; }
+.path.violet li::before { color: var(--violet); }
+
+/* ============================================================ flow
+   The only numbered device on the page: this is a real sequence. */
+.flow { display: flex; flex-direction: column; gap: 0; margin-top: 2rem; }
+.step {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--line);
+  align-items: start;
+}
+.step:last-child { border-bottom: 1px solid var(--line); }
+.step .n {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+  padding-top: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.step .body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; }
+.step strong { font-size: 0.9375rem; font-weight: 600; }
+.step span.what { color: var(--muted); font-size: 0.875rem; }
+.who {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.who-ai { color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.who-you { color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
+.who-sys { color: var(--faint); background: color-mix(in srgb, var(--faint) 14%, transparent); }
+
+/* ============================================================ agents + chips */
+.chips { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.75rem; }
+.chip {
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.chip.mono { font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); background: transparent; }
+
+/* ============================================================ brief mock */
+.brief-wrap { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); margin-top: 2rem; }
+.brief {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1.4rem;
+}
+.brief-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--line); }
+.brief-head h4 { font-family: var(--display); font-weight: 500; font-size: 1.05rem; line-height: 1.25; }
+.pill-good {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--good);
+  border: 1px solid color-mix(in srgb, var(--good) 40%, transparent);
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.brief-sec { margin-top: 0.9rem; }
+.brief-sec p.lbl { font-family: var(--mono); font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blue); margin-bottom: 0.4rem; }
+.bar { height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 12%, transparent); margin-bottom: 5px; }
+.brief-foot { display: flex; gap: 0.55rem; align-items: flex-start; margin-top: 1rem; padding: 0.7rem 0.85rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.brief-foot p { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+
+/* ============================================================ closing */
+.close {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: clamp(1.75rem, 4vw, 2.75rem);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.close h2 { font-family: var(--display); font-weight: 500; font-size: clamp(1.6rem, 3.4vw, 2.25rem); line-height: 1.15; letter-spacing: -0.015em; }
+.close p { max-width: 56ch; margin: 0.85rem auto 0; color: var(--muted); font-size: 0.9375rem; }
+.brandline {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem 1.25rem;
+  margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 0.6875rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--faint);
+}
+
+/* ============================================================ motion */
+.rise { opacity: 0; transform: translateY(10px); animation: rise .7s cubic-bezier(.22,1,.32,1) forwards; }
+.d1 { animation-delay: .05s; } .d2 { animation-delay: .13s; }
+.d3 { animation-delay: .21s; } .d4 { animation-delay: .29s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation: none; opacity: 1; transform: none; }
+  .card { transition: none; }
+}
+
+/* ============================================================ print
+   Stakeholders print fliers - force the light palette onto paper. */
+@media print {
+  :root {
+    --ground: #ffffff; --surface: #ffffff; --raised: #ffffff;
+    --ink: #0f172a; --muted: #3f4757; --faint: #6b7280;
+    --line: rgba(15,23,42,.22); --line-strong: rgba(15,23,42,.3);
+    --blue: #2c3ecc; --teal: #0b7d70; --violet: #6b32c9;
+    --grad: linear-gradient(100deg, #0b7d70, #2c3ecc 55%, #6b32c9);
+    --shadow: none;
+  }
+  .hero-aurora { display: none; }
+  .band { padding-block: 1.5rem; break-inside: avoid; }
+  .card, .brief, .close { break-inside: avoid; }
+  .stat .fig, h1.title .grad { -webkit-text-fill-color: #2c3ecc; color: #2c3ecc; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================================================== HERO -->
+<header class="hero">
+  <div class="hero-aurora" aria-hidden="true"></div>
+  <div class="frame hero-inner">
+    <p class="eyebrow rise d1">Agentic ML Workbench · Decision support for government</p>
+    <h1 class="title rise d2">Departmental data in.<br><span class="grad"><em>Defensible decisions</em> out.</span></h1>
+    <p class="lede rise d3">
+      Scheme enrolments, revenue collections, service requests, demand histories - the
+      files an officer already has. Upload one, and AI agents prepare it, explain it,
+      answer questions about it and, when the question needs it, train a model. Every
+      number is computed in code. Every step waits for your approval. Everything lands
+      on an audit trail.
+    </p>
+    <div class="hero-marks rise d4">
+      <span><i class="dot"></i>Personal data screened before any analysis</span>
+      <span><i class="dot"></i>No number is ever written by the AI</span>
+      <span><i class="dot"></i>Works offline, on your own hardware</span>
+    </div>
+
+    <div class="stats rise d4">
+      <div class="stat"><span class="fig">17</span><span class="cap">AI agents, each with a rule-based fallback</span></div>
+      <div class="stat"><span class="fig">12</span><span class="cap">Modelling methods on tap</span></div>
+      <div class="stat"><span class="fig">676</span><span class="cap">Indian states and districts mapped offline</span></div>
+      <div class="stat"><span class="fig">3</span><span class="cap">Languages: English, हिंदी, मराठी</span></div>
+      <div class="stat"><span class="fig">0</span><span class="cap">Numbers invented by AI</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================================================== PROBLEM -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">The problem</p>
+    <h2 class="section">Good data, indefensible decisions.</h2>
+    <p class="lede">
+      The numbers a department needs already exist - but they arrive as workbooks with
+      title banners, merged headers, totals mixed into the rows, the same district
+      spelled four ways, and figures stored as text. By the time a decision is taken,
+      nobody can show how the number was reached. The Workbench closes that gap: it
+      makes the preparation visible, the reasoning traceable, and the officer the one
+      who decides.
+    </p>
+  </div>
+</section>
+
+<!-- ===================================================== CAPABILITIES -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">What it does</p>
+    <h2 class="section">Three capabilities, one workbench.</h2>
+    <p class="section-sub">
+      Preparation is the front door. After that the officer picks the direction, and
+      can switch at any point without re-uploading anything.
+    </p>
+
+    <div class="grid g3">
+      <article class="card">
+        <span class="tag t-teal">Prepare</span>
+        <h3>Data Prep Studio</h3>
+        <p>
+          The agents read the files before asking anything: banner rows, two-row merged
+          headers, units hidden in a note, totals, footnotes, duplicate keys. Then they
+          ask only what they could not work out - and you approve a schema contract
+          naming every column, its type, its role and its unit. Out comes a clean table
+          with a data dictionary a department can share.
+        </p>
+      </article>
+
+      <article class="card">
+        <span class="tag t-blue">Understand &amp; ask</span>
+        <h3>Answers in seconds</h3>
+        <p>
+          The agents propose the questions worth asking, you tick and reword them, and
+          only then do they run. Results come back charted, mapped and explained in
+          plain language - then you ask your own questions, each shown as a
+          step-by-step plan before it executes.
+        </p>
+      </article>
+
+      <article class="card">
+        <span class="tag t-violet">Predict &amp; decide</span>
+        <h3>Models with cover</h3>
+        <p>
+          For questions about what will happen, the right method is recommended and
+          explained, risks in the data are flagged, and the model is checked on data it
+          never saw. You receive a decision brief with a trust rating that a critic
+          agent has already reviewed line by line.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== THE FORK -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">The choice</p>
+    <h2 class="section">Two ways to work with the same file.</h2>
+    <p class="section-sub">
+      Every upload gets the same protections - approved column names, the privacy
+      screen, the data checkup - before either path begins.
+    </p>
+
+    <div class="grid g2">
+      <article class="card path">
+        <span class="tag t-teal">Understand &amp; ask</span>
+        <h3>When you need to know what the data says</h3>
+        <ul>
+          <li>A findings board before you type: leaders, laggards, trends, year-on-year shifts</li>
+          <li>The agents propose 10-15 questions; you tick, reword and approve</li>
+          <li>Every question becomes a visible plan, approved before it runs</li>
+          <li>District and state results on offline India maps</li>
+          <li>Selected answers compile into a critic-checked brief</li>
+          <li>Saved questions refresh automatically when next month's file arrives</li>
+        </ul>
+      </article>
+
+      <article class="card path violet">
+        <span class="tag t-violet">Train a model</span>
+        <h3>When you need to know what happens next</h3>
+        <ul>
+          <li>Who is at risk, how much to expect, where demand is heading</li>
+          <li>Health checks, fixes and features - each one approved by you</li>
+          <li>The recommended method explained in plain language, not jargon</li>
+          <li>Honesty checks on data the model never saw during training</li>
+          <li>A decision brief with a trust rating, already critic-reviewed</li>
+          <li>Models become versioned assets that score next month's file</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== TRUST -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">Why it can be trusted</p>
+    <h2 class="section">Built for the day someone asks how you got that number.</h2>
+
+    <div class="grid g2">
+      <article class="card">
+        <h3>Privacy before analysis</h3>
+        <p>
+          Mobile numbers, Aadhaar-like IDs, PAN, names and addresses are detected and
+          masked or dropped <strong>before</strong> any analysis or AI call sees a single row.
+        </p>
+      </article>
+      <article class="card">
+        <h3>Numbers computed, never guessed</h3>
+        <p>
+          Every figure is calculated deterministically in code. The AI only explains and
+          phrases - it cannot invent a number, and each output is badged AI or rule-based.
+        </p>
+      </article>
+      <article class="card">
+        <h3>An officer approves every step</h3>
+        <p>
+          Agents propose; nothing runs without approval - data fixes, the questions, the
+          method, the settings, the thresholds. Authority stays with the human.
+        </p>
+      </article>
+      <article class="card">
+        <h3>An audit trail fit for review</h3>
+        <p>
+          Every upload, AI call, approval, decline, training job and export is logged, with
+          the original file kept read-only under a content fingerprint.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== FLOW -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">The working rhythm</p>
+    <h2 class="section">How one decision gets made.</h2>
+    <p class="section-sub">
+      AI proposes, the machine computes, and every consequential step waits for a person.
+    </p>
+
+    <div class="flow">
+      <div class="step"><span class="n">01</span><span class="body"><strong>Upload the file</strong> <span class="what">CSV or Excel; multi-sheet workbooks combine in one click</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n">02</span><span class="body"><strong>Approve column names</strong> <span class="what">cryptic headers fixed; the original file never changes</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n">03</span><span class="body"><strong>Privacy screen runs</strong> <span class="what">personal data flagged; you choose mask, drop or keep</span> <span class="who who-sys">machine</span></span></div>
+      <div class="step"><span class="n">04</span><span class="body"><strong>Decide the data checkup</strong> <span class="what">text-numbers converted, spellings merged, totals removed</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n">05</span><span class="body"><strong>Agents propose the questions</strong> <span class="what">10-15, grouped by theme, each editable - nothing has run yet</span> <span class="who who-ai">AI</span></span></div>
+      <div class="step"><span class="n">06</span><span class="body"><strong>Approve and run</strong> <span class="what">only the questions you ticked, in your wording</span> <span class="who who-you">you</span></span></div>
+      <div class="step"><span class="n">07</span><span class="body"><strong>Findings charted and explained</strong> <span class="what">every number computed; every answer carries its caveats</span> <span class="who who-sys">machine</span></span></div>
+      <div class="step"><span class="n">08</span><span class="body"><strong>Brief drafted, critic reviews</strong> <span class="what">every claim checked back against the computed numbers</span> <span class="who who-ai">AI</span></span></div>
+      <div class="step"><span class="n">09</span><span class="body"><strong>Decide, with cover</strong> <span class="what">trust rating, caveats and the full trail behind them</span> <span class="who who-you">you</span></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== BRIEF -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">What you receive</p>
+    <h2 class="section">Not a dashboard to interpret. A brief to act on.</h2>
+
+    <div class="brief-wrap">
+      <div class="brief">
+        <div class="brief-head">
+          <div>
+            <p class="eyebrow" style="color:var(--faint)">Decision brief</p>
+            <h4>Which beneficiaries are at risk of dropping out?</h4>
+          </div>
+          <span class="pill-good">evidence: strong</span>
+        </div>
+        <div class="brief-sec">
+          <p class="lbl">Executive summary</p>
+          <div class="bar" style="width:100%"></div>
+          <div class="bar" style="width:92%"></div>
+          <div class="bar" style="width:74%"></div>
+        </div>
+        <div class="brief-sec">
+          <p class="lbl">Recommended actions</p>
+          <div class="bar" style="width:88%"></div>
+          <div class="bar" style="width:64%"></div>
+        </div>
+        <div class="brief-foot">
+          <span class="dot" style="margin-top:.45rem;background:var(--teal)"></span>
+          <p>Reviewed by the critic agent: claims checked against the computed numbers, causal caveats added, and the language hedged to the strength of the evidence.</p>
+        </div>
+      </div>
+
+      <div class="stack" style="gap:1rem">
+        <article class="card">
+          <h3>Plain language first</h3>
+          <p>Jargon lives behind info buttons. Every metric carries a one-line explanation an officer can read aloud in a meeting.</p>
+        </article>
+        <article class="card">
+          <h3>Shareable and printable</h3>
+          <p>A read-only briefing link for stakeholders, plus markdown and PDF exports, a data dictionary, and the full schema of the prepared data.</p>
+        </article>
+        <article class="card">
+          <h3>Ask the data</h3>
+          <p>A grounded chat answers follow-ups from the run's own numbers. It cannot make things up - it only has the facts the analysis produced.</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== LIFECYCLE -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">After the first analysis</p>
+    <h2 class="section">The first answer is the beginning, not the end.</h2>
+
+    <div class="grid g3">
+      <article class="card"><h3>Model registry</h3><p>Every trained model is a numbered version with its purpose, data fingerprint, settings and scores.</p></article>
+      <article class="card"><h3>Score new files</h3><p>Next month's file runs through the exact training-time preparation, even when columns have been renamed.</p></article>
+      <article class="card"><h3>Drift monitor</h3><p>Is the new data still like the training data? "Degraded" is only said when accuracy actually fell.</p></article>
+      <article class="card"><h3>What-if scenarios</h3><p>Move a driver, watch the prediction respond - with extrapolation warnings and causal caveats attached.</p></article>
+      <article class="card"><h3>Decision threshold</h3><p>Trade missed cases against false alarms on cross-validated numbers; your choice is what scoring uses.</p></article>
+      <article class="card"><h3>Intake inbox</h3><p>Recurring files are recognised and queued for one-click review. Nothing ever runs automatically.</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== AGENTS -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">The workforce</p>
+    <h2 class="section">Seventeen agents. One rule.</h2>
+    <p class="section-sub">
+      Each one proposes or phrases. None computes a number, and none acts alone. Every
+      agent has a rule-based fallback, so the platform keeps working with no AI
+      connection at all - outputs are simply badged rule-based instead of AI.
+    </p>
+    <div class="chips">
+      <span class="chip">EDA agent</span><span class="chip">Shape scout</span>
+      <span class="chip">Domain scout</span><span class="chip">Question scout</span>
+      <span class="chip">Explorer agents</span><span class="chip">Analyst agent</span>
+      <span class="chip">Anomaly scout</span><span class="chip">Place harmoniser</span>
+      <span class="chip">Query planner</span><span class="chip">Recommendation agent</span>
+      <span class="chip">Remediation agent</span><span class="chip">Feature agent</span>
+      <span class="chip">Interpretation agent</span><span class="chip">Brief agent</span>
+      <span class="chip">Critic agent</span><span class="chip">Ask-the-data agent</span>
+      <span class="chip">Compare summariser</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== SPECS -->
+<section class="band">
+  <div class="frame">
+    <p class="eyebrow">For the technical evaluator</p>
+    <h2 class="section">Three clean tiers. The AI is replaceable.</h2>
+    <p class="section-sub">
+      A React interface over a FastAPI service over a pure Python engine, where every
+      number is computed. The language model is a swappable provider - move it
+      on-premise and nothing else changes.
+    </p>
+    <div class="chips">
+      <span class="chip mono">typed query plans - the AI never writes code</span>
+      <span class="chip mono">deterministic chart grammar</span>
+      <span class="chip mono">content-addressed artifact store</span>
+      <span class="chip mono">full data lineage</span>
+      <span class="chip mono">model plugins</span>
+      <span class="chip mono">fold-safe validation</span>
+      <span class="chip mono">out-of-fold thresholds</span>
+      <span class="chip mono">36 states + 640 districts offline</span>
+      <span class="chip mono">fixed seed 42</span>
+      <span class="chip mono">SQLite, Postgres-portable</span>
+      <span class="chip mono">runs on a single machine</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== CLOSE -->
+<section class="band">
+  <div class="frame">
+    <div class="close">
+      <h2>See it run on your own file.</h2>
+      <p>
+        The fastest way to judge this is to bring one real departmental workbook - the
+        messier the better - and watch it become a prepared table, a charted board and a
+        decision brief in a single sitting.
+      </p>
+      <p class="note" style="margin-top:1rem">
+        Working system, running today on a single machine with sample departmental data.
+        Sign-in and roles, air-gapped deployment and managed backups are the next phase.
+      </p>
+      <div class="brandline">
+        <span>Agentic ML Workbench</span>
+        <span>Fin100X.AI</span>
+        <span>Built for Indian government departments</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
