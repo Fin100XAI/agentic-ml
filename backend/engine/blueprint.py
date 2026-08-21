@@ -627,10 +627,13 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
                 else f"unexpected: {', '.join(extra)}", "warning")
         if rules.get("reference") == "india_boundaries":
             unmatched = _unmatched_places(col)
-            add(f"'{name}' matches known places", not unmatched,
-                "every value matches a state or district"
-                if not unmatched else
-                f"{len(unmatched)} unrecognised: {', '.join(unmatched[:4])}", "warning")
+            add(f"'{name}' holds places", not unmatched,
+                "every value is a known state or district" if not unmatched else
+                f"{len(unmatched)} value(s) are not places - "
+                f"{', '.join(unmatched[:4])}"
+                f"{'...' if len(unmatched) > 4 else ''}. Fine if they belong "
+                f"(a head office, an 'other' bucket); worth a look if not.",
+                "warning")
 
     empty_cols = [c for c in df.columns if df[c].isna().all()]
     add("No empty columns", not empty_cols,
@@ -648,9 +651,17 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
 # ----------------------------------------------------------- data dictionary
 
 def _unmatched_places(series: pd.Series) -> list[str]:
-    """Values that match no bundled state or district. Empty when the
-    boundary files are unavailable - the check simply reports clean rather
-    than failing the build."""
+    """Values that are not a state or district at all.
+
+    A spelling variant is NOT one of these: the boundary files carry their
+    own quirks ('Dadara & Nagar Havelli'), and departmental files carry
+    theirs, so anything that resolves by alias or reads as a close variant
+    of a real boundary is treated as matched. What survives is the genuinely
+    non-geographic - 'CBIC', 'Other Territory', 'Total' - which is worth a
+    word to the officer and nothing stronger.
+    """
+    from difflib import SequenceMatcher
+
     try:
         from engine.query.geo import _norm, boundary_names
     except Exception:
@@ -658,17 +669,24 @@ def _unmatched_places(series: pd.Series) -> list[str]:
     known: set[str] = set()
     for level in ("states", "districts"):
         try:
-            known |= {_norm(n) for n in boundary_names(level)}
+            known |= set(boundary_names(level))
         except Exception:
             continue
     if not known:
         return []
-    out = []
-    for v in sorted({str(x).strip() for x in series.dropna()}):
-        if v and _norm(v) not in known:
-            out.append(v)
+    out: list[str] = []
+    for raw in sorted({str(x).strip() for x in series.dropna()}):
+        if not raw:
+            continue
+        slug = _norm(raw)
+        if slug in known:
+            continue
+        # A close variant of a real boundary is the same place spelled
+        # differently, not an unknown one.
+        if any(SequenceMatcher(None, slug, k).ratio() >= 0.88 for k in known):
+            continue
+        out.append(raw)
     return out
-
 
 def data_dictionary(df: pd.DataFrame, bp: dict[str, Any],
                     provenance: dict[str, Any] | None = None) -> str:

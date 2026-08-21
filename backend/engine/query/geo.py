@@ -59,6 +59,11 @@ def _norm(name: str) -> str:
     low = str(name).strip().lower()
     low = STATE_CODES.get(low, low).lower()
     low = _V2C.get(low, low).lower()
+    # The boundary files write '&' where departmental files write 'and'
+    # ('Daman & Diu' vs 'Daman and Diu'), and stripping punctuation alone
+    # leaves the two apart. Drop the connector as a WHOLE WORD only - the
+    # district of Anand must survive.
+    low = re.sub(r"\band\b", " ", low)
     slug = re.sub(r"[^a-z0-9]", "", low)
     fixed = GEO_NAME_FIXES.get(slug)
     if fixed:

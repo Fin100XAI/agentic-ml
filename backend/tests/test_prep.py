@@ -296,7 +296,22 @@ def test_value_rules_catch_real_mistakes():
     built, _ = apply_blueprint(df, bp)
     failed = {c["check"] for c in certify(built, bp)["checks"] if not c["passed"]}
     assert any("never above 100" in f for f in failed), failed
-    assert any("matches known places" in f for f in failed), failed
+    assert any("holds places" in f for f in failed), failed
+
+
+def test_place_check_tolerates_spelling_but_flags_non_places():
+    """The boundary files write '&' where departmental files write 'and', and
+    each carries its own misspellings. Only genuinely non-geographic values
+    should be reported."""
+    from engine.blueprint import _unmatched_places
+    series = pd.Series([
+        "Andaman and Nicobar Island",   # '&' in the boundary file
+        "Daman and Diu",                # same
+        "Dadra and Nagar Haveli",       # boundary file spells it Dadara/Havelli
+        "Maharashtra", "Anand",         # 'Anand' must survive the 'and' rule
+        "CBIC",                         # genuinely not a place
+    ])
+    assert _unmatched_places(series) == ["CBIC"], _unmatched_places(series)
 
 
 def test_certify_catches_a_broken_key():
