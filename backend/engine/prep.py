@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+from difflib import SequenceMatcher
 from typing import Any
 
 import pandas as pd
@@ -32,6 +33,28 @@ def year_guess(label: str) -> int | None:
         return None
     y = int(m.group(0))
     return y if 1900 <= y <= 2100 else None
+
+
+def sheet_period(label: str) -> dict[str, Any] | None:
+    """The period a sheet's NAME refers to, whatever kind it is.
+
+    Workbooks get split by whatever the department reports on: 'FY 2022-23',
+    'Apr-2025', 'Q1 2025', 'Week 14'. Reading only years meant a workbook
+    split by month stacked into an undated pile, with nothing to plot time
+    against. Tries the longest run of words first so 'FY 2022-23' is read
+    whole rather than as a bare 2022.
+    """
+    from engine.profile_deep import parse_period
+
+    text = str(label).split("::")[-1]
+    text = re.sub(r"\.(xlsx?|xlsm|csv)$", "", text.strip(), flags=re.I)
+    tokens = [t for t in re.split(r"[\s_]+", text.strip()) if t]
+    for span in (4, 3, 2, 1):
+        for i in range(len(tokens) - span + 1):
+            got = parse_period(" ".join(tokens[i:i + span]))
+            if got:
+                return got
+    return None
 
 
 def _fmt_label(v: Any) -> str:
@@ -184,12 +207,31 @@ def sheet_inventory(frames: dict[str, pd.DataFrame]) -> list[dict[str, Any]]:
     return out
 
 
+def _same_column(a: str, b: str) -> bool:
+    """Do two headers name the same thing?
+
+    Last year's sheet says 'District', this year's says 'District Name'.
+    Exact matching on the normalized name calls those different columns and
+    refuses to stack the years - so one extra word in a header defeats the
+    whole thing. One name containing the other counts, as does a close
+    spelling ('Benificiaries').
+    """
+    if a == b:
+        return True
+    if len(a) >= 4 and len(b) >= 4 and (a in b or b in a):
+        return True
+    return (min(len(a), len(b)) >= 5
+            and SequenceMatcher(None, a, b).ratio() >= 0.88)
+
+
 def _schema_similarity(a: list[str], b: list[str]) -> float:
+    """Overlap of two sheets' columns, tolerant of spelling drift."""
     sa = {normalize_col(c) for c in a}
     sb = {normalize_col(c) for c in b}
     if not sa or not sb:
         return 0.0
-    return len(sa & sb) / len(sa | sb)
+    shared = sum(1 for x in sa if any(_same_column(x, y) for y in sb))
+    return shared / max(len(sa), len(sb))
 
 
 def _canonical_mapping(frames: dict[str, pd.DataFrame]) -> dict[str, dict[str, str]]:
@@ -202,37 +244,74 @@ def _canonical_mapping(frames: dict[str, pd.DataFrame]) -> dict[str, dict[str, s
         for c in df.columns:
             key = normalize_col(c)
             if key not in canon:
-                canon[key] = str(c)
+                # A close variant of a name already claimed is the same
+                # column wearing a different hat - map it onto the spelling
+                # the first sheet used rather than stacking them side by side.
+                near = next((k for k in canon if _same_column(key, k)), None)
+                if near is None:
+                    canon[key] = str(c)
+                else:
+                    key = near
             if str(c) != canon[key]:
                 m[str(c)] = canon[key]
         mappings[name] = m
     return mappings
 
 
+def _key_values(df: pd.DataFrame, col: str) -> set[str]:
+    return {str(v).strip().lower() for v in df[col].dropna().unique()}
+
+
 def _join_key_candidates(frames: dict[str, pd.DataFrame]) -> list[str]:
-    """Normalized column names present in EVERY sheet with high uniqueness -
-    plausible join keys."""
+    """Columns that could actually join these sheets, best overlap first.
+
+    A key has to do more than be unique. A measure column of random numbers
+    is perfectly unique and shares not one value with the next sheet, yet it
+    was being accepted and joined on - which is how three yearly sheets got
+    'joined' on their beneficiary counts. So a candidate must also be
+    identifier-like rather than a free-floating measure, and its values must
+    genuinely overlap across the sheets.
+    """
     sheets = list(frames.values())
     if len(sheets) < 2:
         return []
     common = set.intersection(*({normalize_col(c) for c in df.columns} for df in sheets))
-    out: list[str] = []
+    scored: list[tuple[float, str]] = []
     for key in common:
-        ok = True
-        label = None
-        for df in sheets:
-            col = next((c for c in df.columns if normalize_col(c) == key), None)
-            if col is None:
-                ok = False
-                break
-            label = label or str(col)
+        cols = [next((c for c in df.columns if normalize_col(c) == key), None)
+                for df in sheets]
+        if any(c is None for c in cols):
+            continue
+        label = str(cols[0])
+        numeric_only, value_sets, uniq = True, [], []
+        for df, col in zip(sheets, cols):
             n = len(df)
-            if n == 0 or df[col].nunique(dropna=True) / n < 0.8:
-                ok = False
+            if n == 0:
                 break
-        if ok and label:
-            out.append(label)
-    return sorted(out)
+            uniq.append(df[col].nunique(dropna=True) / n)
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                numeric_only = False
+            value_sets.append(_key_values(df, col))
+        if len(value_sets) != len(sheets):
+            continue
+        # ONE sheet has to be the master, not all of them. Requiring every
+        # sheet to be unique on the key rejected the commonest join there
+        # is - a fact table against a lookup table, where the fact side
+        # repeats the key by design. With no unique side the join is
+        # many-to-many and would multiply rows, so that stays refused.
+        if max(uniq) < 0.8:
+            continue
+        # A numeric column is only a key if its name says so ('id', 'code',
+        # 'pin'); otherwise it is a measure that happens to be unique.
+        if numeric_only and not re.search(r"(id|code|no|num|pin|lgd|census)$", key):
+            continue
+        shared = set.intersection(*value_sets) if value_sets else set()
+        smallest = min((len(v) for v in value_sets), default=0)
+        overlap = len(shared) / smallest if smallest else 0.0
+        if overlap < 0.5:
+            continue
+        scored.append((overlap, label))
+    return [label for _, label in sorted(scored, key=lambda t: (-t[0], t[1]))]
 
 
 def propose_combine(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
@@ -246,8 +325,12 @@ def propose_combine(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
     for n in names[1:]:
         sims.append(_schema_similarity(base, list(frames[n].columns)))
     min_sim = min(sims) if sims else 1.0
-    years = [year_guess(n) for n in names]
-    have_years = sum(1 for y in years if y is not None) >= max(2, len(names) - 1)
+    periods = [sheet_period(n) for n in names]
+    have_periods = sum(1 for p in periods if p) >= max(2, len(names) - 1)
+    # A column of plain years is friendlier to work with than a label, so
+    # keep 'year' where every sheet is a year and use 'period' otherwise.
+    kinds = {p["kind"] for p in periods if p}
+    year_like = kinds <= {"year", "fiscal_year"}
     notes: list[str] = []
     if min_sim >= 0.6:
         mappings = _canonical_mapping(frames)
@@ -255,16 +338,25 @@ def propose_combine(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
         if renamed:
             notes.append(f"{renamed} column name(s) spelled differently across sheets "
                          "will be harmonized to one spelling.")
-        if have_years:
-            notes.append("Sheet names carry years - a 'year' column will be added "
-                         "so time questions work after stacking.")
+        if have_periods:
+            what = "year" if year_like else "period"
+            notes.append(f"Sheet names carry a {what} - a '{what}' column will be "
+                         "added so time questions work after stacking.")
         return {"strategy": "stack", "sheets": names, "mappings": mappings,
                 "join_key": None, "add_source_column": True,
-                "add_year_column": have_years, "notes": notes}
+                "add_year_column": have_periods and year_like,
+                "add_period_column": have_periods and not year_like,
+                "notes": notes}
     keys = _join_key_candidates(frames)
     if keys:
-        notes.append(f"The sheets share the high-uniqueness column '{keys[0]}' - "
-                     "they look like different facts about the same entities.")
+        q = join_quality(frames, keys[0], names)
+        notes.append(f"The sheets share '{keys[0]}' and its values line up across "
+                     "them - they look like different facts about the same "
+                     "entities.")
+        if q.get("verdict") in ("lossy", "poor"):
+            notes.append(f"Only {q.get('worst_match_pct')}% of one sheet's rows "
+                         f"find a match, so some rows will have blanks after the "
+                         f"join. Check the unmatched names before approving.")
         return {"strategy": "join", "sheets": names, "mappings": {},
                 "join_key": keys[0], "join_candidates": keys,
                 "add_source_column": False, "add_year_column": False, "notes": notes}
@@ -330,7 +422,11 @@ def apply_combine(frames: dict[str, pd.DataFrame], spec: dict[str, Any]) -> tupl
             if spec.get("add_source_column"):
                 part = part.assign(source_sheet=n)
             if spec.get("add_year_column"):
-                part = part.assign(year=year_guess(n))
+                got = sheet_period(n)
+                part = part.assign(year=int(got["key"][:4]) if got else year_guess(n))
+            if spec.get("add_period_column"):
+                got = sheet_period(n)
+                part = part.assign(period=got["label"] if got else str(n))
             parts.append(part)
         df = pd.concat(parts, ignore_index=True, sort=False)
         return df, {"strategy": "stack", "sheets": names, "rows": int(len(df)),

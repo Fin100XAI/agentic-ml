@@ -423,6 +423,28 @@ def _geo_hit_rate(series: pd.Series) -> float:
 
 # ------------------------------------------------------------ column profile
 
+_YEAR_NAMES = ("year", "yr", "fy", "financialyear", "fiscalyear", "assessmentyear",
+               "sessionyear", "surveyyear", "reportyear", "yearofreport")
+
+
+def _is_year_column(series: pd.Series, nname: str) -> bool:
+    """A year held as a plain integer, e.g. the column stacking adds.
+
+    Deliberately conservative: the NAME has to say year. Plenty of honest
+    measures live in the 1900-2100 range, and calling one of those a period
+    would be worse than the bug this fixes.
+    """
+    flat = nname.replace("_", "")
+    if not (flat in _YEAR_NAMES or flat.endswith("year") or flat.startswith("year")):
+        return False
+    if not pd.api.types.is_numeric_dtype(series) or pd.api.types.is_bool_dtype(series):
+        return False
+    vals = pd.to_numeric(series, errors="coerce").dropna()
+    if vals.empty:
+        return False
+    return bool((vals % 1 == 0).all() and vals.between(1900, 2100).all())
+
+
 def profile_column(df: pd.DataFrame, col: Any, banner_hints: str = "") -> dict[str, Any]:
     series = df[col]
     name = str(col)
@@ -439,7 +461,13 @@ def profile_column(df: pd.DataFrame, col: Any, banner_hints: str = "") -> dict[s
     geo_rate = 0.0
 
     # ---- type decision, with the evidence that drove it
-    if pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series):
+    if _is_year_column(series, nname):
+        # A year stored as a plain integer is numeric, and numeric wins the
+        # test below - so 'year' came out a measure and the board would
+        # happily total it. It is a period: name says year, values are years.
+        dtype, conf, why = "period", 0.9, "whole years in a column named for them"
+        period = period or {"kind": "year", "coverage_pct": 100.0}
+    elif pd.api.types.is_numeric_dtype(series) and not pd.api.types.is_bool_dtype(series):
         dtype, conf, why = "number", 0.99, "already numeric in the file"
     elif boolean:
         dtype, conf, why = "boolean", 0.9, "only yes/no style values"

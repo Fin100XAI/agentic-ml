@@ -578,6 +578,187 @@ def test_hardening_leaves_an_already_correct_schema_alone():
     assert _strict(schema) == schema
 
 
+# ------------------------------------------------- multi-sheet: stack vs join
+def _yearly_sheets():
+    """Three yearly sheets, as a department actually sends them: one year
+    spells the district column differently, one has an extra column."""
+    d = ["Pune", "Nagpur", "Nashik", "Thane", "Solapur", "Kolhapur"]
+    return {
+        "FY 2022-23": pd.DataFrame({"District": d, "Beneficiaries": range(10, 16),
+                                    "Expenditure_Lakh": range(100, 106)}),
+        "FY 2023-24": pd.DataFrame({"District Name": d, "Beneficiaries": range(20, 26),
+                                    "Expenditure_Lakh": range(200, 206)}),
+        "FY 2024-25": pd.DataFrame({"District": d, "Beneficiaries": range(30, 36),
+                                    "Expenditure_Lakh": range(300, 306),
+                                    "Remarks": [""] * 6}),
+    }
+
+
+def test_same_shape_yearly_sheets_stack_rather_than_join():
+    """One differing word in a header must not defeat stacking.
+
+    'District' and 'District Name' normalize to different strings, so exact
+    matching scored these sheets 0.5 similar, fell through to the join
+    branch, and joined three years of data on their beneficiary counts.
+    """
+    spec = prep.propose_combine(_yearly_sheets())
+    assert spec["strategy"] == "stack", spec
+    assert spec["add_year_column"] is True, "sheet names carry years"
+    renames = [m for m in spec["mappings"].values() if m]
+    assert renames == [{"District Name": "District"}], renames
+
+    df, report = prep.apply_combine(_yearly_sheets(), spec)
+    assert report["rows"] == 18 and "District" in df.columns
+    assert sorted(df["year"].unique()) == [2022, 2023, 2024]
+    assert "District Name" not in df.columns
+
+
+def test_a_unique_measure_is_not_mistaken_for_a_join_key():
+    """A key must be identifier-like AND its values must actually overlap.
+
+    Random measures are perfectly unique and share nothing across sheets;
+    accepting one produced a join with zero matching rows.
+    """
+    keys = prep._join_key_candidates(_yearly_sheets())
+    assert "Beneficiaries" not in keys, keys
+    assert "Expenditure_Lakh" not in keys, keys
+
+
+def test_sheets_about_different_things_join_on_their_shared_key():
+    d = ["Pune", "Nagpur", "Nashik", "Thane", "Solapur", "Kolhapur"]
+    frames = {
+        "Demographics": pd.DataFrame({"District": d, "Population": range(1, 7)}),
+        "Health": pd.DataFrame({"District": d[:4] + ["Ratnagiri"],
+                                "PHC_count": range(10, 15)}),
+    }
+    spec = prep.propose_combine(frames)
+    assert spec["strategy"] == "join" and spec["join_key"] == "District", spec
+    q = prep.join_quality(frames, "District")
+    assert q["shared_keys"] == 4 and q["verdict"] in ("lossy", "poor")
+    # the officer is told WHICH rows would not match, before approving
+    unmatched = sum((p["unmatched_examples"] for p in q["per_sheet"]), [])
+    assert "Ratnagiri" in unmatched and "Solapur" in unmatched, unmatched
+
+
+def test_a_year_column_is_a_period_not_a_measure():
+    """Stacking adds a 'year' column of plain integers. Numeric wins the
+    type test, so it came out a measure - and a measure gets summed."""
+    df = pd.DataFrame({"year": [2022, 2023, 2024] * 2,
+                       "beneficiaries": [10, 20, 30, 40, 50, 60]})
+    prof = profile_table(df, "")
+    by = {c["source_name"]: c for c in prof["columns"]}
+    assert by["year"]["role"] == "period", by["year"]["role"]
+    assert by["beneficiaries"]["role"] == "measure"
+
+
+def test_an_ordinary_measure_in_the_year_range_stays_a_measure():
+    """The year rule keys off the NAME on purpose - plenty of honest
+    measures live between 1900 and 2100."""
+    df = pd.DataFrame({"households": [1990, 2005, 2011, 1948]})
+    prof = profile_table(df, "")
+    assert prof["columns"][0]["role"] == "measure"
+
+
+
+def test_combine_handles_the_shapes_files_actually_arrive_in():
+    """A battery across domains, so the logic is not tuned to one workbook.
+
+    Each entry is (frames, expected strategy); a '!' prefix means anything
+    BUT that strategy.
+    """
+    def ids(n):
+        return [f"E{i:03d}" for i in range(n)]
+
+    cases = {
+        "monthly sheets": ({
+            "Apr-2025": pd.DataFrame({"Store": list("ABCD"), "Sales": [1, 2, 3, 4]}),
+            "May-2025": pd.DataFrame({"Store": list("ABCD"), "Sales": [5, 6, 7, 8]}),
+            "Jun-2025": pd.DataFrame({"Store": list("ABCD"), "Sales": [9, 10, 11, 12]}),
+        }, "stack"),
+        "quarterly sheets": ({
+            "Q1 2024": pd.DataFrame({"Fund": list("ABCDE"), "NAV": range(5)}),
+            "Q2 2024": pd.DataFrame({"Fund": list("ABCDE"), "NAV": range(5, 10)}),
+        }, "stack"),
+        "fact and lookup": ({
+            "Transactions": pd.DataFrame({"Customer_ID": ["C1", "C2", "C1", "C3"],
+                                          "Amount": [10, 20, 30, 40]}),
+            "Customer Master": pd.DataFrame({"Customer_ID": ["C1", "C2", "C3", "C4"],
+                                             "City": list("PNTL")}),
+        }, "join"),
+        "three sheets one key": ({
+            "Students": pd.DataFrame({"Roll_No": ids(6), "Name": list("ABCDEF")}),
+            "Marks": pd.DataFrame({"Roll_No": ids(6), "Total": range(6)}),
+            "Attendance": pd.DataFrame({"Roll_No": ids(6), "Days": range(6)}),
+        }, "join"),
+        "split by region": ({
+            "Pune": pd.DataFrame({"Scheme": list("ABC"), "Amount": [1, 2, 3]}),
+            "Nagpur": pd.DataFrame({"Scheme": list("ABC"), "Amount": [4, 5, 6]}),
+        }, "stack"),
+        "single sheet": ({"Data": pd.DataFrame({"A": [1, 2], "B": [3, 4]})}, "single"),
+        "unrelated sheets": ({
+            "Employees": pd.DataFrame({"Emp_ID": ids(5), "Salary": range(5)}),
+            "Rainfall": pd.DataFrame({"Station": list("XYZWV"), "MM": range(5)}),
+        }, "review"),
+        "numeric id key": ({
+            "Patients": pd.DataFrame({"Patient_ID": [101, 102, 103, 104], "Age": range(4)}),
+            "Visits": pd.DataFrame({"Patient_ID": [101, 102, 103, 104], "Visits": range(4)}),
+        }, "join"),
+        "columns in a different order": ({
+            "2023": pd.DataFrame({"Dist": list("AB"), "Val": [1, 2], "Note": ["", ""]}),
+            "2024": pd.DataFrame({"Note": ["", ""], "Val": [3, 4], "Dist": list("AB")}),
+        }, "stack"),
+        # No unique side: joining would multiply rows, so it must not be offered.
+        "many to many": ({
+            "Sales": pd.DataFrame({"Region": ["N", "N", "S", "S"], "Amt": range(4)}),
+            "Targets": pd.DataFrame({"Region": ["N", "N", "S", "S"], "Tgt": range(4)}),
+        }, "!join"),
+    }
+    for name, (frames, want) in cases.items():
+        got = prep.propose_combine(frames)["strategy"]
+        if want.startswith("!"):
+            assert got != want[1:], f"{name}: got {got}"
+        else:
+            assert got == want, f"{name}: expected {want}, got {got}"
+
+
+def test_a_fact_table_joins_to_its_lookup_without_multiplying_rows():
+    """The commonest join in any domain: many facts, one master row each.
+
+    Requiring the key to be unique in EVERY sheet rejected this outright.
+    """
+    frames = {
+        "Transactions": pd.DataFrame({"Customer_ID": ["C1", "C2", "C1", "C3", "C2", "C1"],
+                                      "Amount": [10, 20, 30, 40, 50, 60]}),
+        "Customer Master": pd.DataFrame({"Customer_ID": ["C1", "C2", "C3", "C4"],
+                                         "City": ["Pune", "Nagpur", "Thane", "Latur"]}),
+    }
+    spec = prep.propose_combine(frames)
+    assert spec["strategy"] == "join" and spec["join_key"] == "Customer_ID"
+    df, _ = prep.apply_combine(frames, spec)
+    assert int(df["Amount"].notna().sum()) == 6, "every fact row survives, once"
+    assert list(df[df.Customer_ID == "C1"]["City"]) == ["Pune"] * 3
+
+
+def test_sheet_names_give_up_any_period_not_just_years():
+    """Workbooks are split by whatever the department reports on."""
+    assert prep.sheet_period("Apr-2025")["label"] == "Apr-2025"
+    assert prep.sheet_period("book.xlsx :: Q1 2025")["kind"] == "quarter"
+    assert prep.sheet_period("FY 2022-23")["kind"] == "fiscal_year"
+    assert prep.sheet_period("2024")["kind"] == "year"
+    assert prep.sheet_period("Summary") is None
+    assert prep.sheet_period("Pune") is None
+
+    frames = {
+        "Apr-2025": pd.DataFrame({"Store": list("AB"), "Sales": [1, 2]}),
+        "May-2025": pd.DataFrame({"Store": list("AB"), "Sales": [3, 4]}),
+    }
+    spec = prep.propose_combine(frames)
+    assert spec["add_period_column"] is True and spec["add_year_column"] is False
+    df, _ = prep.apply_combine(frames, spec)
+    assert sorted(df["period"].unique()) == ["Apr-2025", "May-2025"]
+
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]
