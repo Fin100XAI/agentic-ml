@@ -66,9 +66,16 @@ export const api = {
     request<{ models: RegistryEntry[] }>(`/projects/${projectId}/models`),
 
   getProjectDetail: (projectId: string) =>
-    request<{ datasets: { id: string; filename: string; n_rows: number }[] }>(
-      `/projects/${projectId}`,
-    ),
+    request<{
+      datasets: {
+        id: string; filename: string; n_rows: number;
+        n_cols?: number; pii_status?: string;
+      }[];
+      runs: {
+        id: string; filename: string; question: string | null;
+        stage: string; created_at?: string | number;
+      }[];
+    }>(`/projects/${projectId}`),
 
   queryPlan: (datasetId: string, question: string, priorPlan?: object) =>
     request<QueryPlanResponse>(`/datasets/${datasetId}/query/plan`,

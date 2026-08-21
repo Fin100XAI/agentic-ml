@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, Moon, ScrollText, Sun } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, Library, Moon, ScrollText, Sun, Wand2 } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -25,10 +25,11 @@ import { QueryBriefView } from "./components/screens/QueryBriefView";
 import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { PrepStudio } from "./components/screens/PrepStudio";
+import { LibraryScreen } from "./components/screens/LibraryScreen";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "projects" | "home" | "upload" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask" | "analytics";
+type Screen = "projects" | "home" | "upload" | "prep" | "library" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask" | "analytics";
 
 const STEPS: { key: Screen; label: string }[] = [
   { key: "upload", label: "Upload" },
@@ -47,6 +48,8 @@ const ANALYTICS_STEPS: { key: Screen; label: string }[] = [
 const GUIDE: Record<Screen, string> = {
   projects: "",
   home: "",
+  library: "Every file in this project and every analysis run against it - pick up where you left off, no re-uploading.",
+  prep: "Turn a messy workbook into a clean table with a contract. What comes out is registered as an ordinary dataset, ready to explore or model.",
   upload: "Step 1 - Pick any CSV file. The agents will figure out what's inside.",
   eda: "Step 2 - Review what the EDA agent found, tell it what you want to learn, then approve.",
   configure:
@@ -156,6 +159,8 @@ function App() {
   // The post-upload fork: analytics (explore + ask, no training) vs model path.
   const [pathOffer, setPathOffer] = useState<{ datasetId: string; filename: string; question: string } | null>(null);
   const [analyticsCtx, setAnalyticsCtx] = useState<{ datasetId: string; filename: string } | null>(null);
+  // A table just registered from the Prep Studio, awaiting its onward choice.
+  const [preparedDs, setPreparedDs] = useState<{ datasetId: string; filename: string } | null>(null);
   const [routeOffer, setRouteOffer] = useState<{
     runId: string; datasetId: string; filename: string; question: string;
     route: "direct_query" | "both"; reasoning: string;
@@ -558,6 +563,7 @@ function App() {
     if (s === "results" || s === "report") return run?.result != null;
     if (s === "compare") return run?.comparison != null;
     if (s === "home") return project !== null;
+    if (s === "library" || s === "prep") return project !== null;
     if (s === "ask") return askCtx !== null;
     if (s === "analytics") return analyticsCtx !== null;
     return true;
@@ -756,6 +762,30 @@ function App() {
               wraps or collides at any width. */}
           <div className="flex shrink-0 items-center gap-2">
             <div className="flex items-center overflow-hidden rounded-full border border-edge bg-panel-2">
+              {project && (
+                <>
+                  <button
+                    onClick={() => setScreen(screen === "library" ? "home" : "library")}
+                    className={`px-2.5 py-1.5 transition-colors ${
+                      screen === "library" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
+                    }`}
+                    title="Library: every dataset in this project and every analysis run against it"
+                  >
+                    <Library className="h-3.5 w-3.5" />
+                  </button>
+                  <div className="h-4 w-px bg-edge" />
+                  <button
+                    onClick={() => setScreen(screen === "prep" ? "home" : "prep")}
+                    className={`px-2.5 py-1.5 transition-colors ${
+                      screen === "prep" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
+                    }`}
+                    title="Data Prep Studio: turn a messy workbook into a clean table"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                  </button>
+                  <div className="h-4 w-px bg-edge" />
+                </>
+              )}
               <button
                 onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
                 className={`px-2.5 py-1.5 transition-colors ${
@@ -902,11 +932,95 @@ function App() {
               setAskCtx({ datasetId, filename });
               setScreen("ask");
             }}
+            onPrep={() => setScreen("prep")}
+            onLibrary={() => setScreen("library")}
           />
         )}
 
         {screen === "upload" && (
           <UploadScreen onSubmit={handleUpload} busy={busy} stage={uploadStage} />
+        )}
+
+        {screen === "library" && project && (
+          <LibraryScreen
+            projectId={project.id}
+            projectName={project.name}
+            onExplore={(datasetId, filename) => {
+              setAnalyticsCtx({ datasetId, filename });
+              setScreen("analytics");
+            }}
+            onAsk={(datasetId, filename) => {
+              setAskCtx({ datasetId, filename });
+              setScreen("ask");
+            }}
+            onOpenRun={handleResume}
+            onUpload={() => setScreen("upload")}
+            onPrep={() => setScreen("prep")}
+            onRetrain={handleRetrain}
+          />
+        )}
+
+        {/* A prepared table is registered into the project and is then an
+            ordinary dataset - so the studio offers the same onward choices
+            an upload reaches, rather than dead-ending at "registered". */}
+        {screen === "prep" && (
+          <div className="space-y-5">
+            {preparedDs && (
+              <Card className="border-good/40">
+                <CardBody className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-good">
+                      '{preparedDs.filename}' is ready to use
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-dim">
+                      It is a normal dataset now - in your library, and open to the same
+                      two paths as any upload.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAnalyticsCtx(preparedDs);
+                        setPreparedDs(null);
+                        setScreen("analytics");
+                      }}
+                    >
+                      Explore findings
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAskCtx(preparedDs);
+                        setPreparedDs(null);
+                        setScreen("ask");
+                      }}
+                    >
+                      Ask a question
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPreparedDs(null);
+                        setScreen("library");
+                      }}
+                    >
+                      Go to library
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+            <PrepStudio
+              embedded
+              projectId={project?.id}
+              onRegistered={({ datasetId, filename }) =>
+                setPreparedDs({ datasetId, filename })
+              }
+            />
+          </div>
         )}
 
         {screen === "eda" && run?.profile && run.eda && (

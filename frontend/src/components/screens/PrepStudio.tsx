@@ -1,7 +1,10 @@
 // Data Prep Studio (PREP-STUDIO prototype) - the understand-first flow:
 //   Add data -> Understand (deep profile) -> Decide (grounded interview)
 //   -> Blueprint (editable schema contract) -> Certify (build + prove + bundle)
-// Reached only via #/prep; nothing in the main app links here yet.
+// Runs as a screen inside the app (toolbar wand, or Home) and standalone at
+// #/prep. What it produces is registered INTO the current project, so a
+// prepared table is an ordinary dataset from that moment on - the join
+// between this pipeline and the rest of the platform.
 // The agent proposes on every decision, the human decides every one of them.
 import { useState } from "react";
 import {
@@ -91,7 +94,20 @@ const json = (body: unknown): RequestInit => ({
 
 /* ---------- page ---------- */
 
-export function PrepStudio() {
+export function PrepStudio({
+  projectId,
+  embedded = false,
+  onRegistered,
+}: {
+  /** Register the prepared table INTO this project, so it lands in the
+   *  library beside the files that were uploaded directly. */
+  projectId?: string;
+  /** Inside the app shell the page chrome is already there. */
+  embedded?: boolean;
+  /** A prepared table is a new upload - hand it back so the caller can
+   *  send the officer straight on to explore it or model it. */
+  onRegistered?: (ds: { datasetId: string; filename: string; rows: number }) => void;
+} = {}) {
   const [step, setStep] = useState(0);
   const [sid, setSid] = useState<string | null>(null);
   const [sheets, setSheets] = useState<Sheet[]>([]);
@@ -212,19 +228,32 @@ export function PrepStudio() {
 
   const doRegister = () =>
     guard("register", async () => {
-      const r = await call<{ filename: string; rows: number }>(
-        `/${sid}/register`, json({ name: dsName || "prepared-data" }));
+      const r = await call<{ dataset_id: string; filename: string; rows: number }>(
+        `/${sid}/register`,
+        json({ name: dsName || "prepared-data", project_id: projectId ?? null }));
       setRegistered(r);
+      onRegistered?.({ datasetId: r.dataset_id, filename: r.filename, rows: r.rows });
     });
 
   const editCol = (i: number, patch: Partial<BpColumn>) =>
     setBp((b) => b && { ...b, columns: b.columns.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
 
+  // Standalone the studio owns the page; inside the shell it is a screen
+  // like any other and must not paint a second full-height background.
+  const Shell = ({ children }: { children: React.ReactNode }) =>
+    embedded ? (
+      <div className="space-y-6">{children}</div>
+    ) : (
+      <div className="font-jakarta min-h-screen bg-surface px-4 py-8 sm:px-8">
+        <div className="mx-auto max-w-5xl space-y-6">{children}</div>
+      </div>
+    );
+
   return (
-    <div className="font-jakarta min-h-screen bg-surface px-4 py-8 sm:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <Shell>
+      <>
         {/* Header + stepper */}
-        <div className="text-center">
+        <div className={embedded ? "hidden" : "text-center"}>
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
             Data Prep Studio · prototype
           </p>
@@ -714,10 +743,14 @@ export function PrepStudio() {
                 </div>
                 {registered ? (
                   <div className="rounded-xl border border-good/40 bg-good/5 px-4 py-3">
-                    <p className="text-sm font-semibold text-good">Registered on the platform</p>
+                    <p className="text-sm font-semibold text-good">Added to your workspace</p>
                     <p className="mt-1 text-xs text-ink-dim">
-                      '{registered.filename}' ({registered.rows.toLocaleString()} rows) is now a normal
-                      dataset - open the main app to explore it or train on it.
+                      '{registered.filename}' ({registered.rows.toLocaleString()} rows) is now an
+                      ordinary dataset, exactly as if you had uploaded it - with its recipe kept, so
+                      next month's file can be prepared the same way in one step.
+                      {embedded
+                        ? " It is in your library now; explore it or train on it from there."
+                        : " Open the main app to explore it or train on it."}
                     </p>
                   </div>
                 ) : (
@@ -760,7 +793,7 @@ export function PrepStudio() {
           Prototype - sessions live in memory and reset with the server. The agents read column
           names, types and counts only, never your data values.
         </p>
-      </div>
-    </div>
+      </>
+    </Shell>
   );
 }

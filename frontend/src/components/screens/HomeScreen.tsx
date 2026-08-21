@@ -12,12 +12,14 @@ import {
   Lock,
   Play,
   ScrollText,
+  Library as LibraryIcon,
   Search,
   Settings2,
   ShieldCheck,
   Target,
   UserCheck,
   Users,
+  Wand2,
 } from "lucide-react";
 import type { RegistryEntry, RunSummary } from "../../types";
 import { DatasetsPanel } from "../DatasetsPanel";
@@ -118,11 +120,15 @@ export function HomeScreen({
   onOpenRetrainRun,
   onExploreDataset,
   onAskDataset,
+  onPrep,
+  onLibrary,
 }: {
   recentRuns: RunSummary[];
   projectName?: string;
   projectId?: string;
   onStart: () => void;
+  onPrep?: () => void;
+  onLibrary?: () => void;
   onResume: (id: string) => void;
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
   onOpenRetrainRun?: (runId: string, prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null }) => void;
@@ -166,13 +172,29 @@ export function HomeScreen({
             </span>
           ))}
         </div>
-        <div className="animate-rise [animation-delay:240ms]">
+        <div className="animate-rise mt-8 flex flex-wrap items-center justify-center gap-3 [animation-delay:240ms]">
           <button
             onClick={onStart}
-            className="maha-cta mt-8 inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
+            className="maha-cta inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
           >
             Start a new analysis <ArrowRight className="h-4 w-4" />
           </button>
+          {onPrep && (
+            <button
+              onClick={onPrep}
+              className="inline-flex items-center gap-2 rounded-full border border-edge px-6 py-3 text-[13px] uppercase tracking-[0.12em] text-ink transition-colors hover:border-edge-strong"
+            >
+              <Wand2 className="h-4 w-4" /> Prepare a messy file
+            </button>
+          )}
+          {onLibrary && (
+            <button
+              onClick={onLibrary}
+              className="inline-flex items-center gap-2 rounded-full border border-edge px-6 py-3 text-[13px] uppercase tracking-[0.12em] text-ink transition-colors hover:border-edge-strong"
+            >
+              <LibraryIcon className="h-4 w-4" /> Library
+            </button>
+          )}
         </div>
 
         {/* Mini pipeline */}
