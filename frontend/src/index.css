@@ -2,7 +2,7 @@
 
 @theme {
   /* Maha AI language (mahaai.fin100x.ai), LIGHT-FIRST - navy, gold and
-     saffron on white paper, serif throughout. Values were read off the live
+     saffron on white paper. Values were read off the live
      site, so the palette, the section gradient, the 0.22em eyebrow track and
      the 4px/14px radii are the site's own rather than a likeness.
 
@@ -31,15 +31,27 @@
   --color-edge-strong: #c9a02861;
   --color-ink: #1a2233;
   --color-ink-dim: #54607a;
+  --color-faint: #626c82;
   --color-accent: #1a2e5e;
   --color-accent-soft: #eef1f8;
+  /* Text placed ON the accent. The accent is navy on paper and gold on
+     navy, so a fixed white label is unreadable in one of the two - the
+     stepper's active badge measured 1.64:1 as white on gold. */
+  --color-on-accent: #ffffff;
   /* judgment colours, dark enough for small text on paper */
   --color-good: #0c6a4a;
   --color-warn: #9c630d;
   --color-bad: #b02222;
-  --font-sans: "Times New Roman", Times, Georgia, serif;
-  --font-display: "Times New Roman", Times, Georgia, serif;
-  --font-jakarta: "Times New Roman", Times, Georgia, serif;
+  /* Two faces from one family, so they are drawn to work together.
+     IBM Plex Serif carries the headings - it keeps the institutional
+     character the Maha AI site gets from its serif, but is cut for screens
+     rather than for 1930s newsprint. IBM Plex Sans does the rest: this is a
+     data application, and Plex Sans has the tabular numerals, the open
+     apertures at small sizes and the long text ranges that a page of tables
+     and axis labels actually needs. */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Serif", Georgia, "Iowan Old Style", serif;
+  --font-jakarta: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-deva: "Noto Sans Devanagari", sans-serif;
   /* rs-* aliases used by the Guide page */
   --color-rs-ink: #ffffff;
@@ -50,7 +62,7 @@
   --color-rs-line-strong: #c9a02861;
   --color-rs-fg: #1a2233;
   --color-rs-muted: #54607a;
-  --color-rs-faint: #68728a;
+  --color-rs-faint: #626c82;
   /* the accent trio becomes the state's three colours; the -ink variants
      are dark enough to carry 10-12px text on paper (see the note by
      --maha-gold-ink below) */
@@ -90,6 +102,19 @@
   --chart-tip-border: #e7ebf3;
   --chart-tip-fg: #1a2233;
   --chart-cursor: #1a22330f;
+  /* The page's own surface values, kept under separate names. A popover
+     rendered inside .maha-topbar or .maha-band inherits THAT band's tokens -
+     which is how the account menu came out transparent, painting itself with
+     the topbar's 5%-white panel. .maha-popover resets to these. */
+  --page-panel: #ffffff;
+  --page-panel-2: #f7f8fb;
+  --page-edge: #e7ebf3;
+  --page-edge-strong: #c9a02861;
+  --page-ink: #1a2233;
+  --page-ink-dim: #54607a;
+  --page-faint: #626c82;
+  --page-accent: #1a2e5e;
+  --page-accent-soft: #eef1f8;
   /* Native widgets - scrollbars, selects, date pickers - follow this, not
      our tokens. Without it they render light-mode chrome inside the navy
      theme. */
@@ -108,8 +133,10 @@
   --color-edge-strong: #c9a0286b;
   --color-ink: #ffffff;
   --color-ink-dim: #ecf0f9bd;
+  --color-faint: #ecf0f9ab;
   --color-accent: #e3c873;
   --color-accent-soft: #c9a02824;
+  --color-on-accent: #0d1834;
   --color-good: #5fd6a6;
   --color-warn: #f0c56a;
   --color-bad: #ff8f8f;
@@ -143,7 +170,30 @@
   --chart-tip-border: #c9a0286b;
   --chart-tip-fg: #ffffff;
   --chart-cursor: #ffffff14;
+  --page-panel: #13234c;
+  --page-panel-2: #1a2e5e;
+  --page-edge: #c9a02833;
+  --page-edge-strong: #c9a0286b;
+  --page-ink: #ffffff;
+  --page-ink-dim: #ecf0f9bd;
+  --page-faint: #ecf0f9ab;
+  --page-accent: #e3c873;
+  --page-accent-soft: #c9a02824;
   color-scheme: dark;
+}
+
+/* Theme switching: kill transitions for the duration of the flip.
+   Every themed surface transitions colour, and when the whole token set
+   changes at once those transitions fight the change - a background whose
+   value comes from a var() can be left holding its pre-flip colour, which
+   is how the prep stepper ended up painting light-theme chips on the navy
+   page while its own variables read dark. Nothing to cross-fade, nothing to
+   get stuck. */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
 }
 
 @keyframes rise {
@@ -167,9 +217,13 @@ body {
   background-color: var(--color-surface);
 }
 
-/* Modern typography: tight headings, calm body */
+/* Headings in the serif, everything else in the sans. Splitting them this
+   way keeps the institutional voice where it is read - titles and section
+   heads - and hands the dense work (tables, axis labels, form fields, small
+   print) to a face designed for it. */
 h1, h2, h3, h4 {
-  letter-spacing: -0.015em;
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 /* Interactive polish */
@@ -388,16 +442,20 @@ html {
 }
 
 /* Serif display sizing: the site runs a tight negative track at large
-   sizes, which is what keeps a Times headline reading as a masthead rather
+   sizes, which is what keeps a serif headline reading as a masthead rather
    than a document. */
 h1, h2, h3, h4 {
   font-weight: 600;
-  letter-spacing: -0.025em;
+  /* Looser than before: the tight track was compensating for Times, whose
+     fitting is loose on screen. Plex Serif is already fitted, so the same
+     negative tracking would jam it. */
+  letter-spacing: -0.015em;
 }
 .maha-display {
+  font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.06;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
 }
 
 /* Eyebrow: 12px, uppercase, 0.22em track. Typography ONLY - colour comes
@@ -405,6 +463,7 @@ h1, h2, h3, h4 {
    rotate through navy/gold/saffron the way the site does. A colour here
    would beat those utilities on specificity and flatten the page. */
 .maha-eyebrow {
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -431,6 +490,7 @@ h1, h2, h3, h4 {
    changes; darkening the saffron enough for white would have turned it
    brown and lost the colour altogether. */
 .maha-cta {
+  font-family: var(--font-sans);
   background-color: var(--maha-saffron);
   color: var(--maha-navy-ink);
   font-size: 13px;
@@ -597,8 +657,27 @@ h1, h2, h3, h4 {
   transform: translateY(1px);
 }
 
+/* A popover that must not inherit the band it is anchored inside. The
+   account menu hangs off the navy topbar, so without this it paints with
+   the topbar's translucent panel and shows the page straight through. */
+.maha-popover {
+  --color-panel: var(--page-panel);
+  --color-panel-2: var(--page-panel-2);
+  --color-edge: var(--page-edge);
+  --color-edge-strong: var(--page-edge-strong);
+  --color-ink: var(--page-ink);
+  --color-ink-dim: var(--page-ink-dim);
+  --color-faint: var(--page-faint);
+  --color-accent: var(--page-accent);
+  --color-accent-soft: var(--page-accent-soft);
+
+  background-color: var(--page-panel);
+  color: var(--page-ink);
+}
+
 /* Figures read as data, not prose, even in a serif setting */
 .maha-figure {
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }

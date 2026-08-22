@@ -160,7 +160,13 @@ function App() {
   const toggleTheme = () =>
     setTheme((t) => {
       const next = t === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = next;
+      // Suppress transitions across the flip (see .theme-switching): the
+      // whole token set changes at once, and a transitioned background can
+      // otherwise be left on its pre-flip colour.
+      const root = document.documentElement;
+      root.classList.add("theme-switching");
+      root.dataset.theme = next;
+      window.setTimeout(() => root.classList.remove("theme-switching"), 60);
       return next;
     });
   useEffect(() => {
@@ -789,11 +795,22 @@ function App() {
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
+            {/* Once signed in the mark alone stands for the platform - the
+                officer knows where they are, and the name was taking 230px
+                of a bar that needs the room for the stepper. Before sign-in
+                the landing page carries the full name instead. */}
+            <button
+              className="flex shrink-0 items-center gap-2.5 text-left"
+              onClick={goHome}
+              title="Maha AI Intelligence Foundry - back to the workspace"
+              aria-label="Maha AI Intelligence Foundry - back to the workspace"
+            >
               <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
-              <h1 className="whitespace-nowrap text-[15px] font-semibold leading-tight">
-                Maha AI Intelligence Foundry
-              </h1>
+              {!identity && (
+                <h1 className="whitespace-nowrap text-[15px] font-semibold leading-tight">
+                  Maha AI Intelligence Foundry
+                </h1>
+              )}
             </button>
             {/* No separate Home button: clicking the brand goes there, and
                 two controls for one destination is what made the bar feel

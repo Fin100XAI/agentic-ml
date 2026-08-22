@@ -311,7 +311,7 @@ export function PrepStudio({
                           done
                             ? "border-good/40 bg-good/10 text-good"
                             : here
-                              ? "border-accent bg-accent text-white"
+                              ? "border-accent bg-accent text-on-accent"
                               : "border-edge text-ink-dim"
                         }`}
                       >

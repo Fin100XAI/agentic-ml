@@ -116,7 +116,7 @@ export function AskTheData({ runId, rows }: { runId: string; rows: number }) {
           <button
             type="submit"
             disabled={busy || !question.trim()}
-            className="rounded-xl bg-accent px-3.5 text-white shadow-md shadow-accent/25 transition-all hover:bg-accent/90 disabled:opacity-50"
+            className="rounded-xl bg-accent px-3.5 text-on-accent shadow-md shadow-accent/25 transition-all hover:bg-accent/90 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
           </button>

@@ -95,7 +95,7 @@ function PathCard({
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className={`rounded-lg p-1.5 ${primary ? "bg-accent text-white" : "bg-accent-soft text-accent"}`}>
+        <span className={`rounded-lg p-1.5 ${primary ? "bg-accent text-on-accent" : "bg-accent-soft text-accent"}`}>
           <Icon className="h-4 w-4" />
         </span>
         <h4 className="text-sm font-semibold">{title}</h4>

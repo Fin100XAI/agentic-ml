@@ -380,7 +380,7 @@ export function InsightsScreen({
             <button
               onClick={() => setTab("brief")}
               className={`flex items-center gap-1.5 rounded-[10px] px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                tab === "brief" ? "bg-accent text-white shadow" : "text-ink-dim hover:text-ink"
+                tab === "brief" ? "bg-accent text-on-accent shadow" : "text-ink-dim hover:text-ink"
               }`}
             >
               <Layers className="h-3.5 w-3.5" /> Decision brief
@@ -388,7 +388,7 @@ export function InsightsScreen({
             <button
               onClick={() => setTab("appendix")}
               className={`flex items-center gap-1.5 rounded-[10px] px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                tab === "appendix" ? "bg-accent text-white shadow" : "text-ink-dim hover:text-ink"
+                tab === "appendix" ? "bg-accent text-on-accent shadow" : "text-ink-dim hover:text-ink"
               }`}
             >
               <BarChart3 className="h-3.5 w-3.5" /> Technical appendix

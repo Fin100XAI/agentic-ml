@@ -74,7 +74,7 @@ export function ToolbarMenu({
       {open && (
         <div
           role="menu"
-          className="maha-rin absolute right-0 top-[calc(100%+6px)] z-50 w-60 overflow-hidden rounded-[14px] border border-edge bg-panel shadow-[var(--maha-sh-lg)]"
+          className="maha-popover maha-rin absolute right-0 top-[calc(100%+6px)] z-50 w-60 overflow-hidden rounded-[14px] border border-edge shadow-[var(--maha-sh-lg)]"
         >
           {sublabel && (
             <p className="border-b border-edge px-3.5 py-2.5 text-[11px] leading-snug text-faint">
