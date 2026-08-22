@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Home, Library, Moon, ScrollText, Sun, Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, BrainCircuit, Check, Library, LogOut, Moon, ScrollText, Sun } from "lucide-react";
 import { api } from "./api/client";
 import { AgentLogDrawer } from "./components/AgentLogDrawer";
 import { AutotuneModal } from "./components/AutotuneModal";
@@ -26,6 +26,7 @@ import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { PrepStudio } from "./components/screens/PrepStudio";
 import { LibraryScreen } from "./components/screens/LibraryScreen";
+import { ToolbarMenu } from "./components/ToolbarMenu";
 import { LandingScreen } from "./components/screens/LandingScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
 import type { Identity } from "./components/screens/SignInScreen";
@@ -790,28 +791,13 @@ function App() {
             </button>
             <button className="flex shrink-0 items-center gap-2.5 text-left" onClick={goHome}>
               <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
-              <div>
-                <h1 className="font-display whitespace-nowrap text-[15px] font-semibold leading-tight">
-                  Maha AI Intelligence Foundry
-                </h1>
-                <p className="hidden whitespace-nowrap text-[11px] leading-tight text-ink-dim lg:block">
-                  agents propose · you approve · models run
-                </p>
-              </div>
+              <h1 className="whitespace-nowrap text-[15px] font-semibold leading-tight">
+                Maha AI Intelligence Foundry
+              </h1>
             </button>
-            {/* Home - next to the brand; back/forward live at the toolbar's
-                far left and far right edges */}
-            <span className="ml-1 flex items-center gap-1">
-              {project && screen !== "workspace" && screen !== "projects" && (
-                <button
-                  onClick={goHome}
-                  title="Project home"
-                  className="rounded-full border border-edge bg-panel-2 p-1.5 text-ink-dim transition-colors hover:border-accent/40 hover:text-accent"
-                >
-                  <Home className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </span>
+            {/* No separate Home button: clicking the brand goes there, and
+                two controls for one destination is what made the bar feel
+                crowded. */}
             {/* Project breadcrumb */}
             {project && screen !== "projects" && (
               <span className="hidden min-w-0 items-center gap-1 md:flex">
@@ -833,7 +819,7 @@ function App() {
           {/* Stepper: labels at wide widths, compact dots in between,
               nothing on narrow screens - it never fights the toolbars. */}
           {screen !== "workspace" && screen !== "projects" && screen !== "about" && screen !== "activity" && screen !== "pick" && (
-            <nav className="hidden shrink-0 items-center gap-1 lg:flex">
+            <nav className="hidden min-w-0 shrink items-center gap-1 lg:flex">
               {navSteps.map((s, i) => {
                 // Steps you have already reached are clickable - the stepper
                 // is navigation, not just a progress display. On the analytics
@@ -867,7 +853,7 @@ function App() {
                       ) : (
                         <span className="text-[10px]">{i + 1}</span>
                       )}
-                      <span className="hidden xl:inline">{s.label}</span>
+                      <span className="hidden lg:inline">{s.label}</span>
                     </button>
                   </div>
                 );
@@ -875,70 +861,15 @@ function App() {
             </nav>
           )}
 
-          {/* Right toolbar: labels collapse to icons below lg so nothing
-              ever wraps or overlaps the brand and stepper. */}
-          {/* Right toolbar: ONE segmented icon group (Guide / Log / Agent
-              activity) + a status dot. Labels live in tooltips, so nothing
-              wraps or collides at any width. */}
+          {/* Right side: a status dot, and one menu holding everything that
+              is not navigation. The bar had fourteen controls in it - back,
+              brand, home, breadcrumb, four stepper steps, library, prep,
+              guide, activity, agent log, status, name, sign out, theme,
+              forward - which is why it read as clutter. Home duplicated the
+              brand click and library and prep duplicated doors the
+              workspace already shows, so those are gone; the rest moved in
+              here. */}
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex items-center overflow-hidden rounded-full border border-edge bg-panel-2">
-              {project && (
-                <>
-                  <button
-                    onClick={() => setScreen(screen === "library" ? "workspace" : "library")}
-                    className={`px-2.5 py-1.5 transition-colors ${
-                      screen === "library" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
-                    }`}
-                    title="Library: every dataset in this project and every analysis run against it"
-                  >
-                    <Library className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="h-4 w-px bg-edge" />
-                  <button
-                    onClick={() => setScreen(screen === "prep" ? "workspace" : "prep")}
-                    className={`px-2.5 py-1.5 transition-colors ${
-                      screen === "prep" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
-                    }`}
-                    title="Data Prep Studio: turn a messy workbook into a clean table"
-                  >
-                    <Wand2 className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="h-4 w-px bg-edge" />
-                </>
-              )}
-              <button
-                onClick={() => setScreen(screen === "about" ? "workspace" : "about")}
-                className={`px-2.5 py-1.5 transition-colors ${
-                  screen === "about" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
-                }`}
-                title="Guide: what this platform is, how it works, and why it can be trusted"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-              </button>
-              <div className="h-4 w-px bg-edge" />
-              <button
-                onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "workspace") : "activity")}
-                className={`px-2.5 py-1.5 transition-colors ${
-                  screen === "activity" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
-                }`}
-                title="Activity log: every action in order"
-              >
-                <ScrollText className="h-3.5 w-3.5" />
-              </button>
-              {run && (run.agent_log?.length ?? 0) > 0 && (
-                <>
-                  <div className="h-4 w-px bg-edge" />
-                  <button
-                    onClick={() => setLogOpen(true)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-ink-dim transition-colors hover:text-accent"
-                    title="Agent activity for this analysis"
-                  >
-                    <Bot className="h-3.5 w-3.5" />
-                    <span className="text-[10px] font-semibold tabular-nums">{run.agent_log?.length}</span>
-                  </button>
-                </>
-              )}
-            </div>
             <span
               className="flex cursor-default items-center gap-1.5"
               title={
@@ -951,40 +882,72 @@ function App() {
                       : "AI provider reachable - agent outputs are AI-generated"
               }
             >
-              {/* Pulses only when the connection is actually live, so the
-                  motion means "reachable" rather than decorating a fault. */}
               <span
-                className={`h-2.5 w-2.5 rounded-full ${
+                className={`h-2 w-2 rounded-full ${
                   llmEnabled === null ? "bg-bad" : !llmEnabled || llmOk === false ? "bg-warn" : "bg-good maha-pulse"
                 }`}
               />
-              <span className="hidden text-[11px] font-medium text-ink-dim xl:inline">
+              <span className="hidden text-[11px] text-ink-dim xl:inline">
                 {llmEnabled === null ? "offline" : !llmEnabled || llmOk === false ? "heuristic" : "AI connected"}
               </span>
             </span>
-            {identity && (
-              <span className="hidden items-center gap-2 border-l border-edge pl-3 lg:flex">
-                <span className="max-w-[13rem] truncate text-[11px] text-ink-dim"
-                      title={`Signed in as ${identity.label} - recorded against everything you approve`}>
-                  {identity.label}
-                </span>
-                <button
-                  onClick={signOut}
-                  className="rounded px-2 py-1 text-[11px] text-ink-dim transition-colors hover:text-accent"
-                  title="Sign out"
-                >
-                  Sign out
-                </button>
-              </span>
+
+            {run && (run.agent_log?.length ?? 0) > 0 && (
+              <button
+                onClick={() => setLogOpen(true)}
+                className="flex items-center gap-1 rounded border border-edge bg-panel-2 px-2 py-1.5 text-ink-dim transition-colors hover:border-edge-strong hover:text-accent"
+                title="Agent activity for this analysis"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                <span className="text-[10px] font-semibold tabular-nums">{run.agent_log?.length}</span>
+              </button>
             )}
-            {/* Black <-> white background toggle */}
-            <button
-              onClick={toggleTheme}
-              title={theme === "dark" ? "Switch to white background" : "Switch to dark background"}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-edge bg-panel-2 text-ink-dim transition-colors duration-150 hover:border-edge-strong hover:text-ink active:scale-[0.97]"
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
+
+            <ToolbarMenu
+              label={identity ? identity.name.split(" ").slice(-1)[0] || identity.name : "Menu"}
+              sublabel={identity
+                ? `${identity.label} - recorded against everything you approve`
+                : undefined}
+              groups={[
+                [
+                  ...(project ? [{
+                    label: "Library",
+                    detail: "every dataset and analysis",
+                    icon: <Library className="h-3.5 w-3.5" />,
+                    active: screen === "library",
+                    onClick: () => setScreen("library"),
+                  }] : []),
+                  {
+                    label: "Activity log",
+                    detail: "every action in order",
+                    icon: <ScrollText className="h-3.5 w-3.5" />,
+                    active: screen === "activity",
+                    onClick: () => setScreen("activity"),
+                  },
+                  {
+                    label: "Guide",
+                    detail: "how the platform works",
+                    icon: <BookOpen className="h-3.5 w-3.5" />,
+                    active: screen === "about",
+                    onClick: () => setScreen("about"),
+                  },
+                ],
+                [
+                  {
+                    label: theme === "dark" ? "Switch to paper" : "Switch to navy",
+                    icon: theme === "dark"
+                      ? <Sun className="h-3.5 w-3.5" />
+                      : <Moon className="h-3.5 w-3.5" />,
+                    onClick: toggleTheme,
+                  },
+                  ...(identity ? [{
+                    label: "Sign out",
+                    icon: <LogOut className="h-3.5 w-3.5" />,
+                    onClick: signOut,
+                  }] : []),
+                ],
+              ]}
+            />
             {/* Forward - anchored at the toolbar's right edge */}
             <button
               onClick={goForward}
