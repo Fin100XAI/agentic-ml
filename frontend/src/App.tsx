@@ -110,7 +110,10 @@ export default function Root() {
 }
 
 function App() {
-  const [screen, setScreen] = useState<Screen>("projects");
+  // Home is the front door. It renders with or without a project - when
+  // none is open it carries the project chooser itself, so picking one is a
+  // step on the landing page rather than a gate in front of it.
+  const [screen, setScreen] = useState<Screen>("home");
   // Theme: RoleSprint dark by default; the toolbar button flips to the
   // white twin. The data-theme attribute must be set SYNCHRONOUSLY (in the
   // initializer and in the toggle handler, not an effect) because the map
@@ -533,7 +536,7 @@ function App() {
     });
 
   const goHome = () => {
-    setScreen(project ? "home" : "projects");
+    setScreen("home");
     setError(null);
     refreshRuns();
   };
@@ -562,7 +565,7 @@ function App() {
     if (s === "configure") return run?.recommendation != null;
     if (s === "results" || s === "report") return run?.result != null;
     if (s === "compare") return run?.comparison != null;
-    if (s === "home") return project !== null;
+    if (s === "home") return true;
     if (s === "library" || s === "prep") return project !== null;
     if (s === "ask") return askCtx !== null;
     if (s === "analytics") return analyticsCtx !== null;
@@ -699,10 +702,13 @@ function App() {
             {project && screen !== "projects" && (
               <span className="hidden min-w-0 items-center gap-1 md:flex">
                 <span className="text-ink-dim">/</span>
+                {/* The chip opens the project list. Home is one click away
+                    on the brand and the home button already, and without
+                    this there is no way to switch projects at all. */}
                 <button
-                  onClick={goHome}
+                  onClick={() => { setScreen("projects"); setError(null); }}
                   className="max-w-32 truncate rounded-full border border-edge bg-panel-2 px-2.5 py-0.5 text-xs font-medium text-ink-dim transition-colors hover:border-accent/40 hover:text-accent xl:max-w-44"
-                  title="Back to this project's dashboard"
+                  title="Switch to another project"
                 >
                   {project.name}
                 </button>
@@ -934,6 +940,7 @@ function App() {
             }}
             onPrep={() => setScreen("prep")}
             onLibrary={() => setScreen("library")}
+            projectSlot={<ProjectsScreen embedded onOpen={openProject} />}
           />
         )}
 

@@ -122,6 +122,7 @@ export function HomeScreen({
   onAskDataset,
   onPrep,
   onLibrary,
+  projectSlot,
 }: {
   recentRuns: RunSummary[];
   projectName?: string;
@@ -129,6 +130,9 @@ export function HomeScreen({
   onStart: () => void;
   onPrep?: () => void;
   onLibrary?: () => void;
+  /** The project chooser, shown on the landing page when nothing is open.
+   *  Passed in rather than imported so this screen stays presentational. */
+  projectSlot?: React.ReactNode;
   onResume: (id: string) => void;
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
   onOpenRetrainRun?: (runId: string, prefill: { model_key: string; hyperparams: Record<string, unknown>; target: string | null }) => void;
@@ -172,14 +176,25 @@ export function HomeScreen({
             </span>
           ))}
         </div>
+        {/* With no project open the work cannot start yet, so the hero
+            points at the chooser below instead of offering dead buttons. */}
         <div className="animate-rise mt-8 flex flex-wrap items-center justify-center gap-3 [animation-delay:240ms]">
-          <button
-            onClick={onStart}
-            className="maha-cta inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
-          >
-            Start a new analysis <ArrowRight className="h-4 w-4" />
-          </button>
-          {onPrep && (
+          {!projectId ? (
+            <a
+              href="#choose-project"
+              className="maha-cta inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
+            >
+              Choose a project to begin <ArrowRight className="h-4 w-4" />
+            </a>
+          ) : (
+            <button
+              onClick={onStart}
+              className="maha-cta inline-flex items-center gap-2 rounded-full px-7 py-3 text-[13px] uppercase tracking-[0.12em] transition-transform duration-200 hover:-translate-y-0.5"
+            >
+              Start a new analysis <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+          {projectId && onPrep && (
             <button
               onClick={onPrep}
               className="inline-flex items-center gap-2 rounded-full border border-edge px-6 py-3 text-[13px] uppercase tracking-[0.12em] text-ink transition-colors hover:border-edge-strong"
@@ -187,7 +202,7 @@ export function HomeScreen({
               <Wand2 className="h-4 w-4" /> Prepare a messy file
             </button>
           )}
-          {onLibrary && (
+          {projectId && onLibrary && (
             <button
               onClick={onLibrary}
               className="inline-flex items-center gap-2 rounded-full border border-edge px-6 py-3 text-[13px] uppercase tracking-[0.12em] text-ink transition-colors hover:border-edge-strong"
@@ -211,6 +226,20 @@ export function HomeScreen({
           ))}
         </div>
       </div>
+
+      {/* Pick the project first: everything else on this page is about what
+          the platform does, but nothing can be uploaded or explored until
+          the work has somewhere to live. */}
+      {!projectId && projectSlot && (
+        <section id="choose-project" className="scroll-mt-24">
+          <MahaHeading
+            eyebrow="Start here"
+            title="Choose a project"
+            sub="A project holds related datasets, analyses, models and their audit trail together. Open an existing one, or create a new one."
+          />
+          {projectSlot}
+        </section>
+      )}
 
       {/* The questions it can answer - no algorithm names on the landing page;
           the recommendation agent picks the method behind the scenes. */}

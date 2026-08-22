@@ -7,7 +7,10 @@ import { api } from "../../api/client";
 import type { Project } from "../../types";
 import { Badge, Button, Card, CardBody } from "../ui";
 
-const GRADIENT = "bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)]";
+// Periwinkle by default; inside the Maha AI scope on Home the same token
+// resolves to saffron-into-gold, so the chooser matches whichever page it
+// is sitting on rather than carrying one page's palette into the other.
+const GRADIENT = "bg-[image:var(--maha-grad,linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff))]";
 // Tile icons rotate through the accent trio.
 const TILE_TINTS = [
   "bg-rs-teal/10 text-rs-teal ring-rs-teal/25",
@@ -15,7 +18,14 @@ const TILE_TINTS = [
   "bg-rs-violet/10 text-rs-violet ring-rs-violet/25",
 ];
 
-export function ProjectsScreen({ onOpen }: { onOpen: (project: Project) => void }) {
+export function ProjectsScreen({
+  onOpen,
+  embedded = false,
+}: {
+  onOpen: (project: Project) => void;
+  /** On Home the page already has a heading; only the chooser is wanted. */
+  embedded?: boolean;
+}) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -43,8 +53,8 @@ export function ProjectsScreen({ onOpen }: { onOpen: (project: Project) => void 
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <div className="pt-4 text-center">
+    <div className={embedded ? "space-y-8" : "mx-auto max-w-4xl space-y-8"}>
+      <div className={embedded ? "hidden" : "pt-4 text-center"}>
         <p className="animate-rise text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
           Your workspace
         </p>
