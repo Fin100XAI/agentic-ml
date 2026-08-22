@@ -1024,6 +1024,15 @@ class Store:
         if project_id is None and dataset_id:
             ds = self.datasets.get(dataset_id)
             project_id = ds.project_id if ds else None
+        # "user" and "You" are the placeholders call sites pass for a human
+        # action. Resolve them to whoever is signed in, so the trail names a
+        # person. Agent names ("Profiler", "Critic") are left alone.
+        if actor in ("user", "You"):
+            try:
+                from app.telemetry import current_actor
+                actor = current_actor.get() or actor
+            except Exception:
+                pass
         with self._lock:
             self._db.execute(
                 "INSERT INTO activity_log (ts, actor, event_type, dataset_id, "

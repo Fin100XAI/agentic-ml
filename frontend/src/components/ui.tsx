@@ -104,6 +104,12 @@ export function SectionLabel({ children, sub }: { children: ReactNode; sub?: Rea
   );
 }
 
+/** A placeholder with the shape of the content that is coming. Better than a
+ *  spinner for lists and cards: the layout does not jump when data lands. */
+export function Skeleton({ className }: { className?: string }) {
+  return <span className={clsx("maha-skeleton block", className)} aria-hidden />;
+}
+
 export function Spinner({ label }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm text-ink-dim">

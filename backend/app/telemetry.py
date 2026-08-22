@@ -20,6 +20,12 @@ current_dataset_id: ContextVar[str | None] = ContextVar("current_dataset_id", de
 # agent_call rows in the activity log carry a recognizable name instead of
 # the anonymous "llm-provider".
 current_agent: ContextVar[str | None] = ContextVar("current_agent", default=None)
+# Who is at the keyboard. Set per request from the X-Actor header, so an
+# approval in the activity log carries the officer's name rather than the
+# anonymous "You" - which is the difference between a log and an audit
+# trail. Sign-in is front-of-house only; this attributes, it does not
+# authenticate, and nothing is authorised on the strength of it.
+current_actor: ContextVar[str | None] = ContextVar("current_actor", default=None)
 
 
 def set_run_context(run: Run) -> None:

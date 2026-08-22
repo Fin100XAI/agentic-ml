@@ -24,6 +24,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def _attach_actor(request, call_next):
+    """Carry the signed-in name into the activity log for this request.
+
+    Front-of-house only: it labels who did something, and grants nothing.
+    No route consults it for permission.
+    """
+    from app.telemetry import current_actor
+    name = (request.headers.get("x-actor") or "").strip()[:60]
+    token = current_actor.set(name or None)
+    try:
+        return await call_next(request)
+    finally:
+        current_actor.reset(token)
+
+
 app.include_router(projects_router, prefix="/api")
 app.include_router(registry_router, prefix="/api")
 app.include_router(datasets_router, prefix="/api")

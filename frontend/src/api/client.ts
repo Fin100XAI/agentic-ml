@@ -2,8 +2,21 @@ import type { ActivityEvent, ArtifactInfo, DataOverview, DomainsResponse, DriftR
 
 const BASE = "/api";
 
+/** Who is signed in, for attribution in the activity log. Front-of-house
+ *  only: the backend labels rows with it and authorises nothing on it. */
+export function signedInAs(): string {
+  try {
+    return JSON.parse(localStorage.getItem("signin") || "{}").label || "";
+  } catch {
+    return "";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
+  const who = signedInAs();
+  const res = await fetch(`${BASE}${path}`, who
+    ? { ...init, headers: { ...(init?.headers || {}), "X-Actor": who } }
+    : init);
   if (!res.ok) {
     let detail = res.statusText;
     try {

@@ -17,7 +17,7 @@ import { AskScreen } from "./components/screens/AskScreen";
 import { ActivityScreen } from "./components/screens/ActivityScreen";
 import { ResultsScreen } from "./components/screens/ResultsScreen";
 import { UploadScreen } from "./components/screens/UploadScreen";
-import { Button, Card, CardBody } from "./components/ui";
+import { Button, Card, CardBody, Spinner } from "./components/ui";
 import { AssemblyModal } from "./components/AssemblyModal";
 import { ColumnReviewModal } from "./components/ColumnReviewModal";
 import { BriefingView } from "./components/screens/BriefingView";
@@ -26,10 +26,25 @@ import { PiiReviewModal } from "./components/PiiReviewModal";
 import { ProjectsScreen } from "./components/screens/ProjectsScreen";
 import { PrepStudio } from "./components/screens/PrepStudio";
 import { LibraryScreen } from "./components/screens/LibraryScreen";
+import { LandingScreen } from "./components/screens/LandingScreen";
+import { SignInScreen } from "./components/screens/SignInScreen";
+import type { Identity } from "./components/screens/SignInScreen";
+import { WorkspaceScreen } from "./components/screens/WorkspaceScreen";
+import { PickDataScreen } from "./components/screens/PickDataScreen";
 import { RemediationModal } from "./components/RemediationModal";
 import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, RegistryEntry, Run, RunSummary, SheetInfo } from "./types";
 
-type Screen = "projects" | "home" | "upload" | "prep" | "library" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask" | "analytics";
+type Screen =
+  // front of house, before sign-in
+  | "landing" | "signin"
+  // the workspace and the three doors out of it
+  | "workspace" | "prep" | "pick"
+  // the roads each door leads to
+  | "analytics" | "ask" | "eda" | "configure" | "results" | "compare" | "report"
+  // always available
+  | "library" | "activity" | "about"
+  // kept for resuming a part-finished run
+  | "upload" | "projects" | "home";
 
 // Every analysis now begins in the Prep Studio - the file is profiled and
 // proven against a schema contract before anything is explored or trained -
@@ -49,6 +64,10 @@ const ANALYTICS_STEPS: { key: Screen; label: string }[] = [
 ];
 
 const GUIDE: Record<Screen, string> = {
+  landing: "",
+  signin: "",
+  workspace: "",
+  pick: "",
   projects: "",
   home: "",
   library: "Every file in this project and every analysis run against it - pick up where you left off, no re-uploading.",
@@ -113,10 +132,18 @@ export default function Root() {
 }
 
 function App() {
-  // Home is the front door. It renders with or without a project - when
-  // none is open it carries the project chooser itself, so picking one is a
-  // step on the landing page rather than a gate in front of it.
-  const [screen, setScreen] = useState<Screen>("home");
+  // Who is signed in. Front-of-house only - it attributes actions in the
+  // audit trail and gates nothing. Read synchronously so a returning user
+  // lands in the workspace rather than flashing the landing page first.
+  const [identity, setIdentity] = useState<Identity | null>(() => {
+    try {
+      const raw = localStorage.getItem("signin");
+      return raw ? (JSON.parse(raw) as Identity) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [screen, setScreen] = useState<Screen>(() => (identity ? "workspace" : "landing"));
   // Theme: Maha AI paper by default; the toolbar button flips to the navy
   // twin. The data-theme attribute must be set SYNCHRONOUSLY (in the
   // initializer and in the toggle handler, not an effect) because the map
@@ -139,6 +166,11 @@ function App() {
     localStorage.setItem("theme", theme);
   }, [theme]);
   const [project, setProject] = useState<Project | null>(null);
+  // Which table Analyse or Train is being pointed at, and what the officer
+  // wants predicted. Training needs a question; analysis does not.
+  const [pickFor, setPickFor] = useState<"analyse" | "train">("analyse");
+  const [trainPick, setTrainPick] = useState<{ datasetId: string; filename: string } | null>(null);
+  const [trainQuestion, setTrainQuestion] = useState("");
   const [run, setRun] = useState<Run | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
@@ -539,7 +571,7 @@ function App() {
     });
 
   const goHome = () => {
-    setScreen("home");
+    setScreen(identity ? "workspace" : "landing");
     setError(null);
     refreshRuns();
   };
@@ -568,8 +600,8 @@ function App() {
     if (s === "configure") return run?.recommendation != null;
     if (s === "results" || s === "report") return run?.result != null;
     if (s === "compare") return run?.comparison != null;
-    if (s === "home") return true;
-    if (s === "library" || s === "prep") return project !== null;
+    if (s === "home" || s === "workspace") return true;
+    if (s === "library" || s === "prep" || s === "pick") return project !== null;
     if (s === "ask") return askCtx !== null;
     if (s === "analytics") return analyticsCtx !== null;
     return true;
@@ -637,9 +669,59 @@ function App() {
     setPreferredModel(undefined);
     setRetrainPrefill(null);
     setRunFailure(null);
-    setScreen("home");
+    setScreen("workspace");
     api.listRuns(p.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
   };
+
+  // Signing in opens a workspace straight away. A project is where the work
+  // lives, so one is chosen (most recent) or created - picking from a list of
+  // projects is not a thing to make someone do before they have any.
+  const signIn = (who: Identity) => {
+    localStorage.setItem("signin", JSON.stringify(who));
+    setIdentity(who);
+    setScreen("workspace");
+    void (async () => {
+      try {
+        const { projects } = await api.listProjects();
+        if (projects.length) {
+          openProject(projects[0]);
+        } else {
+          const p = await api.createProject("My workspace",
+            "Datasets, analyses and models for this department.");
+          openProject(p);
+        }
+      } catch {
+        /* the workspace shows its own empty state if this fails */
+      }
+    })();
+  };
+
+  const signOut = () => {
+    localStorage.removeItem("signin");
+    setIdentity(null);
+    setProject(null);
+    setRun(null);
+    setAskCtx(null);
+    setAnalyticsCtx(null);
+    setPast([]);
+    setFuture([]);
+    setScreen("landing");
+  };
+
+  // A returning user already has an identity but no project in memory.
+  useEffect(() => {
+    if (!identity || project) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { projects } = await api.listProjects();
+        if (cancelled) return;
+        if (projects.length) openProject(projects[0]);
+      } catch { /* leave the workspace to its empty state */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identity]);
 
   // Every new analysis starts by preparing the file. The studio profiles it,
   // proves it against a schema contract and registers it, and only then does
@@ -661,6 +743,33 @@ function App() {
   const stepIndex = navSteps.findIndex(
     (s) => s.key === (screen === "compare" || screen === "report" ? "results" : screen),
   );
+
+  // Front of house renders bare - no toolbar, no stepper, no project. It is
+  // a different surface from the workspace and should not wear its chrome.
+  if (screen === "landing") {
+    return (
+      <LandingScreen
+        onSignIn={() => setScreen("signin")}
+        onGuide={() => setScreen("about")}
+      />
+    );
+  }
+  if (screen === "signin") {
+    return <SignInScreen onSignedIn={signIn} onBack={() => setScreen("landing")} />;
+  }
+  if (screen === "about" && !identity) {
+    // The guide is readable before signing in; give it a way back.
+    return (
+      <div className="min-h-full">
+        <div className="mx-auto max-w-[1170px] px-6 pt-6">
+          <Button variant="ghost" size="sm" onClick={() => setScreen("landing")}>
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </Button>
+        </div>
+        <AboutScreen onStart={() => setScreen("signin")} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full">
@@ -693,7 +802,7 @@ function App() {
             {/* Home - next to the brand; back/forward live at the toolbar's
                 far left and far right edges */}
             <span className="ml-1 flex items-center gap-1">
-              {project && screen !== "home" && screen !== "projects" && (
+              {project && screen !== "workspace" && screen !== "projects" && (
                 <button
                   onClick={goHome}
                   title="Project home"
@@ -723,7 +832,7 @@ function App() {
 
           {/* Stepper: labels at wide widths, compact dots in between,
               nothing on narrow screens - it never fights the toolbars. */}
-          {screen !== "home" && screen !== "projects" && screen !== "about" && screen !== "activity" && (
+          {screen !== "workspace" && screen !== "projects" && screen !== "about" && screen !== "activity" && screen !== "pick" && (
             <nav className="hidden shrink-0 items-center gap-1 lg:flex">
               {navSteps.map((s, i) => {
                 // Steps you have already reached are clickable - the stepper
@@ -776,7 +885,7 @@ function App() {
               {project && (
                 <>
                   <button
-                    onClick={() => setScreen(screen === "library" ? "home" : "library")}
+                    onClick={() => setScreen(screen === "library" ? "workspace" : "library")}
                     className={`px-2.5 py-1.5 transition-colors ${
                       screen === "library" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
                     }`}
@@ -786,7 +895,7 @@ function App() {
                   </button>
                   <div className="h-4 w-px bg-edge" />
                   <button
-                    onClick={() => setScreen(screen === "prep" ? "home" : "prep")}
+                    onClick={() => setScreen(screen === "prep" ? "workspace" : "prep")}
                     className={`px-2.5 py-1.5 transition-colors ${
                       screen === "prep" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
                     }`}
@@ -798,7 +907,7 @@ function App() {
                 </>
               )}
               <button
-                onClick={() => setScreen(screen === "about" ? (project ? "home" : "projects") : "about")}
+                onClick={() => setScreen(screen === "about" ? "workspace" : "about")}
                 className={`px-2.5 py-1.5 transition-colors ${
                   screen === "about" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
                 }`}
@@ -808,7 +917,7 @@ function App() {
               </button>
               <div className="h-4 w-px bg-edge" />
               <button
-                onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "home") : "activity")}
+                onClick={() => setScreen(screen === "activity" ? (run ? screenForStage(run.stage) : "workspace") : "activity")}
                 className={`px-2.5 py-1.5 transition-colors ${
                   screen === "activity" ? "bg-accent-soft text-accent" : "text-ink-dim hover:text-accent"
                 }`}
@@ -853,6 +962,21 @@ function App() {
                 {llmEnabled === null ? "offline" : !llmEnabled || llmOk === false ? "heuristic" : "AI connected"}
               </span>
             </span>
+            {identity && (
+              <span className="hidden items-center gap-2 border-l border-edge pl-3 lg:flex">
+                <span className="max-w-[13rem] truncate text-[11px] text-ink-dim"
+                      title={`Signed in as ${identity.label} - recorded against everything you approve`}>
+                  {identity.label}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="rounded px-2 py-1 text-[11px] text-ink-dim transition-colors hover:text-accent"
+                  title="Sign out"
+                >
+                  Sign out
+                </button>
+              </span>
+            )}
             {/* Black <-> white background toggle */}
             <button
               onClick={toggleTheme}
@@ -874,7 +998,7 @@ function App() {
         </div>
 
         {/* Guide bar */}
-        {screen !== "home" && GUIDE[screen] && (
+        {screen !== "workspace" && GUIDE[screen] && (
           <div className="border-t border-edge/60 bg-panel-2">
             <div className="mx-auto max-w-[1170px] px-6 py-1.5 text-[11px] text-ink-dim">
               {GUIDE[screen]}
@@ -912,7 +1036,7 @@ function App() {
         className={`maha-screen ${screen === "about" ? "" : "mx-auto max-w-[1170px] px-6 py-6"}`}
       >
         {/* Compact decision timeline (not on the full-bleed Guide) */}
-        {screen !== "home" && screen !== "about" && run && run.decisions.length > 0 && (
+        {screen !== "workspace" && screen !== "about" && run && run.decisions.length > 0 && (
           <div className="mb-6 rounded-2xl border border-edge bg-panel shadow-sm">
             <div className="flex items-center justify-between border-b border-edge/60 px-4 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
@@ -954,6 +1078,37 @@ function App() {
             onPrep={() => setScreen("prep")}
             onLibrary={() => setScreen("library")}
             projectSlot={<ProjectsScreen embedded onOpen={openProject} />}
+          />
+        )}
+
+        {screen === "workspace" && project && (
+          <WorkspaceScreen
+            projectId={project.id}
+            projectName={project.name}
+            onPrepare={startOver}
+            onAnalyse={() => { setPickFor("analyse"); setScreen("pick"); }}
+            onTrain={() => { setPickFor("train"); setScreen("pick"); }}
+            onOpenRun={handleResume}
+          />
+        )}
+
+        {screen === "pick" && project && (
+          <PickDataScreen
+            projectId={project.id}
+            purpose={pickFor}
+            onBack={() => setScreen("workspace")}
+            onPrepare={startOver}
+            onPick={(datasetId, filename) => {
+              if (pickFor === "analyse") {
+                setAnalyticsCtx({ datasetId, filename });
+                setScreen("analytics");
+              } else {
+                // Training needs to know what to predict before it can
+                // recommend anything, so ask for that one thing here.
+                setTrainPick({ datasetId, filename });
+                setTrainQuestion("");
+              }
+            }}
           />
         )}
 
@@ -1137,6 +1292,55 @@ function App() {
       />
 
       {/* The post-upload fork: two clearly separated directions (logged). */}
+      {/* Training is the one door that needs a sentence from the officer
+          before it can propose anything: a method cannot be recommended
+          without knowing what is being predicted. */}
+      {trainPick && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4">
+            <Card className="border-accent/40">
+              <CardBody>
+                <p className="maha-eyebrow">Train a model</p>
+                <h3 className="mt-2 text-lg text-ink">What do you want to predict?</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-ink-dim">
+                  In your own words, about <strong>{trainPick.filename}</strong>. The agents
+                  read it and recommend a method - nothing trains until you approve it.
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const q = trainQuestion.trim();
+                    if (!q || busy) return;
+                    const ds = trainPick;
+                    setTrainPick(null);
+                    api.pathChoice(ds.datasetId, "model").catch(() => {});
+                    void guard("Reading the data…", () => runAnalysis(ds.datasetId, q));
+                  }}
+                >
+                  <input
+                    autoFocus
+                    value={trainQuestion}
+                    onChange={(e) => setTrainQuestion(e.target.value)}
+                    placeholder="e.g. Which beneficiaries are likely to drop out next quarter?"
+                    className="mt-4 w-full rounded border border-edge bg-panel-2 px-3 py-2.5 text-sm outline-none transition-colors focus:border-accent"
+                  />
+                  <div className="mt-4 flex items-center justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm"
+                            onClick={() => setTrainPick(null)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" size="sm" disabled={!trainQuestion.trim() || busy}>
+                      {busy ? <Spinner /> : null} Continue <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </form>
+              </CardBody>
+            </Card>
+          </div>
+        </>
+      )}
+
       {pathOffer && (
         <>
           <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm" />
