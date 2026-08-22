@@ -836,9 +836,11 @@ function App() {
                       : "AI provider reachable - agent outputs are AI-generated"
               }
             >
+              {/* Pulses only when the connection is actually live, so the
+                  motion means "reachable" rather than decorating a fault. */}
               <span
                 className={`h-2.5 w-2.5 rounded-full ${
-                  llmEnabled === null ? "bg-bad" : !llmEnabled || llmOk === false ? "bg-warn" : "bg-good"
+                  llmEnabled === null ? "bg-bad" : !llmEnabled || llmOk === false ? "bg-warn" : "bg-good maha-pulse"
                 }`}
               />
               <span className="hidden text-[11px] font-medium text-ink-dim xl:inline">
@@ -896,7 +898,13 @@ function App() {
 
       {/* The Guide is a full-bleed dark page; every other screen lives in the
           centered container. */}
-      <main className={screen === "about" ? "" : "mx-auto max-w-[1170px] px-6 py-6"}>
+      {/* key on the screen name so React remounts the subtree and the
+          entrance replays on every navigation - without the key the
+          animation would run once, on first load, and never again. */}
+      <main
+        key={screen}
+        className={`maha-screen ${screen === "about" ? "" : "mx-auto max-w-[1170px] px-6 py-6"}`}
+      >
         {/* Compact decision timeline (not on the full-bleed Guide) */}
         {screen !== "home" && screen !== "about" && run && run.decisions.length > 0 && (
           <div className="mb-6 rounded-2xl border border-edge bg-panel shadow-sm">

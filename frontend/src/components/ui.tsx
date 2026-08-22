@@ -113,6 +113,23 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/** Three breathing dots: an agent is thinking. A spinner says "the page is
+ *  loading"; this says "something is deliberating", which is what an agent
+ *  call actually is - and it is the site's own idiom for it. */
+export function Thinking({ label }: { label?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-ink-dim">
+      <span className="maha-think inline-flex items-end gap-1 text-accent" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </span>
+      {label && <span>{label}</span>}
+      <span className="sr-only">Working</span>
+    </span>
+  );
+}
+
 export function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0 rounded-lg border border-edge bg-panel-2 px-3 py-2">

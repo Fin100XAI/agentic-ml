@@ -1,6 +1,7 @@
 // Live elapsed timer + expected duration + cannot-stop notice for long waits.
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { Thinking } from "./ui";
 
 export function Elapsed({ running }: { running: boolean }) {
   const [seconds, setSeconds] = useState(0);
@@ -33,10 +34,9 @@ export function BusyStatus({
   if (!running) return null;
   return (
     <div className="flex flex-col items-center gap-2 py-2">
-      <div className="flex items-center gap-2 text-sm text-ink-dim">
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge border-t-accent" />
-        {label}
-      </div>
+      {/* Deliberating dots rather than a spinner: this wait is an agent
+          reasoning and a model training, not a page loading. */}
+      <Thinking label={label} />
       <div className="text-xs text-ink-dim">
         elapsed <Elapsed running={running} /> · {expected}
       </div>

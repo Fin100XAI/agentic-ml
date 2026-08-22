@@ -48,6 +48,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
+import { CountUp } from "../CountUp";
 import { Reveal } from "../Reveal";
 
 /* ---------- content ---------- */
@@ -296,7 +297,7 @@ export function AboutScreen({ onStart }: { onStart?: () => void }) {
             {STATS.map((s) => (
               <div key={s.label}>
                 <div className={`maha-figure ${GRADIENT} bg-clip-text text-4xl font-semibold text-transparent md:text-[44px]`}>
-                  {s.value}
+                  <CountUp value={s.value} />
                 </div>
                 <div className="mt-2 text-[10px] uppercase tracking-[0.16em] text-rs-muted">
                   {s.label}
