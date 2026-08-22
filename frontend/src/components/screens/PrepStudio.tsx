@@ -75,6 +75,16 @@ interface Preview {
 }
 
 const STEPS = ["Add data", "Understand", "Decide", "Blueprint", "Certify"] as const;
+// A word each, so the rail says what the stage is for rather than only
+// naming it.
+const STEP_HINTS = [
+  "files and sheets",
+  "what is in them",
+  "answer a few questions",
+  "the schema contract",
+  "prove and register",
+];
+
 const DTYPES = ["number", "integer", "text", "category", "boolean", "period"];
 const ROLES = ["identifier", "geography", "period", "dimension", "measure", "flag"];
 
@@ -242,57 +252,85 @@ export function PrepStudio({
   const editCol = (i: number, patch: Partial<BpColumn>) =>
     setBp((b) => b && { ...b, columns: b.columns.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
 
-  // Standalone the studio owns the page; inside the shell it is a screen
-  // like any other and must not paint a second full-height background.
-  const Shell = ({ children }: { children: React.ReactNode }) =>
-    embedded ? (
-      <div className="space-y-6">{children}</div>
-    ) : (
-      <div className="font-jakarta min-h-screen bg-surface px-4 py-8 sm:px-8">
-        <div className="mx-auto max-w-5xl space-y-6">{children}</div>
-      </div>
-    );
-
   return (
-    <Shell>
-      <>
-        {/* Header + stepper. Embedding hides only the standalone PAGE title -
-            the app shell already carries one - but the stepper stays either
-            way: without it the studio is a series of unlabelled cards and
-            you cannot see that five steps exist, let alone where you are. */}
-        <div className="text-center">
-          {!embedded && (
-            <>
-              <p className="maha-eyebrow">Data Prep Studio · prototype</p>
-              <h1 className="maha-display mx-auto mt-2 max-w-2xl text-balance text-2xl md:text-3xl">
-                Any data in,{" "}
-                <span className="maha-gold-text">a table with a contract out.</span>
-              </h1>
-              <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-ink-dim">
-                The agents read the data first, then ask you only what they could not work
-                out. You decide every step; the studio proves the result matches what you
-                agreed.
-              </p>
-            </>
-          )}
-          <div className={`flex flex-wrap items-center justify-center gap-1 ${embedded ? "" : "mt-5"}`}>
-            {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-1">
-                {i > 0 && <div className="h-px w-5 bg-edge" />}
-                <button
-                  onClick={() => i < step && setStep(i)}
-                  disabled={i >= step}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
-                    i === step ? "bg-accent/10 font-semibold text-accent ring-1 ring-inset ring-accent/30"
-                      : i < step ? "text-good hover:text-accent" : "text-ink-dim"}`}
-                >
-                  {i < step ? <Check className="h-3 w-3" /> : null}{s}
-                </button>
-              </div>
-            ))}
+    // Two plain divs rather than a wrapper COMPONENT. A component declared
+    // inside the render body is a new type on every render, so React
+    // unmounted and remounted this whole subtree on each keystroke - which
+    // is why typing a dataset name threw the page back to the top and lost
+    // focus after every character.
+    <div className={embedded ? "" : "min-h-screen bg-surface px-4 py-8 sm:px-8"}>
+      <div className={embedded ? "" : "mx-auto max-w-6xl"}>
+        {!embedded && (
+          <div className="mb-8 text-center">
+            <p className="maha-eyebrow">Data Prep Studio · prototype</p>
+            <h1 className="maha-display mx-auto mt-2 max-w-2xl text-balance text-2xl md:text-3xl">
+              Any data in,{" "}
+              <span className="maha-gold-text">a table with a contract out.</span>
+            </h1>
+            <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-ink-dim">
+              The agents read the data first, then ask you only what they could not work
+              out. You decide every step; the studio proves the result matches what you
+              agreed.
+            </p>
           </div>
-        </div>
+        )}
 
+        <div className="grid gap-6 lg:grid-cols-[196px_minmax(0,1fr)]">
+          {/* The steps run DOWN the side. Laid across the top they sat
+              directly under the toolbar and read as a second navigation bar;
+              vertical, they stay visible beside the work and have room for
+              a word about each stage. */}
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <p className="maha-eyebrow mb-3">Preparation</p>
+            <ol className="relative space-y-0.5">
+              {STEPS.map((s, i) => {
+                const done = i < step;
+                const here = i === step;
+                return (
+                  <li key={s} className="relative">
+                    {i > 0 && (
+                      <span
+                        aria-hidden
+                        className={`absolute left-[13px] -top-2 h-2 w-px ${done || here ? "bg-accent/40" : "bg-edge"}`}
+                      />
+                    )}
+                    <button
+                      onClick={() => done && setStep(i)}
+                      disabled={!done}
+                      aria-current={here ? "step" : undefined}
+                      className={`flex w-full items-center gap-2.5 rounded px-2 py-2 text-left text-xs transition-colors ${
+                        here
+                          ? "bg-accent-soft font-semibold text-accent"
+                          : done
+                            ? "text-ink-dim hover:bg-panel-2 hover:text-accent"
+                            : "text-faint"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border text-[10px] tabular-nums ${
+                          done
+                            ? "border-good/40 bg-good/10 text-good"
+                            : here
+                              ? "border-accent bg-accent text-white"
+                              : "border-edge text-ink-dim"
+                        }`}
+                      >
+                        {done ? <Check className="h-3 w-3" /> : i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{s}</span>
+                        <span className="block truncate text-[10px] font-normal text-faint">
+                          {STEP_HINTS[i]}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </aside>
+
+          <div className="min-w-0 space-y-6">
         {error && (
           <Card className="border-bad/40"><CardBody className="py-3">
             <p className="text-xs text-bad">{error}</p>
@@ -695,12 +733,51 @@ export function PrepStudio({
                     {cert.verdict === "ready"
                       ? <CheckCircle2 className="h-4 w-4 text-good" />
                       : <XCircle className="h-4 w-4 text-bad" />}
-                    {cert.verdict === "ready" ? "Ready" : "Not ready"} - {cert.n_rows.toLocaleString()} rows x {cert.n_cols} columns
+                    {cert.verdict === "ready"
+                      ? "Ready to register"
+                      : `${cert.errors} check${cert.errors === 1 ? "" : "s"} must pass first`}
+                    {" - "}{cert.n_rows.toLocaleString()} rows x {cert.n_cols} columns
                   </span>
                 }
                 subtitle="Every check the studio ran against the blueprint you approved."
               />
               <CardBody className="space-y-3">
+                {/* A verdict the officer cannot act on is not a verdict. Name
+                    what failed and where to change it. */}
+                {cert.errors > 0 && (
+                  <div className="rounded-xl border border-bad/40 bg-bad/5 px-4 py-3">
+                    <p className="text-xs font-semibold text-bad">
+                      The table does not yet match the contract you approved
+                    </p>
+                    <ul className="mt-1.5 space-y-1">
+                      {cert.checks.filter((c) => !c.passed && c.severity === "error").map((c) => (
+                        <li key={c.check} className="text-[11px] text-ink-dim">
+                          <span className="font-medium text-ink">{c.check}</span> - {c.detail}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-[11px] text-ink-dim">
+                      Go back to <strong>Blueprint</strong> and relax whatever the data cannot
+                      honour - loosen a type, allow blanks, drop the column, or widen an
+                      agreed range - then build again. Registering stays blocked until it
+                      passes, so nothing enters the platform claiming to be something it
+                      is not.
+                    </p>
+                    <Button size="sm" variant="outline" className="mt-2.5"
+                            onClick={() => setStep(3)}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit the blueprint
+                    </Button>
+                  </div>
+                )}
+                {cert.errors === 0 && cert.warnings > 0 && (
+                  <p className="rounded-xl border border-warn/40 bg-warn/5 px-4 py-2.5 text-[11px] text-ink-dim">
+                    <span className="font-semibold text-warn">
+                      {cert.warnings} warning{cert.warnings === 1 ? "" : "s"}
+                    </span>{" "}
+                    - worth reading, but none of them block registration. They are recorded
+                    with the table so whoever uses it later sees them too.
+                  </p>
+                )}
                 <div className="space-y-1">
                   {cert.checks.map((c) => (
                     <p key={c.check} className="flex items-start gap-2 text-[11px]">
@@ -795,13 +872,25 @@ export function PrepStudio({
                         </a>
                       ))}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input value={dsName} onChange={(e) => setDsName(e.target.value)}
-                        placeholder="Dataset name"
-                        className="rounded-lg border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent" />
-                      <Button onClick={doRegister} disabled={busy !== null || cert.errors > 0}>
-                        {busy === "register" ? <Spinner /> : null} Register on the platform
-                      </Button>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <input value={dsName} onChange={(e) => setDsName(e.target.value)}
+                          placeholder="Name this dataset"
+                          aria-label="Name this dataset"
+                          className="rounded border border-edge bg-panel-2 px-3 py-2 text-xs outline-none focus:border-accent" />
+                        <Button onClick={doRegister} disabled={busy !== null || cert.errors > 0}
+                                title={cert.errors > 0
+                                  ? "Blocked until the failing checks pass"
+                                  : "Add this table to the project"}>
+                          {busy === "register" ? <Spinner /> : null} Register on the platform
+                        </Button>
+                      </div>
+                      {/* A disabled button that says nothing reads as broken. */}
+                      {cert.errors > 0 && (
+                        <p className="text-[10px] text-bad">
+                          Blocked: {cert.errors} check{cert.errors === 1 ? "" : "s"} still failing
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -821,11 +910,13 @@ export function PrepStudio({
           </>
         )}
 
-        <p className="text-center text-[10px] text-ink-dim">
-          Prototype - sessions live in memory and reset with the server. The agents read column
-          names, types and counts only, never your data values.
-        </p>
-      </>
-    </Shell>
+            <p className="text-center text-[10px] text-ink-dim">
+              Prototype - sessions live in memory and reset with the server. The agents read
+              column names, types and counts only, never your data values.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

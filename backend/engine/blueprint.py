@@ -470,6 +470,7 @@ def apply_blueprint(df: pd.DataFrame, bp: dict[str, Any]) -> tuple[pd.DataFrame,
 
     # 3. select + rename, 4. cast, 5. unit
     conv = bp.get("unit_conversion")
+    cast_loss: dict[str, tuple[int, int]] = {}
     out = pd.DataFrame(index=work.index)
     for spec in bp["columns"]:
         if spec.get("action") == "drop":
@@ -484,7 +485,20 @@ def apply_blueprint(df: pd.DataFrame, bp: dict[str, Any]) -> tuple[pd.DataFrame,
             if alt is None:
                 continue
             src = alt
-        col = _cast(work[src], spec["dtype"])
+        # Values that were genuinely THERE before the cast. A recognised
+        # blank ("-", "NA", "not available") becoming null is the missing-value
+        # handling working, not data being lost, so it is excluded from the
+        # baseline - otherwise every honest table reports a loss.
+        _src = work[src]
+        before_filled = int((_src.notna()
+                             & ~_src.astype(str).str.strip().str.lower()
+                                   .isin(MISSING_TOKENS)).sum())
+        col = _cast(_src, spec["dtype"])
+        # Loss measured across the CAST alone - same rows either side - so
+        # dropping footer or summary rows can never read as a type failure.
+        after_filled = int(pd.Series(col).notna().sum())
+        if before_filled and after_filled < before_filled:
+            cast_loss[spec["name"]] = (before_filled - after_filled, before_filled)
         if spec.get("action") == "mask" and spec["dtype"] in ("text", "category"):
             col = col.astype(str).str.replace(r"[A-Za-z0-9]", "x", regex=True)
         if conv and spec["role"] == "measure" and spec["dtype"] in ("number", "integer"):
@@ -500,6 +514,7 @@ def apply_blueprint(df: pd.DataFrame, bp: dict[str, Any]) -> tuple[pd.DataFrame,
     if grain:
         out = out.sort_values(grain, kind="stable").reset_index(drop=True)
         steps.append("sorted by the declared key")
+    out.attrs["cast_loss"] = cast_loss
     return out, steps
 
 
@@ -586,6 +601,21 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
     add("Declared types hold", not bad_types,
         "every column matches its declared type" if not bad_types else f"not numeric: {bad_types}")
 
+    # Coercion that quietly destroys values. The type can "hold" while most
+    # of the column has been turned to blanks on the way - so compare what
+    # arrived against what the source had, and report the loss rather than
+    # the technicality.
+    cast_loss = getattr(df, "attrs", {}).get("cast_loss", {})
+    lost = [f"{name} ({gone} of {had} value(s))"
+            for name, (gone, had) in sorted(cast_loss.items())]
+    if lost:
+        add("Values survive their declared type", False,
+            "lost in conversion: " + "; ".join(lost)
+            + " - the declared type cannot represent them.")
+    else:
+        add("Values survive their declared type", True,
+            "no values were lost converting to the declared types")
+
     grain = [g for g in bp.get("grain", []) if g in df.columns]
     if grain:
         dups = int(df.duplicated(subset=grain).sum())
@@ -628,6 +658,13 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
                 f"{len(allowed)} agreed value(s)" if not extra
                 else f"unexpected: {', '.join(extra)}", "warning")
         if rules.get("reference") == "india_boundaries":
+            if int(col.notna().sum()) == 0:
+                # Vacuous truth is not a pass: "every value is a place" was
+                # true of an empty column, which is how a wiped column got a
+                # green tick.
+                add(f"'{name}' holds places", False,
+                    "nothing to check - the column is empty", "warning")
+                continue
             unmatched = _unmatched_places(col)
             add(f"'{name}' holds places", not unmatched,
                 "every value is a known state or district" if not unmatched else
@@ -637,9 +674,18 @@ def certify(df: pd.DataFrame, bp: dict[str, Any]) -> dict[str, Any]:
                 f"(a head office, an 'other' bucket); worth a look if not.",
                 "warning")
 
+    # A column that is entirely blank AFTER the build is the contract
+    # failing, not a note in passing. Declaring a text column a number is
+    # enough to do it: every name coerces to nothing, "declared types hold"
+    # passes vacuously on the empty result, and the table certifies ready
+    # while the data it was meant to carry is gone. That is the one outcome
+    # this certificate exists to prevent, so it is an error.
     empty_cols = [c for c in df.columns if df[c].isna().all()]
     add("No empty columns", not empty_cols,
-        "every column holds data" if not empty_cols else f"all blank: {empty_cols}", "warning")
+        "every column holds data" if not empty_cols else
+        f"emptied by the build: {', '.join(empty_cols)} - the declared type or "
+        f"rule cannot be honoured by these values, so nothing survived the "
+        f"conversion. Loosen it in the blueprint.")
 
     add("Rows present", len(df) > 0, f"{len(df):,} row(s) in the prepared table")
 
