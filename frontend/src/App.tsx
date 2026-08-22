@@ -91,7 +91,7 @@ export default function Root() {
   // before App mounts, so without this they would ignore the preference.
   useEffect(() => {
     document.documentElement.dataset.theme =
-      localStorage.getItem("theme") === "light" ? "light" : "dark";
+      localStorage.getItem("theme") === "dark" ? "dark" : "light";
   }, []);
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
@@ -114,13 +114,15 @@ function App() {
   // none is open it carries the project chooser itself, so picking one is a
   // step on the landing page rather than a gate in front of it.
   const [screen, setScreen] = useState<Screen>("home");
-  // Theme: RoleSprint dark by default; the toolbar button flips to the
-  // white twin. The data-theme attribute must be set SYNCHRONOUSLY (in the
+  // Theme: Maha AI paper by default; the toolbar button flips to the navy
+  // twin. The data-theme attribute must be set SYNCHRONOUSLY (in the
   // initializer and in the toggle handler, not an effect) because the map
   // computes its color ramps from it during render - an effect would leave
   // the ramps one theme behind.
   const [theme, setTheme] = useState<"dark" | "light">(() => {
-    const t = localStorage.getItem("theme") === "light" ? "light" : "dark";
+    // Paper is the default: the Maha AI language is light-first, and the
+    // navy twin is the alternative rather than the other way round.
+    const t = localStorage.getItem("theme") === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = t;
     return t;
   });
@@ -654,16 +656,13 @@ function App() {
     (s) => s.key === (screen === "compare" || screen === "report" ? "results" : screen),
   );
 
-  // The Maha AI language is scoped to Home and the Guide. Putting it on the
-  // shell rather than the screen means the toolbar comes with it, so those
-  // pages read as one surface instead of light content under a dark bar.
-  const mahaScope = screen === "home" || screen === "about";
-
   return (
-    <div className={`min-h-full${mahaScope ? " maha" : ""}`}>
-      {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-edge bg-panel shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+    <div className="min-h-full">
+      {/* Top bar. On the site the header stays navy even over a white page,
+          with a gold hairline and a blur behind it - so it is a band, not a
+          panel, and does not follow the page ground. */}
+      <header className="maha-topbar sticky top-0 z-20">
+        <div className="mx-auto flex max-w-[1170px] items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             {/* Back - anchored at the toolbar's left edge */}
             <button
@@ -678,7 +677,7 @@ function App() {
               <BrainCircuit className="h-6 w-6 shrink-0 text-accent" />
               <div>
                 <h1 className="font-display whitespace-nowrap text-[15px] font-semibold leading-tight">
-                  Agentic ML Workbench
+                  Maha AI Intelligence Foundry
                 </h1>
                 <p className="hidden whitespace-nowrap text-[11px] leading-tight text-ink-dim lg:block">
                   agents propose · you approve · models run
@@ -869,7 +868,7 @@ function App() {
         {/* Guide bar */}
         {screen !== "home" && GUIDE[screen] && (
           <div className="border-t border-edge/60 bg-panel-2">
-            <div className="mx-auto max-w-7xl px-6 py-1.5 text-[11px] text-ink-dim">
+            <div className="mx-auto max-w-[1170px] px-6 py-1.5 text-[11px] text-ink-dim">
               {GUIDE[screen]}
             </div>
           </div>
@@ -879,7 +878,7 @@ function App() {
       {/* Heuristic mode must be a visible state, never a silent one. */}
       {llmEnabled === true && llmOk === false && !llmBannerDismissed && (
         <div className="border-b border-warn/30 bg-warn/10">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-2 text-xs text-warn">
+          <div className="mx-auto flex max-w-[1170px] items-center justify-between gap-3 px-6 py-2 text-xs text-warn">
             <span className="font-medium">
               LLM unreachable - running in heuristic mode. Analyses still work; agent
               commentary uses rule-based fallbacks until the provider recovers.
@@ -897,7 +896,7 @@ function App() {
 
       {/* The Guide is a full-bleed dark page; every other screen lives in the
           centered container. */}
-      <main className={screen === "about" ? "" : "mx-auto max-w-7xl px-6 py-6"}>
+      <main className={screen === "about" ? "" : "mx-auto max-w-[1170px] px-6 py-6"}>
         {/* Compact decision timeline (not on the full-bleed Guide) */}
         {screen !== "home" && screen !== "about" && run && run.decisions.length > 0 && (
           <div className="mb-6 rounded-2xl border border-edge bg-panel shadow-sm">

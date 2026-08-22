@@ -1,41 +1,65 @@
 @import "tailwindcss";
 
 @theme {
-  /* RoleSprint language (rolesprint.io), DARK-FIRST. The semantic tokens
-     below are what every screen paints from; the [data-theme="light"]
-     block further down redefines the same variables, so the whole app
-     flips with one attribute on <html>. */
-  --color-surface: #07080c;
-  --color-panel: #11141d;
-  --color-panel-2: #161a25;
-  --color-edge: #ffffff14;
-  --color-edge-strong: #ffffff24;
-  --color-ink: #eef0f6;
-  --color-ink-dim: #9aa1b2;
-  --color-accent: #6e8bff;
-  --color-accent-soft: #232c4d;
-  --color-good: #34d399;
-  --color-warn: #fbbf24;
-  --color-bad: #fb7185;
-  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-jakarta: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* Maha AI language (mahaai.fin100x.ai), LIGHT-FIRST - navy, gold and
+     saffron on white paper, serif throughout. Values were read off the live
+     site, so the palette, the section gradient, the 0.22em eyebrow track and
+     the 4px/14px radii are the site's own rather than a likeness.
+
+     Every screen paints from the semantic tokens below. The token NAMES are
+     unchanged from the previous language, which is what lets the whole app
+     change identity without each screen being rewritten - a component that
+     said bg-panel still says bg-panel, it simply resolves to paper now.
+     The [data-theme="dark"] block redefines the same variables as a navy
+     twin, so the toolbar toggle still works and stays in-language. */
+
+  /* raw palette, kept under its own names so the mapping stays readable */
+  --color-maha-navy: #1a2e5e;
+  --color-maha-navy-deep: #13234c;
+  --color-maha-navy-900: #0f1c3d;
+  --color-maha-navy-ink: #0d1834;
+  --color-maha-gold: #c9a028;
+  --color-maha-gold-soft: #e3c873;
+  --color-maha-gold-deep: #a8841e;
+  --color-maha-saffron: #e07b2a;
+  --color-maha-saffron-deep: #cf6f23;
+
+  --color-surface: #ffffff;
+  --color-panel: #ffffff;
+  --color-panel-2: #f7f8fb;
+  --color-edge: #e7ebf3;
+  --color-edge-strong: #c9a02861;
+  --color-ink: #1a2233;
+  --color-ink-dim: #54607a;
+  --color-accent: #1a2e5e;
+  --color-accent-soft: #eef1f8;
+  /* judgment colours, dark enough for small text on paper */
+  --color-good: #0c6a4a;
+  --color-warn: #9c630d;
+  --color-bad: #b02222;
+  --font-sans: "Times New Roman", Times, Georgia, serif;
+  --font-display: "Times New Roman", Times, Georgia, serif;
+  --font-jakarta: "Times New Roman", Times, Georgia, serif;
+  --font-deva: "Noto Sans Devanagari", sans-serif;
   /* rs-* aliases used by the Guide page */
-  --color-rs-ink: #07080c;
-  --color-rs-surface: #0b0d14;
-  --color-rs-raised: #11141d;
-  --color-rs-elevated: #161a25;
-  --color-rs-line: #ffffff14;
-  --color-rs-line-strong: #ffffff24;
-  --color-rs-fg: #eef0f6;
-  --color-rs-muted: #9aa1b2;
-  --color-rs-faint: #6b7180;
-  --color-rs-blue: #6e8bff;
-  --color-rs-teal: #45e0c8;
-  --color-rs-violet: #b98cff;
-  --color-rs-good: #34d399;
-  --color-rs-warn: #fbbf24;
-  --color-rs-bad: #fb7185;
+  --color-rs-ink: #ffffff;
+  --color-rs-surface: #fbfaf7;
+  --color-rs-raised: #ffffff;
+  --color-rs-elevated: #f7f8fb;
+  --color-rs-line: #e7ebf3;
+  --color-rs-line-strong: #c9a02861;
+  --color-rs-fg: #1a2233;
+  --color-rs-muted: #54607a;
+  --color-rs-faint: #68728a;
+  /* the accent trio becomes the state's three colours; the -ink variants
+     are dark enough to carry 10-12px text on paper (see the note by
+     --maha-gold-ink below) */
+  --color-rs-blue: #1a2e5e;
+  --color-rs-teal: #806316;
+  --color-rs-violet: #9e541a;
+  --color-rs-good: #0c6a4a;
+  --color-rs-warn: #9c630d;
+  --color-rs-bad: #b02222;
   /* Strong easing curves - built-in CSS easings are too weak */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
@@ -45,68 +69,81 @@
 /* Chart + map colors live outside @theme (used from JS as var() strings,
    no utilities needed). Dark values first; light block overrides. */
 :root {
-  --chart-1: #6e8bff;
-  --chart-2: #34d399;
-  --chart-3: #f472b6;
-  --chart-4: #22d3ee;
-  --chart-5: #fb923c;
-  --chart-6: #facc15;
-  --chart-7: #b98cff;
-  --chart-8: #e879f9;
-  --chart-axis: #9aa1b2;
-  --chart-grid: #ffffff14;
-  --chart-ref: #6b7180;
-  --chart-tip-bg: #161a25;
-  --chart-tip-border: #ffffff24;
-  --chart-tip-fg: #eef0f6;
-  --chart-cursor: #ffffff0f;
+  /* Series colours open on the state's own navy, gold and saffron, then
+     widen into hues that stay separable for the ~8% of men with red-green
+     colour blindness - a categorical series must never depend on red vs
+     green to be read. Judgment green/amber/red are NOT in this ramp; they
+     stay reserved for judgment, so a bar can never accidentally look like
+     a verdict. */
+  --chart-1: #1a2e5e;
+  --chart-2: #a8841e;
+  --chart-3: #cf6f23;
+  --chart-4: #2f7d8c;
+  --chart-5: #6b5ca5;
+  --chart-6: #8c5a2b;
+  --chart-7: #3f6d3a;
+  --chart-8: #96436b;
+  --chart-axis: #54607a;
+  --chart-grid: #1a223314;
+  --chart-ref: #68728a;
+  --chart-tip-bg: #ffffff;
+  --chart-tip-border: #e7ebf3;
+  --chart-tip-fg: #1a2233;
+  --chart-cursor: #1a22330f;
+  /* Native widgets - scrollbars, selects, date pickers - follow this, not
+     our tokens. Without it they render light-mode chrome inside the navy
+     theme. */
+  color-scheme: light;
 }
 
-/* The white twin: same language, light surfaces. Flipped by the toolbar
-   toggle setting data-theme="light" on <html>. */
-[data-theme="light"] {
-  --color-surface: #f5f7fb;
-  --color-panel: #ffffff;
-  --color-panel-2: #eef1f7;
-  --color-edge: #0f172a1c;
-  --color-edge-strong: #0f172a2e;
-  --color-ink: #0f172a;
-  --color-ink-dim: #5b6478;
-  --color-accent: #5b6cff;
-  --color-accent-soft: #e3e8ff;
-  --color-good: #059669;
-  --color-warn: #d97706;
-  --color-bad: #dc2626;
-  --color-rs-ink: #f5f7fb;
-  --color-rs-surface: #ffffff;
-  --color-rs-raised: #ffffff;
-  --color-rs-elevated: #eef1f7;
-  --color-rs-line: #0f172a1c;
-  --color-rs-line-strong: #0f172a2e;
-  --color-rs-fg: #0f172a;
-  --color-rs-muted: #55607a;
-  --color-rs-faint: #8a92a6;
-  --color-rs-blue: #5b6cff;
-  --color-rs-teal: #0d9488;
-  --color-rs-violet: #8b5cf6;
-  --color-rs-good: #059669;
-  --color-rs-warn: #d97706;
-  --color-rs-bad: #dc2626;
-  --chart-1: #5b6cff;
-  --chart-2: #059669;
-  --chart-3: #db2777;
-  --chart-4: #0891b2;
-  --chart-5: #ea580c;
-  --chart-6: #ca8a04;
-  --chart-7: #7c3aed;
-  --chart-8: #c026d3;
-  --chart-axis: #5b6478;
-  --chart-grid: #0f172a14;
-  --chart-ref: #8a92a6;
-  --chart-tip-bg: #ffffff;
-  --chart-tip-border: #0f172a1c;
-  --chart-tip-fg: #0f172a;
-  --chart-cursor: #0f172a0f;
+/* The navy twin. The site itself is paper-only, but its sections already
+   run light-on-navy, so the dark theme is that band extended over the whole
+   app rather than an invented second palette. Flipped by the toolbar toggle
+   setting data-theme="dark" on <html>. */
+[data-theme="dark"] {
+  --color-surface: #0d1834;
+  --color-panel: #13234c;
+  --color-panel-2: #1a2e5e;
+  --color-edge: #c9a02833;
+  --color-edge-strong: #c9a0286b;
+  --color-ink: #ffffff;
+  --color-ink-dim: #ecf0f9bd;
+  --color-accent: #e3c873;
+  --color-accent-soft: #c9a02824;
+  --color-good: #5fd6a6;
+  --color-warn: #f0c56a;
+  --color-bad: #ff8f8f;
+  --color-rs-ink: #0d1834;
+  --color-rs-surface: #13234c;
+  --color-rs-raised: #13234c;
+  --color-rs-elevated: #1a2e5e;
+  --color-rs-line: #c9a02833;
+  --color-rs-line-strong: #c9a0286b;
+  --color-rs-fg: #ffffff;
+  --color-rs-muted: #ecf0f9bd;
+  --color-rs-faint: #ecf0f9ab;
+  --color-rs-blue: #e3c873;
+  --color-rs-teal: #c9a028;
+  --color-rs-violet: #e07b2a;
+  --color-rs-good: #5fd6a6;
+  --color-rs-warn: #f0c56a;
+  --color-rs-bad: #ff8f8f;
+  --chart-1: #e3c873;
+  --chart-2: #7fb2d9;
+  --chart-3: #e8a06a;
+  --chart-4: #6fd3c7;
+  --chart-5: #b3a4e6;
+  --chart-6: #d9b48c;
+  --chart-7: #8fcf8a;
+  --chart-8: #e59ec0;
+  --chart-axis: #ecf0f9bd;
+  --chart-grid: #ffffff1a;
+  --chart-ref: #ecf0f980;
+  --chart-tip-bg: #1a2e5e;
+  --chart-tip-border: #c9a0286b;
+  --chart-tip-fg: #ffffff;
+  --chart-cursor: #ffffff14;
+  color-scheme: dark;
 }
 
 @keyframes rise {
@@ -138,6 +175,12 @@ h1, h2, h3, h4 {
 /* Interactive polish */
 button {
   cursor: pointer;
+  /* A bare <button> does NOT inherit colour - the UA gives it `buttontext`,
+     which follows color-scheme rather than the theme. That left unstyled
+     buttons painting dark ink on the navy theme (the run list on Home was
+     black on navy). Inherit instead, so a button reads like the text
+     around it whichever theme is active. */
+  color: inherit;
 }
 button:focus-visible,
 a:focus-visible,
@@ -194,12 +237,9 @@ select, input, textarea {
   }
 }
 
-/* Fluid tile: visible depth at rest, accent glow on lift, icon glides.
-   transform/opacity only; hover gated for touch. */
+/* Fluid tile: motion and hover behaviour. Depth and radius come from the
+   Maha component layer below, which is tuned for paper. */
 .tile {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.2),
-    0 12px 32px -16px rgb(0 0 0 / 0.45);
   transition:
     transform 200ms var(--ease-out-strong),
     box-shadow 200ms var(--ease-out-strong),
@@ -212,9 +252,6 @@ select, input, textarea {
   .tile:hover {
     transform: translateY(-3px);
     border-color: var(--color-edge-strong);
-    box-shadow:
-      0 2px 4px rgb(0 0 0 / 0.2),
-      0 20px 48px -16px color-mix(in srgb, var(--color-accent) 40%, transparent);
   }
   .tile:hover .tile-icon {
     transform: scale(1.14) rotate(-3deg);
@@ -261,20 +298,16 @@ select, input, textarea {
 }
 
 /* ==========================================================================
-   Maha AI language (mahaai.fin100x.ai), scoped to the Home and Guide pages.
+   Maha AI component layer.
 
-   Copied from the live site: navy #1a2e5e, gold #c9a028 and saffron #e07b2a
-   on white paper, serif throughout, uppercase letterspaced eyebrows, and
-   sections that alternate between paper and a navy gradient band. The rest
-   of the workbench keeps the RoleSprint dark language, so this is a SCOPE
-   rather than a theme - `.maha` on the shell retints everything inside it,
-   and the same components keep painting from tokens with no colour of their
-   own. Nesting `.maha-band` inside flips the tokens again for a navy band,
-   which is how one card component reads correctly on both grounds.
+   The tokens above already carry the palette; these are the pieces of the
+   site that are shapes rather than colours - the navy band, the eyebrow,
+   the flat saffron button, the gold rule. Measured off the live site:
+   buttons are a 4px rectangle (not a pill), cards are 14px, the container
+   is 1170px and sections breathe at 104px.
    ========================================================================== */
-.maha {
-  /* the site's raw palette, kept under its own names so the mapping below
-     stays readable */
+:root {
+  /* plain aliases for use inside this stylesheet */
   --maha-navy: #1a2e5e;
   --maha-navy-deep: #13234c;
   --maha-navy-900: #0f1c3d;
@@ -287,89 +320,43 @@ select, input, textarea {
   /* Same hues, dark enough for small text on paper. The site sets 12px
      eyebrows in gold-deep and saffron-deep, which measure 3.5:1 on white -
      under AA at that size. These clear 4.5:1 against the tinted chip they
-     usually sit on (a 10% wash of the same hue), which is the harder case
-     and works out at 5.1:1 on plain paper. The band keeps the bright
-     originals; they clear AA comfortably on navy. */
+     usually sit on, which is the harder case. */
   --maha-gold-ink: #806316;
   --maha-saffron-ink: #9e541a;
   --maha-grad: linear-gradient(100deg, var(--maha-saffron), var(--maha-gold));
   --maha-sh: 0 1px 2px rgb(20 28 46 / 0.04), 0 8px 24px rgb(20 28 46 / 0.06);
   --maha-sh-lg: 0 8px 24px rgb(20 28 46 / 0.07), 0 30px 64px rgb(15 28 61 / 0.12);
-
-  /* paper ground */
-  --color-surface: #ffffff;
-  --color-panel: #ffffff;
-  --color-panel-2: #f7f8fb;
-  --color-edge: #e7ebf3;
-  --color-edge-strong: rgb(201 160 40 / 0.38);
-  --color-ink: #1a2233;
-  --color-ink-dim: #54607a;
-  --color-accent: var(--maha-navy);
-  --color-accent-soft: #eef1f8;
-
-  /* the guide paints from the rs-* aliases */
-  --color-rs-ink: #ffffff;
-  --color-rs-surface: #fbfaf7;
-  --color-rs-raised: #ffffff;
-  --color-rs-elevated: #f7f8fb;
-  --color-rs-line: #e7ebf3;
-  --color-rs-line-strong: rgb(201 160 40 / 0.38);
-  --color-rs-fg: #1a2233;
-  --color-rs-muted: #54607a;
-  /* the tertiary tone carries 9-11px captions; the dark theme's faint grey
-     lands at 3:1 on paper, so it is darkened to clear AA */
-  --color-rs-faint: #68728a;
-  /* the accent trio becomes the state's three colours */
-  --color-rs-blue: var(--maha-navy);
-  --color-rs-teal: var(--maha-gold-ink);
-  --color-rs-violet: var(--maha-saffron-ink);
-
-  /* judgment colours stay judgment colours - darkened for paper */
-  --color-good: #0c6a4a;
-  --color-warn: #9c630d;
-  --color-bad: #b02222;
-  --color-rs-good: #0c6a4a;
-  --color-rs-warn: #9c630d;
-  --color-rs-bad: #b02222;
-
-  --font-sans: "Times New Roman", Times, Georgia, serif;
-  --font-display: "Times New Roman", Times, Georgia, serif;
-  --font-jakarta: "Times New Roman", Times, Georgia, serif;
-
-  background-color: var(--color-surface);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
+  --maha-container: 1170px;
 }
 
-/* Devanagari needs a face that actually has the glyphs; the serif stack
-   above does not. */
-.maha :lang(mr),
-.maha :lang(hi),
-.maha .deva {
-  font-family: "Noto Sans Devanagari", var(--font-sans);
+/* Devanagari needs a face that has the glyphs; the serif stack does not. */
+:lang(mr),
+:lang(hi),
+.deva {
+  font-family: var(--font-deva), var(--font-sans);
 }
 
 /* The navy band. Tokens flip again inside it, so a card written once reads
    correctly on paper AND on navy - the site's own trick. */
 .maha-band {
   --color-surface: var(--maha-navy-deep);
-  --color-panel: rgb(255 253 248 / 0.04);
-  --color-panel-2: rgb(255 253 248 / 0.07);
-  --color-edge: rgb(201 160 40 / 0.2);
-  --color-edge-strong: rgb(201 160 40 / 0.42);
+  --color-panel: #fffdf80a;
+  --color-panel-2: #fffdf812;
+  --color-edge: #c9a02833;
+  --color-edge-strong: #c9a0286b;
   --color-ink: #ffffff;
-  --color-ink-dim: rgb(236 240 249 / 0.74);
+  --color-ink-dim: #ecf0f9bd;
   --color-accent: var(--maha-gold-soft);
-  --color-accent-soft: rgb(201 160 40 / 0.14);
+  --color-accent-soft: #c9a02824;
   --color-rs-ink: var(--maha-navy-deep);
-  --color-rs-surface: rgb(255 253 248 / 0.04);
-  --color-rs-raised: rgb(255 253 248 / 0.04);
-  --color-rs-elevated: rgb(255 253 248 / 0.07);
-  --color-rs-line: rgb(201 160 40 / 0.2);
-  --color-rs-line-strong: rgb(201 160 40 / 0.42);
+  --color-rs-surface: #fffdf80a;
+  --color-rs-raised: #fffdf80a;
+  --color-rs-elevated: #fffdf812;
+  --color-rs-line: #c9a02833;
+  --color-rs-line-strong: #c9a0286b;
   --color-rs-fg: #ffffff;
-  --color-rs-muted: rgb(236 240 249 / 0.74);
-  --color-rs-faint: rgb(236 240 249 / 0.5);
+  --color-rs-muted: #ecf0f9bd;
+  --color-rs-faint: #ecf0f9ab;
   --color-rs-blue: var(--maha-gold-soft);
   --color-rs-teal: var(--maha-gold);
   --color-rs-violet: var(--maha-saffron);
@@ -387,26 +374,23 @@ select, input, textarea {
 }
 
 /* Serif display sizing: the site runs a tight negative track at large
-   sizes, which is what keeps a Times headline from looking like a document
-   rather than a masthead. */
-.maha h1,
-.maha h2,
-.maha h3,
-.maha h4 {
+   sizes, which is what keeps a Times headline reading as a masthead rather
+   than a document. */
+h1, h2, h3, h4 {
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-.maha .maha-display {
+.maha-display {
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.06;
 }
 
-/* Eyebrow: 12px, uppercase, wide track. Typography ONLY - colour comes from
-   a text-* utility at the call site, so the section accent still rotates
-   through navy/gold/saffron the way the site does. A colour here would beat
-   those utilities on specificity and flatten the whole page to one hue. */
-.maha .maha-eyebrow {
+/* Eyebrow: 12px, uppercase, 0.22em track. Typography ONLY - colour comes
+   from a text-* utility at the call site, so a section accent can still
+   rotate through navy/gold/saffron the way the site does. A colour here
+   would beat those utilities on specificity and flatten the page. */
+.maha-eyebrow {
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
@@ -414,24 +398,40 @@ select, input, textarea {
   letter-spacing: 0.22em;
   color: var(--maha-saffron-ink);
 }
-.maha-band .maha-eyebrow {
+.maha-band .maha-eyebrow,
+[data-theme="dark"] .maha-eyebrow {
   color: var(--maha-gold);
 }
-/* an accent utility on the element wins back the rotation */
-.maha .maha-eyebrow.text-rs-blue { color: var(--color-rs-blue); }
-.maha .maha-eyebrow.text-rs-teal { color: var(--color-rs-teal); }
-.maha .maha-eyebrow.text-rs-violet { color: var(--color-rs-violet); }
+.maha-eyebrow.text-rs-blue { color: var(--color-rs-blue); }
+.maha-eyebrow.text-rs-teal { color: var(--color-rs-teal); }
+.maha-eyebrow.text-rs-violet { color: var(--color-rs-violet); }
 
-/* The one gradient the site allows itself */
-.maha .maha-cta {
-  background-image: var(--maha-grad);
+/* The primary action. The site uses a FLAT saffron rectangle at 4px with
+   uppercase text - not a pill and not a gradient; the gradient is reserved
+   for rules, stat figures and the one hero accent.
+
+   The one thing not copied: the site sets this label in WHITE, which on its
+   saffron measures 2.98:1 - well under AA for 13px, and this button appears
+   on every screen of a system officers use all day. Navy ink on the SAME
+   saffron reads 5.88:1, so the brand colour is untouched and only the label
+   changes; darkening the saffron enough for white would have turned it
+   brown and lost the colour altogether. */
+.maha-cta {
+  background-color: var(--maha-saffron);
   color: var(--maha-navy-ink);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  border: 0;
-  box-shadow: var(--maha-sh);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 14px 22px;
+  transition: background-color 180ms var(--ease-out-strong);
 }
-.maha .maha-gold-text {
+.maha-cta:hover {
+  background-color: var(--maha-saffron-deep);
+}
+.maha-gold-text {
   background-image: var(--maha-grad);
   -webkit-background-clip: text;
   background-clip: text;
@@ -439,7 +439,7 @@ select, input, textarea {
 }
 
 /* A gold rule under a heading - the site's quiet section divider */
-.maha .maha-rule::after {
+.maha-rule::after {
   content: "";
   display: block;
   width: 56px;
@@ -448,31 +448,52 @@ select, input, textarea {
   background-image: var(--maha-grad);
 }
 
+/* The top bar is a navy BAND, not a panel: on the site it stays navy over
+   a white page, carries a gold hairline and blurs what scrolls under it.
+   Tokens flip inside it so the controls it contains paint themselves. */
+.maha-topbar {
+  --color-panel: #fffdf80f;
+  --color-panel-2: #fffdf81a;
+  --color-edge: #c9a02838;
+  --color-edge-strong: #c9a02870;
+  --color-ink: #ffffff;
+  --color-ink-dim: #ecf0f9bd;
+  --color-accent: var(--maha-gold-soft);
+  --color-accent-soft: #c9a02826;
+
+  background-color: #0a1430e0;
+  border-bottom: 1px solid #c9a02838;
+  color: var(--color-ink);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .maha-topbar { background-color: #0a1430; }
+}
+
 /* Figures read as data, not prose, even in a serif setting */
-.maha .maha-figure {
+.maha-figure {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
-/* Card depth: the dark-tuned shadows above are far too heavy on paper */
-.maha .tile {
+/* Card depth: soft on paper, flat on navy where the hairline does the work */
+.tile {
   box-shadow: var(--maha-sh);
   border-radius: 14px;
 }
 @media (hover: hover) and (pointer: fine) {
-  .maha .tile:hover {
+  .tile:hover {
     box-shadow: var(--maha-sh-lg);
     border-color: var(--color-edge-strong);
   }
-  .maha .lift:hover {
+  .lift:hover {
     box-shadow: var(--maha-sh-lg);
   }
 }
-.maha-band .tile {
+.maha-band .tile,
+[data-theme="dark"] .tile {
   box-shadow: none;
-}
-.maha .glass {
-  background: color-mix(in srgb, var(--color-panel) 90%, transparent);
 }
 
 @media print {

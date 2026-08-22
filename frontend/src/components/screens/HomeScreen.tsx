@@ -155,7 +155,7 @@ export function HomeScreen({
           style={{ backgroundImage: "var(--maha-grad)" }}
         />
         <p className="maha-eyebrow animate-rise">
-          Agentic ML Workbench{projectName ? ` · ${projectName}` : ""}
+          Maha AI Intelligence Foundry{projectName ? ` · ${projectName}` : ""}
         </p>
         <h2 className="maha-display animate-rise mx-auto mt-5 max-w-3xl text-balance text-4xl [animation-delay:60ms] md:text-5xl">
           Evidence for every decision.{" "}

@@ -1,4 +1,4 @@
-# Agentic ML Workbench
+# Maha AI Intelligence Foundry
 
 An LLM-agent-driven decision-support platform built for government. Upload a
 spreadsheet and choose your direction:

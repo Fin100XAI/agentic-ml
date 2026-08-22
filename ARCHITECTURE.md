@@ -1,4 +1,4 @@
-# Architecture - Agentic ML Workbench
+# Architecture - Maha AI Intelligence Foundry
 
 An industry-agnostic, LLM-agent-driven decision-support workbench. A user
 uploads a spreadsheet; agents screen it for personal data, profile it, propose

@@ -4,7 +4,8 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-**Agentic ML Workbench** - an industry-agnostic, LLM-agent-driven decision-support
+**Maha AI Intelligence Foundry** - an industry-agnostic, LLM-agent-driven
+decision-support
 POC for administrative/policy stakeholders. A user uploads a CSV into a project;
 agents screen it for PII, profile it, propose fixes and features, recommend a
 model, and - with the human approving each step - train it and explain the
@@ -12,15 +13,27 @@ results as a decision brief with charts, trust tiers, and a critic review.
 Trained models live in a versioned registry with scoring, drift monitoring,
 what-if scenarios, and an approval-gated intake inbox for recurring files.
 Every decision lands on a visible timeline and in the unified activity log.
-UI design system: RoleSprint dark-first language (rolesprint.io) - near-black
-surfaces (#07080c page, #11141d cards), translucent white hairline borders,
-light ink (#eef0f6), periwinkle accent (#6e8bff), teal/violet secondary
-accents, gradient pill CTAs, Plus Jakarta Sans. A light twin theme flips via
-data-theme="light" on <html> (toolbar Sun/Moon toggle, persisted). ALL colors
-flow from semantic tokens in frontend/src/index.css - never hardcode hex in
+UI design system: Maha AI language (mahaai.fin100x.ai), LIGHT-FIRST - white
+paper (#ffffff page and cards), navy #1a2e5e, gold #c9a028 and saffron
+#e07b2a, ink #1a2233 on #e7ebf3 hairlines, serif throughout ('Times New
+Roman', Times, Georgia), Noto Sans Devanagari for mr/hi. Buttons are 4px
+rectangles with uppercase 0.05em labels (primary = flat saffron, NOT a pill
+or a gradient); cards are 14px; the container is 1170px; the top bar is a
+navy band (#0a1430e0, blur 14px, gold hairline) that stays navy over the
+paper page. Eyebrows are 12px uppercase at 0.22em. The saffron-to-gold
+gradient is reserved for rules, stat figures and one hero accent. Nest
+`.maha-band` for a navy section - it re-declares the same tokens, so one
+card component reads correctly on paper and on navy. A navy twin flips via
+data-theme="dark" on <html> (toolbar Sun/Moon toggle, persisted); each theme
+also declares color-scheme so native widgets follow. ALL colors flow from
+semantic tokens in frontend/src/index.css - never hardcode hex in
 components; charts read the --chart-* variables so they flip with the theme.
 Primitives in frontend/src/components/ui.tsx. Judgment colors (green/amber/
-red) stay reserved for judgment states in both themes.
+red) stay reserved for judgment states in both themes and are NOT in the
+chart series ramp. Two deliberate departures from the site, both for
+accessibility: its 12px gold/saffron eyebrows measure 3.5:1 on white and its
+white-on-saffron button 2.98:1, so eyebrows use darker -ink variants and the
+button takes navy ink on the same saffron.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 

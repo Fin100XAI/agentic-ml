@@ -1,4 +1,7 @@
-// Small flat UI primitives: white cards, slate borders, royal blue accent.
+// Shared primitives in the Maha AI language: paper cards on a gold-tinged
+// hairline at 14px, and buttons as 4px rectangles with uppercase tracked
+// labels - the site uses a flat saffron rectangle for its primary action,
+// not a pill and not a gradient. Every screen inherits its look from here.
 import { clsx } from "clsx";
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 
@@ -6,7 +9,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={clsx(
-        "glass rounded-2xl border border-edge shadow-[0_1px_2px_rgb(0_0_0/0.2),0_12px_32px_-16px_rgb(0_0_0/0.4)]",
+        "rounded-[14px] border border-edge bg-panel shadow-[var(--maha-sh)]",
         className,
       )}
       {...props}
@@ -52,13 +55,15 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out",
+        "inline-flex items-center justify-center gap-2 rounded font-medium uppercase tracking-[0.05em] transition-[transform,background-color,border-color,color,box-shadow] duration-150 ease-out",
         "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100",
-        size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
+        size === "sm" ? "px-3.5 py-2 text-[11px]" : "px-[22px] py-3 text-[13px]",
+        // Navy ink rather than the site's white: white on this saffron is
+        // 2.98:1, under AA at 13px. Same saffron, readable label.
         variant === "primary" &&
-          "rounded-full bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] font-semibold text-[#07080c] hover:shadow-[0_10px_36px_-10px_#6e8bff99]",
+          "bg-maha-saffron text-maha-navy-ink hover:bg-maha-saffron-deep",
         variant === "outline" &&
-          "border border-edge bg-panel text-ink shadow-sm hover:border-accent/50 hover:text-accent hover:shadow",
+          "border border-edge bg-panel text-ink hover:border-accent/50 hover:text-accent",
         variant === "ghost" && "bg-transparent text-ink-dim hover:bg-panel-2 hover:text-ink",
         className,
       )}
