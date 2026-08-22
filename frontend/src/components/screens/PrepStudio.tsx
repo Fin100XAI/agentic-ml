@@ -98,6 +98,7 @@ export function PrepStudio({
   projectId,
   embedded = false,
   onRegistered,
+  onContinue,
 }: {
   /** Register the prepared table INTO this project, so it lands in the
    *  library beside the files that were uploaded directly. */
@@ -107,6 +108,9 @@ export function PrepStudio({
   /** A prepared table is a new upload - hand it back so the caller can
    *  send the officer straight on to explore it or model it. */
   onRegistered?: (ds: { datasetId: string; filename: string; rows: number }) => void;
+  /** Continue into analysis. Offered at the point the table is proven, so
+   *  preparing and analysing read as one pipeline rather than two errands. */
+  onContinue?: (choice: "explore" | "ask", ds: { datasetId: string; filename: string }) => void;
 } = {}) {
   const [step, setStep] = useState(0);
   const [sid, setSid] = useState<string | null>(null);
@@ -124,7 +128,7 @@ export function PrepStudio({
   const [steps, setSteps] = useState<string[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [dictionary, setDictionary] = useState("");
-  const [registered, setRegistered] = useState<{ filename: string; rows: number } | null>(null);
+  const [registered, setRegistered] = useState<{ dataset_id: string; filename: string; rows: number } | null>(null);
   const [dsName, setDsName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -252,22 +256,26 @@ export function PrepStudio({
   return (
     <Shell>
       <>
-        {/* Header + stepper */}
-        <div className={embedded ? "hidden" : "text-center"}>
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
-            Data Prep Studio · prototype
-          </p>
-          <h1 className="mx-auto mt-2 max-w-2xl text-balance text-2xl font-extrabold tracking-tight md:text-3xl">
-            Any data in,{" "}
-            <span className="bg-[linear-gradient(100deg,#45e0c8,#6e8bff_55%,#b98cff)] bg-clip-text text-transparent">
-              a table with a contract out.
-            </span>
-          </h1>
-          <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-ink-dim">
-            The agents read the data first, then ask you only what they could not work out.
-            You decide every step; the studio proves the result matches what you agreed.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-1">
+        {/* Header + stepper. Embedding hides only the standalone PAGE title -
+            the app shell already carries one - but the stepper stays either
+            way: without it the studio is a series of unlabelled cards and
+            you cannot see that five steps exist, let alone where you are. */}
+        <div className="text-center">
+          {!embedded && (
+            <>
+              <p className="maha-eyebrow">Data Prep Studio · prototype</p>
+              <h1 className="maha-display mx-auto mt-2 max-w-2xl text-balance text-2xl md:text-3xl">
+                Any data in,{" "}
+                <span className="maha-gold-text">a table with a contract out.</span>
+              </h1>
+              <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-ink-dim">
+                The agents read the data first, then ask you only what they could not work
+                out. You decide every step; the studio proves the result matches what you
+                agreed.
+              </p>
+            </>
+          )}
+          <div className={`flex flex-wrap items-center justify-center gap-1 ${embedded ? "" : "mt-5"}`}>
             {STEPS.map((s, i) => (
               <div key={s} className="flex items-center gap-1">
                 {i > 0 && <div className="h-px w-5 bg-edge" />}
@@ -743,15 +751,39 @@ export function PrepStudio({
                 </div>
                 {registered ? (
                   <div className="rounded-xl border border-good/40 bg-good/5 px-4 py-3">
-                    <p className="text-sm font-semibold text-good">Added to your workspace</p>
+                    <p className="text-sm font-semibold text-good">
+                      Checked, proven and added to your workspace
+                    </p>
                     <p className="mt-1 text-xs text-ink-dim">
                       '{registered.filename}' ({registered.rows.toLocaleString()} rows) is now an
                       ordinary dataset, exactly as if you had uploaded it - with its recipe kept, so
                       next month's file can be prepared the same way in one step.
-                      {embedded
+                      {!onContinue && (embedded
                         ? " It is in your library now; explore it or train on it from there."
-                        : " Open the main app to explore it or train on it."}
+                        : " Open the main app to explore it or train on it.")}
                     </p>
+                    {/* The pipeline continues here rather than ending. Still a
+                        decision - the agents only run once you say so. */}
+                    {onContinue && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-good/25 pt-3">
+                        <span className="text-xs text-ink-dim">Now analyse it:</span>
+                        <Button
+                          size="sm"
+                          onClick={() => onContinue("explore", {
+                            datasetId: registered.dataset_id, filename: registered.filename })}
+                        >
+                          Explore the findings <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onContinue("ask", {
+                            datasetId: registered.dataset_id, filename: registered.filename })}
+                        >
+                          Ask a question
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center justify-between gap-2">

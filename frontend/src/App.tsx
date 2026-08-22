@@ -31,8 +31,11 @@ import type { AssemblyProposal, JoinSuggestion, ModelInfo, PiiFinding, Project, 
 
 type Screen = "projects" | "home" | "upload" | "prep" | "library" | "eda" | "configure" | "results" | "compare" | "report" | "activity" | "about" | "ask" | "analytics";
 
+// Every analysis now begins in the Prep Studio - the file is profiled and
+// proven against a schema contract before anything is explored or trained -
+// so Prepare is step one on both roads, not a side door.
 const STEPS: { key: Screen; label: string }[] = [
-  { key: "upload", label: "Upload" },
+  { key: "prep", label: "Prepare" },
   { key: "eda", label: "Explore" },
   { key: "configure", label: "Model" },
   { key: "results", label: "Results" },
@@ -40,7 +43,7 @@ const STEPS: { key: Screen; label: string }[] = [
 
 // The analytics road has its own visible workflow, mirroring the ML stepper.
 const ANALYTICS_STEPS: { key: Screen; label: string }[] = [
-  { key: "upload", label: "Upload" },
+  { key: "prep", label: "Prepare" },
   { key: "analytics", label: "Findings" },
   { key: "ask", label: "Ask" },
 ];
@@ -49,7 +52,7 @@ const GUIDE: Record<Screen, string> = {
   projects: "",
   home: "",
   library: "Every file in this project and every analysis run against it - pick up where you left off, no re-uploading.",
-  prep: "Turn a messy workbook into a clean table with a contract. What comes out is registered as an ordinary dataset, ready to explore or model.",
+  prep: "Step 1 - Every analysis starts here. The agents read the file, propose fixes, and prove the result against a schema contract you approve; then you carry straight on into the analysis.",
   upload: "Step 1 - Pick any CSV file. The agents will figure out what's inside.",
   eda: "Step 2 - Review what the EDA agent found, tell it what you want to learn, then approve.",
   configure:
@@ -164,8 +167,6 @@ function App() {
   // The post-upload fork: analytics (explore + ask, no training) vs model path.
   const [pathOffer, setPathOffer] = useState<{ datasetId: string; filename: string; question: string } | null>(null);
   const [analyticsCtx, setAnalyticsCtx] = useState<{ datasetId: string; filename: string } | null>(null);
-  // A table just registered from the Prep Studio, awaiting its onward choice.
-  const [preparedDs, setPreparedDs] = useState<{ datasetId: string; filename: string } | null>(null);
   const [routeOffer, setRouteOffer] = useState<{
     runId: string; datasetId: string; filename: string; question: string;
     route: "direct_query" | "both"; reasoning: string;
@@ -640,12 +641,17 @@ function App() {
     api.listRuns(p.id).then((r) => setRecentRuns(r.runs)).catch(() => {});
   };
 
+  // Every new analysis starts by preparing the file. The studio profiles it,
+  // proves it against a schema contract and registers it, and only then does
+  // the analysis begin - so nothing is explored or trained on data that has
+  // not been looked at first. A file that is already clean passes through in
+  // a few clicks; the checking still happens.
   const startOver = () => {
     setRun(null);
     setError(null);
     setPreferredModel(undefined);
     setRetrainPrefill(null);
-    setScreen("upload");
+    setScreen("prep");
   };
 
   // Which workflow the stepper shows: the analytics road for its screens,
@@ -968,73 +974,30 @@ function App() {
               setScreen("ask");
             }}
             onOpenRun={handleResume}
-            onUpload={() => setScreen("upload")}
             onPrep={() => setScreen("prep")}
             onRetrain={handleRetrain}
           />
         )}
 
-        {/* A prepared table is registered into the project and is then an
-            ordinary dataset - so the studio offers the same onward choices
-            an upload reaches, rather than dead-ending at "registered". */}
+        {/* Preparing IS the start of an analysis, not a detour before one.
+            The studio checks the file, proves it against the contract and
+            registers it, then offers the onward step from inside its own
+            last card - so the officer never has to work out where the
+            prepared table went. */}
         {screen === "prep" && (
-          <div className="space-y-5">
-            {preparedDs && (
-              <Card className="border-good/40">
-                <CardBody className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-good">
-                      '{preparedDs.filename}' is ready to use
-                    </p>
-                    <p className="mt-0.5 text-xs text-ink-dim">
-                      It is a normal dataset now - in your library, and open to the same
-                      two paths as any upload.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setAnalyticsCtx(preparedDs);
-                        setPreparedDs(null);
-                        setScreen("analytics");
-                      }}
-                    >
-                      Explore findings
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setAskCtx(preparedDs);
-                        setPreparedDs(null);
-                        setScreen("ask");
-                      }}
-                    >
-                      Ask a question
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setPreparedDs(null);
-                        setScreen("library");
-                      }}
-                    >
-                      Go to library
-                    </Button>
-                  </div>
-                </CardBody>
-              </Card>
-            )}
-            <PrepStudio
-              embedded
-              projectId={project?.id}
-              onRegistered={({ datasetId, filename }) =>
-                setPreparedDs({ datasetId, filename })
+          <PrepStudio
+            embedded
+            projectId={project?.id}
+            onContinue={(choice, ds) => {
+              if (choice === "explore") {
+                setAnalyticsCtx(ds);
+                setScreen("analytics");
+              } else {
+                setAskCtx(ds);
+                setScreen("ask");
               }
-            />
-          </div>
+            }}
+          />
         )}
 
         {screen === "eda" && run?.profile && run.eda && (

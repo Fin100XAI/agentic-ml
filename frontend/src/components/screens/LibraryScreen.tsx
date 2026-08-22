@@ -53,7 +53,6 @@ export function LibraryScreen({
   onExplore,
   onAsk,
   onOpenRun,
-  onUpload,
   onPrep,
   onRetrain,
 }: {
@@ -62,7 +61,6 @@ export function LibraryScreen({
   onExplore: (datasetId: string, filename: string) => void;
   onAsk: (datasetId: string, filename: string) => void;
   onOpenRun: (runId: string) => void;
-  onUpload: () => void;
   onPrep: () => void;
   onRetrain?: (entry: RegistryEntry, datasetId: string) => void;
 }) {
@@ -106,11 +104,11 @@ export function LibraryScreen({
           <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             {loading ? <Spinner /> : <RefreshCw className="h-3.5 w-3.5" />} Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={onPrep}>
-            <Wand2 className="h-3.5 w-3.5" /> Prepare a messy file
-          </Button>
-          <Button size="sm" onClick={onUpload}>
-            Upload a file <ArrowRight className="h-3.5 w-3.5" />
+          {/* One way in, so nothing reaches analysis unchecked: adding a file
+              means preparing it. A file that is already clean passes through
+              in a few clicks. */}
+          <Button size="sm" onClick={onPrep}>
+            <Wand2 className="h-3.5 w-3.5" /> Add a file <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -125,8 +123,8 @@ export function LibraryScreen({
           <Card className="mt-3">
             <CardBody>
               <p className="text-sm text-ink-dim">
-                No files yet. Upload one, or run a messy workbook through the Prep Studio
-                first - a prepared table arrives here as an ordinary dataset.
+                No files yet. Add one and the Prep Studio will read it, propose fixes and
+                prove the result before it lands here as a dataset.
               </p>
             </CardBody>
           </Card>
